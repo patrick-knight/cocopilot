@@ -5,6 +5,7 @@
  *  /                        → Factory Floor (home)
  *  /repo/:id                → Tempering Station (repository detail)
  *  /repo/:id/worker/:name   → Truffle Inspector (worker detail)
+ *  /repo/:id/prs            → PR Pipeline (pipeline visualization)
  *  /logs                    → Batch Log (placeholder)
  *  /config                  → Recipe Book (placeholder)
  *
@@ -17,6 +18,7 @@ import { Layout } from "./Layout.js";
 import { FactoryFloor } from "./pages/FactoryFloor.js";
 import { TemperingStation } from "../pages/TemperingStation.js";
 import { TruffleInspector } from "./pages/TruffleInspector.js";
+import { PRPipelinePage } from "./pages/PRPipelinePage.js";
 
 // ---------------------------------------------------------------------------
 // Placeholder pages
@@ -81,6 +83,19 @@ function TruffleInspectorPage(): React.ReactElement {
   );
 }
 
+/** Wraps PRPipelinePage with route params and navigation. */
+function PRPipelinePageWrapper(): React.ReactElement {
+  const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
+
+  return (
+    <PRPipelinePage
+      repoId={id ?? ""}
+      onBack={() => navigate(`/repo/${id}`)}
+    />
+  );
+}
+
 // ---------------------------------------------------------------------------
 // App component
 // ---------------------------------------------------------------------------
@@ -93,6 +108,7 @@ export default function App(): React.ReactElement {
           <Route path="/" element={<FactoryFloorPage />} />
           <Route path="/repo/:id" element={<TemperingStationPage />} />
           <Route path="/repo/:id/worker/:name" element={<TruffleInspectorPage />} />
+          <Route path="/repo/:id/prs" element={<PRPipelinePageWrapper />} />
           <Route path="/logs" element={<BatchLog />} />
           <Route path="/config" element={<RecipeBook />} />
         </Routes>
