@@ -3,6 +3,9 @@
  *
  * Provides hooks that manage Socket.IO connections and subscriptions
  * for the Tempering Station page components.
+ *
+ * Includes error state tracking, auto-reconnect with exponential backoff,
+ * and an offline indicator for connection status awareness.
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -22,34 +25,113 @@ import type {
 type TypedSocket = Socket<ServerToClientEvents, ClientToServerEvents>;
 
 // ---------------------------------------------------------------------------
-// useSocket – singleton connection
+// Reconnect constants
+// ---------------------------------------------------------------------------
+
+const INITIAL_BACKOFF_MS = 1000;
+const MAX_BACKOFF_MS = 30_000;
+const BACKOFF_MULTIPLIER = 2;
+
+// ---------------------------------------------------------------------------
+// useSocket – singleton connection with auto-reconnect
 // ---------------------------------------------------------------------------
 
 let sharedSocket: TypedSocket | null = null;
+let refCount = 0;
+
+export interface UseSocketResult {
+  socket: TypedSocket | null;
+  error: string | null;
+  offline: boolean;
+}
 
 /**
- * Returns a shared Socket.IO client instance.
- * Lazily connects on first use and disconnects when all consumers unmount.
+ * Returns a shared Socket.IO client instance with connection error state
+ * and an offline indicator. Automatically reconnects with exponential backoff
+ * (1 s → 2 s → 4 s → … → 30 s cap) when the connection drops.
  */
-export function useSocket(): TypedSocket | null {
+export function useSocket(): UseSocketResult {
   const [socket, setSocket] = useState<TypedSocket | null>(sharedSocket);
-  const refCount = useRef(0);
+  const [error, setError] = useState<string | null>(null);
+  const [offline, setOffline] = useState(!navigator.onLine);
+  const backoffRef = useRef(INITIAL_BACKOFF_MS);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    refCount.current += 1;
+    refCount += 1;
 
     if (!sharedSocket) {
       sharedSocket = io(window.location.origin, {
         transports: ["websocket", "polling"],
         autoConnect: true,
+        reconnection: false, // we handle reconnection ourselves
       }) as TypedSocket;
     }
 
-    setSocket(sharedSocket);
+    const s = sharedSocket;
+    setSocket(s);
+
+    const scheduleReconnect = () => {
+      if (timerRef.current) return; // already scheduled
+      timerRef.current = setTimeout(() => {
+        timerRef.current = null;
+        if (s.disconnected) {
+          s.connect();
+        }
+        backoffRef.current = Math.min(backoffRef.current * BACKOFF_MULTIPLIER, MAX_BACKOFF_MS);
+      }, backoffRef.current);
+    };
+
+    const onConnect = () => {
+      setError(null);
+      setOffline(false);
+      backoffRef.current = INITIAL_BACKOFF_MS;
+    };
+
+    const onDisconnect = (reason: string) => {
+      // "io server disconnect" means the server intentionally closed;
+      // everything else warrants an auto-reconnect attempt.
+      if (reason !== "io server disconnect") {
+        setError("Connection lost. Reconnecting...");
+        scheduleReconnect();
+      }
+    };
+
+    const onConnectError = () => {
+      setError("Unable to connect to server. Retrying...");
+      scheduleReconnect();
+    };
+
+    // Track browser online/offline
+    const onOnline = () => {
+      setOffline(false);
+      if (s.disconnected) {
+        backoffRef.current = INITIAL_BACKOFF_MS;
+        s.connect();
+      }
+    };
+    const onOffline = () => setOffline(true);
+
+    s.on("connect", onConnect);
+    s.on("disconnect", onDisconnect);
+    s.on("connect_error", onConnectError);
+    window.addEventListener("online", onOnline);
+    window.addEventListener("offline", onOffline);
 
     return () => {
-      refCount.current -= 1;
-      if (refCount.current === 0 && sharedSocket) {
+      s.off("connect", onConnect);
+      s.off("disconnect", onDisconnect);
+      s.off("connect_error", onConnectError);
+      window.removeEventListener("online", onOnline);
+      window.removeEventListener("offline", onOffline);
+
+      if (timerRef.current) {
+        clearTimeout(timerRef.current);
+        timerRef.current = null;
+      }
+
+      refCount -= 1;
+      if (refCount === 0 && sharedSocket) {
         sharedSocket.disconnect();
         sharedSocket = null;
         setSocket(null);
@@ -57,7 +139,7 @@ export function useSocket(): TypedSocket | null {
     };
   }, []);
 
-  return socket;
+  return { socket, error, offline };
 }
 
 // ---------------------------------------------------------------------------
@@ -76,7 +158,7 @@ export interface UseRepoStateResult {
  * Subscribes to a repository's state and provides live agent/worker updates.
  */
 export function useRepoState(repoName: string): UseRepoStateResult {
-  const socket = useSocket();
+  const { socket, error: socketError } = useSocket();
   const [repo, setRepo] = useState<RepoState | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -131,10 +213,6 @@ export function useRepoState(repoName: string): UseRepoStateResult {
     socket.on("worker:update", handleWorkerUpdate);
     socket.on("worker:removed", handleWorkerRemoved);
 
-    socket.on("connect_error", () => {
-      setError("Connection lost. Reconnecting...");
-    });
-
     return () => {
       socket.emit("repo:unsubscribe", repoName);
       socket.off("repo:state", handleRepoState);
@@ -144,7 +222,7 @@ export function useRepoState(repoName: string): UseRepoStateResult {
     };
   }, [socket, repoName]);
 
-  return { repo, agents, workers, loading, error };
+  return { repo, agents, workers, loading, error: error ?? socketError };
 }
 
 // ---------------------------------------------------------------------------
@@ -161,7 +239,7 @@ export interface UseAgentStreamResult {
  * Maintains a buffer of recent lines (capped at `maxLines`).
  */
 export function useAgentStream(agentName: string | null, maxLines = 500): UseAgentStreamResult {
-  const socket = useSocket();
+  const { socket } = useSocket();
   const [lines, setLines] = useState<AgentOutputLine[]>([]);
 
   const clear = useCallback(() => setLines([]), []);
@@ -198,7 +276,7 @@ export function useAgentStream(agentName: string | null, maxLines = 500): UseAge
 // ---------------------------------------------------------------------------
 
 export function usePRPipeline(): PRPipelineEntry[] {
-  const socket = useSocket();
+  const { socket } = useSocket();
   const [prs, setPrs] = useState<PRPipelineEntry[]>([]);
 
   useEffect(() => {
@@ -230,7 +308,7 @@ export function usePRPipeline(): PRPipelineEntry[] {
 // ---------------------------------------------------------------------------
 
 export function useMessageQueue(): MessageEntry[] {
-  const socket = useSocket();
+  const { socket } = useSocket();
   const [messages, setMessages] = useState<MessageEntry[]>([]);
 
   useEffect(() => {

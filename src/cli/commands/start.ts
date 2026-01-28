@@ -14,12 +14,26 @@ export function registerStartCommand(program: Command): void {
         return;
       }
 
-      console.log("Starting CoCoPilot daemon...");
-      if (options.ui) {
-        console.log(`Dashboard will be available at http://localhost:${port}`);
-      }
+      try {
+        console.log("Starting CoCoPilot daemon...");
+        if (options.ui) {
+          console.log(`Dashboard will be available at http://localhost:${port}`);
+        }
 
-      // TODO: Implement actual daemon startup (Docker container orchestration)
-      console.log("Daemon started successfully.");
+        // TODO: Implement actual daemon startup (Docker container orchestration)
+        console.log("Daemon started successfully.");
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : String(err);
+        if (message.includes("ENOENT") || message.includes("docker")) {
+          console.error("Error: Docker is not running. Start Docker Desktop and try again.");
+        } else if (message.includes("EADDRINUSE")) {
+          console.error(`Error: Port ${port} is already in use. Choose a different port with --port.`);
+        } else if (message.includes("EACCES")) {
+          console.error("Error: Permission denied. Try running with elevated privileges.");
+        } else {
+          console.error(`Error: Failed to start daemon — ${message}`);
+        }
+        process.exitCode = 1;
+      }
     });
 }

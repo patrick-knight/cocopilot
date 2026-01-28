@@ -20,6 +20,9 @@ export {
   useMessageQueue,
 } from "./hooks/useSocket.js";
 
+// Hook types
+export type { UseSocketResult, UseRepoStateResult, UseAgentStreamResult } from "./hooks/useSocket.js";
+
 // Types
 export type {
   AgentOutputLine,
