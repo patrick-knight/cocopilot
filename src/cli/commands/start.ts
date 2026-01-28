@@ -1,4 +1,5 @@
 import { Command } from "commander";
+import { startDaemon } from "../daemon.js";
 
 export function registerStartCommand(program: Command): void {
   program
@@ -6,7 +7,8 @@ export function registerStartCommand(program: Command): void {
     .description("Start the Concher daemon and web UI")
     .option("--port <number>", "Port for the web dashboard", "3000")
     .option("--no-ui", "Start daemon without the web UI")
-    .action(async (options: { port: string; ui: boolean }) => {
+    .option("--foreground", "Run in the foreground instead of daemonizing")
+    .action(async (options: { port: string; ui: boolean; foreground: boolean }) => {
       const port = parseInt(options.port, 10);
       if (isNaN(port) || port < 1 || port > 65535) {
         console.error(`Error: Invalid port number "${options.port}"`);
@@ -20,7 +22,8 @@ export function registerStartCommand(program: Command): void {
           console.log(`Dashboard will be available at http://localhost:${port}`);
         }
 
-        // TODO: Implement actual daemon startup (Docker container orchestration)
+        await startDaemon(options.foreground);
+
         console.log("Daemon started successfully.");
       } catch (err: unknown) {
         const message = err instanceof Error ? err.message : String(err);
