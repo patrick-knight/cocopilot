@@ -25,6 +25,7 @@ import {
 import type { ContainerConfig, ContainerInfo } from "../docker/index.js";
 import { MessageBroker, MessageType } from "../messaging/index.js";
 import type { CocoMessage } from "../messaging/index.js";
+import { loadMCPConfig, injectServers } from "../mcp/index.js";
 
 import type {
   ChocolatierConfig,
@@ -249,6 +250,13 @@ export class Chocolatier extends EventEmitter {
       ? `${this.stateManager.getBaseDir()}/repos/${repoName}/messages`
       : `/messages`;
 
+    // Load MCP server config from per-repo .cocopilot/config.json
+    const repoLocalPath = repo?.localPath ?? "";
+    const mcpConfigPath = repoLocalPath
+      ? `${repoLocalPath}/.cocopilot/config.json`
+      : "";
+    const mcpServers = mcpConfigPath ? loadMCPConfig(mcpConfigPath) : [];
+
     const containerConfig: ContainerConfig = {
       type: ContainerType.TRUFFLE,
       image: this.config.agentImage,
@@ -267,6 +275,9 @@ export class Chocolatier extends EventEmitter {
         COCOPILOT_TASK: options.task,
         COCOPILOT_BRANCH: worker.branch,
         ...(options.model ? { COCOPILOT_MODEL: options.model } : {}),
+        ...(mcpServers.length > 0
+          ? { COCOPILOT_MCP_SERVERS: JSON.stringify(mcpServers) }
+          : {}),
       },
       labels: {
         "cocopilot.repository": repoName,
@@ -295,6 +306,7 @@ export class Chocolatier extends EventEmitter {
           branch: worker.branch,
           model: options.model,
           priority: options.priority,
+          ...(mcpServers.length > 0 ? { mcpServers } : {}),
         },
       });
 
