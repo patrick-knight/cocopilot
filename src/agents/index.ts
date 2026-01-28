@@ -42,3 +42,16 @@ export {
   type TrackedEnroberPRState,
   type ExecFn as EnroberExecFn,
 } from "./enrober.js";
+
+export {
+  parseAgentDefinition,
+  loadAllAgents,
+  type ParsedAgentDef,
+  type AgentClass,
+} from "./custom-loader.js";
+
+export {
+  CustomAgent,
+  type CustomAgentStatus,
+  type CustomAgentOptions,
+} from "./custom-agent.js";
