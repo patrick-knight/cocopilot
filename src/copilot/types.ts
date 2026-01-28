@@ -202,3 +202,63 @@ export interface ManagedSession {
   /** Unsubscribe function for the session's event handler. */
   unsubscribe: () => void;
 }
+
+/**
+ * Copilot SDK Tool Definition Types
+ *
+ * Type definitions mirroring the @github/copilot-sdk `defineTool` API.
+ * These types allow implementing Copilot-compatible tools without a
+ * direct SDK dependency, making the tools testable and portable.
+ */
+
+/** JSON Schema property definition for tool parameters. */
+export interface JSONSchemaProperty {
+  type: string;
+  description?: string;
+  enum?: string[];
+}
+
+/** JSON Schema object definition for tool parameters. */
+export interface JSONSchemaObject {
+  type: "object";
+  properties: Record<string, JSONSchemaProperty>;
+  required?: string[];
+}
+
+/**
+ * A Copilot SDK tool definition returned by defineTool.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export interface CopilotToolDefinition<TParams = any, TResult = any> {
+  name: string;
+  description: string;
+  parameters: JSONSchemaObject;
+  handler: (params: TParams) => Promise<TResult>;
+}
+
+/** Configuration passed to defineTool (excludes the name which is the first arg). */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export interface DefineToolConfig<TParams = any, TResult = any> {
+  description: string;
+  parameters: JSONSchemaObject;
+  handler: (params: TParams) => Promise<TResult>;
+}
+
+/**
+ * Create a Copilot SDK tool definition.
+ *
+ * Matches the `defineTool(name, config)` API from `@github/copilot-sdk`.
+ * Each tool has a JSON Schema for its parameters and an async handler.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function defineTool<TParams = any, TResult = any>(
+  name: string,
+  config: DefineToolConfig<TParams, TResult>,
+): CopilotToolDefinition<TParams, TResult> {
+  return {
+    name,
+    description: config.description,
+    parameters: config.parameters,
+    handler: config.handler,
+  };
+}
