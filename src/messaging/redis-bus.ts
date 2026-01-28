@@ -6,7 +6,7 @@
  * Messages are serialized as JSON.
  */
 
-import Redis from "ioredis";
+import { Redis } from "ioredis";
 import {
   CocoMessage,
   MessageHandler,

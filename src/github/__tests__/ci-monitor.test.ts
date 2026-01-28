@@ -9,7 +9,15 @@ import type { CICheck, ParsedCI, WorkflowRun } from "../types";
 
 // --- Helpers ---
 
-function makeCheck(overrides: Partial<CICheck> = {}): CICheck {
+/** Raw gh pr checks output format (uses "state" not "status"). */
+interface RawGHCheck {
+  name: string;
+  state: string;
+  conclusion: string;
+  detailsUrl?: string;
+}
+
+function makeRawCheck(overrides: Partial<RawGHCheck> = {}): RawGHCheck {
   return {
     name: "build",
     state: "COMPLETED",
@@ -19,8 +27,20 @@ function makeCheck(overrides: Partial<CICheck> = {}): CICheck {
   };
 }
 
-function checksJson(checks: Array<Partial<CICheck>>): string {
-  return JSON.stringify(checks.map((c) => makeCheck(c)));
+function checksJson(checks: Array<Partial<RawGHCheck>>): string {
+  return JSON.stringify(checks.map((c) => makeRawCheck(c)));
+}
+
+/** CICheck helper for categorizeFailure tests (uses CICheck interface). */
+function makeCheck(overrides: Partial<CICheck> = {}): CICheck {
+  return {
+    name: "build",
+    status: "COMPLETED",
+    conclusion: "SUCCESS",
+    url: "https://github.com/org/repo/actions/runs/1",
+    detailsUrl: "https://github.com/org/repo/actions/runs/1",
+    ...overrides,
+  };
 }
 
 function makeExecFn(stdout: string): ExecFn {

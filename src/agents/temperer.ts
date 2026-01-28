@@ -62,7 +62,7 @@ export interface CheckInfo {
   name: string;
   state: string;
   conclusion: string;
-  detailsUrl: string;
+  detailsUrl?: string;
 }
 
 /** Aggregated CI status for a PR. */

@@ -1,3 +1,12 @@
+jest.mock("@github/copilot-sdk", () => ({
+  CopilotClient: jest.fn(),
+  CopilotSession: jest.fn(),
+  defineTool: jest.fn((name: string, config: Record<string, unknown>) => ({
+    name,
+    ...config,
+  })),
+}));
+
 import { createProgram } from "../coco.js";
 
 describe("config keys CLI", () => {
