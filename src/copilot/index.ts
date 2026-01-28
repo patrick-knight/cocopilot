@@ -13,7 +13,27 @@ export type {
   ConnectionState,
   SystemMessageConfig,
   ProviderConfig,
-  PermissionHandler,
   CopilotClientOptions,
   SessionConfig,
 } from "./types.js";
+
+export {
+  type CopilotToolDefinition,
+  type DefineToolConfig,
+  type JSONSchemaObject,
+  type JSONSchemaProperty,
+} from "./types.js";
+
+export {
+  createAgentTools,
+  createSendMessageTool,
+  createMarkCompleteTool,
+  createRequestHelpTool,
+  type AgentToolDependencies,
+  type SendMessageParams,
+  type SendMessageResult,
+  type MarkCompleteParams,
+  type MarkCompleteResult,
+  type RequestHelpParams,
+  type RequestHelpResult,
+} from "./tools.js";
