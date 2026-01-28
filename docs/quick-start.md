@@ -147,6 +147,9 @@ Track pull requests through their lifecycle:
 - Draft -> Ready -> CI Running -> CI Passed -> Merged (single-player)
 - Draft -> Ready -> Needs Review -> Approved -> Ready to Merge (multiplayer)
 
+### Metrics Dashboard
+View charts for worker throughput, PR cycle time, CI success rate, and model usage at `http://localhost:3000/metrics`. The page auto-refreshes every 30 seconds.
+
 ### Message Queue Inspector
 Inspect the Ganache Bus message queue -- see messages flowing between agents, pending deliveries, and acknowledgments.
 
@@ -188,4 +191,6 @@ This stops all Docker containers, the daemon process, and the web server.
 ## Next Steps
 
 - [Configuration Reference](configuration.md) -- Customize ports, resource limits, models, and more
+- [API Reference](api-reference.md) -- REST API endpoints for scripts and external integrations
+- [Custom Agents Guide](custom-agents.md) -- Define your own agent types with custom system prompts
 - [Troubleshooting](troubleshooting.md) -- Common issues and how to fix them
