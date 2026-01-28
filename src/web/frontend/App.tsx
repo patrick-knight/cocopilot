@@ -6,7 +6,7 @@
  *  /repo/:id                → Tempering Station (repository detail)
  *  /repo/:id/worker/:name   → Truffle Inspector (worker detail)
  *  /repo/:id/prs            → PR Pipeline (pipeline visualization)
- *  /logs                    → Batch Log (placeholder)
+ *  /logs                    → Batch Log (activity timeline)
  *  /config                  → Recipe Book (placeholder)
  *
  * Wraps all routes in the shared Layout component.
@@ -19,20 +19,11 @@ import { FactoryFloor } from "./pages/FactoryFloor.js";
 import { TemperingStation } from "../pages/TemperingStation.js";
 import { TruffleInspector } from "./pages/TruffleInspector.js";
 import { PRPipelinePage } from "./pages/PRPipelinePage.js";
+import { BatchLog } from "./pages/BatchLog.js";
 
 // ---------------------------------------------------------------------------
 // Placeholder pages
 // ---------------------------------------------------------------------------
-
-/** Batch Log — activity timeline (placeholder). */
-function BatchLog(): React.ReactElement {
-  return (
-    <div className="p-6">
-      <h1 className="text-2xl font-bold text-[#3B1F0B]">Batch Log</h1>
-      <p className="mt-2 text-gray-600">Activity timeline — coming soon.</p>
-    </div>
-  );
-}
 
 /** Recipe Book — configuration management (placeholder). */
 function RecipeBook(): React.ReactElement {
