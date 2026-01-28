@@ -1,0 +1,430 @@
+/**
+ * The Temperer - Merge Queue Agent
+ *
+ * Continuously monitors open PRs from CoCoPilot workers and merges
+ * when CI passes (single-player mode). On CI failure, spawns fixup
+ * workers via the Chocolatier.
+ *
+ * Polls open PRs every 2 minutes (configurable) using `gh pr list`.
+ * Checks CI status via `gh pr checks <number>`.
+ * Auto-merges via `gh pr merge <number> --squash`.
+ */
+
+import { execFile as execFileCb } from "node:child_process";
+import { promisify } from "node:util";
+import {
+  MessageBroker,
+  MessageType,
+  type CocoMessage,
+  type PRCreatedPayload,
+} from "../messaging/index.js";
+
+const execFile = promisify(execFileCb);
+
+const DEFAULT_POLL_INTERVAL_MS = 2 * 60 * 1000; // 2 minutes
+const DEFAULT_AGENT_NAME = "temperer";
+const DEFAULT_CHOCOLATIER_NAME = "chocolatier";
+const DEFAULT_LABEL = "cocopilot";
+
+/** Configuration for the Temperer agent. */
+export interface TempererConfig {
+  /** Path to the git repository to monitor. */
+  repoPath: string;
+  /** MessageBroker instance for inter-agent communication. */
+  broker: MessageBroker;
+  /** Polling interval in milliseconds. Defaults to 120000 (2 min). */
+  pollIntervalMs?: number;
+  /** Agent name for messaging. Defaults to "temperer". */
+  agentName?: string;
+  /** Chocolatier agent name. Defaults to "chocolatier". */
+  chocolatierName?: string;
+  /** PR label used to identify CoCoPilot PRs. Defaults to "cocopilot". */
+  label?: string;
+}
+
+/** A PR returned by `gh pr list`. */
+export interface PRInfo {
+  number: number;
+  title: string;
+  headRefName: string;
+  url: string;
+  author: string;
+}
+
+/** Status of an individual CI check. */
+export interface CheckInfo {
+  name: string;
+  state: string;
+  conclusion: string;
+  detailsUrl: string;
+}
+
+/** Aggregated CI status for a PR. */
+export type CIStatus = "passing" | "failing" | "pending" | "no_checks";
+
+/** Internal tracking state for a PR the Temperer is monitoring. */
+export type TrackedPRState =
+  | "watching"
+  | "merging"
+  | "merged"
+  | "fixup_requested";
+
+export interface TrackedPR {
+  number: number;
+  url: string;
+  title: string;
+  branch: string;
+  state: TrackedPRState;
+  originalWorker?: string;
+  fixupRequestedAt?: number;
+}
+
+/** Function signature used to execute gh CLI commands. Exposed for testing. */
+export type ExecFn = (
+  file: string,
+  args: string[],
+  options: { cwd: string },
+) => Promise<{ stdout: string; stderr: string }>;
+
+/**
+ * The Temperer merge queue agent.
+ *
+ * Lifecycle: create → start() → ... → stop()
+ */
+export class Temperer {
+  private readonly config: Required<
+    Pick<TempererConfig, "repoPath" | "pollIntervalMs" | "agentName" | "chocolatierName" | "label">
+  > & { broker: MessageBroker };
+  private readonly trackedPRs: Map<number, TrackedPR> = new Map();
+  private pollTimer: ReturnType<typeof setInterval> | null = null;
+  private running = false;
+  private readonly execFn: ExecFn;
+
+  constructor(config: TempererConfig, execFn?: ExecFn) {
+    this.config = {
+      repoPath: config.repoPath,
+      broker: config.broker,
+      pollIntervalMs: config.pollIntervalMs ?? DEFAULT_POLL_INTERVAL_MS,
+      agentName: config.agentName ?? DEFAULT_AGENT_NAME,
+      chocolatierName: config.chocolatierName ?? DEFAULT_CHOCOLATIER_NAME,
+      label: config.label ?? DEFAULT_LABEL,
+    };
+    this.execFn = execFn ?? execFile;
+  }
+
+  /** Start the Temperer: subscribe to messages and begin polling. */
+  async start(): Promise<void> {
+    if (this.running) return;
+    this.running = true;
+
+    // Subscribe to incoming messages (e.g., PR_CREATED from Truffles)
+    await this.config.broker.subscribe(
+      this.config.agentName,
+      this.handleMessage.bind(this),
+    );
+
+    // Run first poll immediately, then on interval
+    await this.pollOnce();
+    this.pollTimer = setInterval(() => {
+      this.pollOnce().catch(() => {
+        // Errors are handled within pollOnce; swallow here to keep interval alive
+      });
+    }, this.config.pollIntervalMs);
+  }
+
+  /** Stop polling and unsubscribe from messages. */
+  async stop(): Promise<void> {
+    this.running = false;
+    if (this.pollTimer) {
+      clearInterval(this.pollTimer);
+      this.pollTimer = null;
+    }
+    await this.config.broker.unsubscribe(this.config.agentName);
+  }
+
+  /** Whether the agent is currently running. */
+  get isRunning(): boolean {
+    return this.running;
+  }
+
+  /** Read-only view of tracked PRs. */
+  getTrackedPRs(): ReadonlyMap<number, TrackedPR> {
+    return this.trackedPRs;
+  }
+
+  /**
+   * Execute a single poll cycle:
+   * 1. List open PRs with the cocopilot label
+   * 2. For each PR, check CI status
+   * 3. Merge if passing, request fixup if failing, skip if pending
+   */
+  async pollOnce(): Promise<void> {
+    const prs = await this.listOpenPRs();
+
+    for (const pr of prs) {
+      const tracked = this.trackedPRs.get(pr.number);
+
+      // Skip PRs we've already merged or are currently merging
+      if (tracked?.state === "merged" || tracked?.state === "merging") {
+        continue;
+      }
+
+      // Ensure we're tracking this PR
+      if (!tracked) {
+        this.trackedPRs.set(pr.number, {
+          number: pr.number,
+          url: pr.url,
+          title: pr.title,
+          branch: pr.headRefName,
+          state: "watching",
+        });
+      }
+
+      const { status, failureSummary, workflowUrl } = await this.checkCI(
+        pr.number,
+      );
+
+      switch (status) {
+        case "passing":
+          await this.mergePR(pr);
+          break;
+        case "failing": {
+          const current = this.trackedPRs.get(pr.number)!;
+          // Don't re-request fixup if we already have one in flight
+          if (current.state !== "fixup_requested") {
+            await this.handleCIFailure(
+              pr,
+              failureSummary ?? "CI checks failed",
+              workflowUrl,
+            );
+          }
+          break;
+        }
+        case "pending":
+        case "no_checks":
+          // Nothing to do yet; check again next poll
+          break;
+      }
+    }
+
+    // Clean up tracked PRs that are no longer open
+    const openNumbers = new Set(prs.map((pr) => pr.number));
+    for (const [num, tracked] of this.trackedPRs) {
+      if (!openNumbers.has(num) && tracked.state !== "merged") {
+        this.trackedPRs.delete(num);
+      }
+    }
+  }
+
+  // --- Private helpers ---
+
+  /** Handle incoming messages (e.g., PR_CREATED from Truffles). */
+  private async handleMessage(message: CocoMessage): Promise<void> {
+    if (message.type === MessageType.PR_CREATED) {
+      const payload = message.payload as PRCreatedPayload;
+      this.trackedPRs.set(payload.pr_number, {
+        number: payload.pr_number,
+        url: payload.pr_url,
+        title: payload.title,
+        branch: payload.branch,
+        state: "watching",
+        originalWorker: message.from,
+      });
+    }
+  }
+
+  /** List open PRs with the cocopilot label using `gh pr list`. */
+  async listOpenPRs(): Promise<PRInfo[]> {
+    try {
+      const { stdout } = await this.execFn(
+        "gh",
+        [
+          "pr",
+          "list",
+          "--state",
+          "open",
+          "--label",
+          this.config.label,
+          "--json",
+          "number,title,headRefName,url,author",
+          "--limit",
+          "100",
+        ],
+        { cwd: this.config.repoPath },
+      );
+
+      const raw = JSON.parse(stdout) as Array<{
+        number: number;
+        title: string;
+        headRefName: string;
+        url: string;
+        author: { login: string };
+      }>;
+
+      return raw.map((pr) => ({
+        number: pr.number,
+        title: pr.title,
+        headRefName: pr.headRefName,
+        url: pr.url,
+        author: pr.author.login,
+      }));
+    } catch {
+      return [];
+    }
+  }
+
+  /**
+   * Check CI status for a PR using `gh pr checks`.
+   * Returns aggregated status and failure details if applicable.
+   */
+  async checkCI(prNumber: number): Promise<{
+    status: CIStatus;
+    checks: CheckInfo[];
+    failureSummary?: string;
+    workflowUrl?: string;
+  }> {
+    try {
+      const { stdout } = await this.execFn(
+        "gh",
+        [
+          "pr",
+          "checks",
+          String(prNumber),
+          "--json",
+          "name,state,conclusion,detailsUrl",
+        ],
+        { cwd: this.config.repoPath },
+      );
+
+      const checks = JSON.parse(stdout) as CheckInfo[];
+
+      if (checks.length === 0) {
+        return { status: "no_checks", checks };
+      }
+
+      const failed = checks.filter(
+        (c) => c.conclusion === "FAILURE" || c.conclusion === "failure",
+      );
+      const pending = checks.filter(
+        (c) =>
+          c.state === "PENDING" ||
+          c.state === "pending" ||
+          c.state === "QUEUED" ||
+          c.state === "queued" ||
+          c.state === "IN_PROGRESS" ||
+          c.state === "in_progress",
+      );
+
+      if (failed.length > 0) {
+        const failedNames = failed.map((c) => c.name).join(", ");
+        const failureSummary = `${failed.length} check(s) failed: ${failedNames}`;
+        const workflowUrl = failed[0]?.detailsUrl;
+        return { status: "failing", checks, failureSummary, workflowUrl };
+      }
+
+      if (pending.length > 0) {
+        return { status: "pending", checks };
+      }
+
+      return { status: "passing", checks };
+    } catch {
+      // If gh fails (e.g., no checks configured), treat as no_checks
+      return { status: "no_checks", checks: [] };
+    }
+  }
+
+  /** Merge a PR via `gh pr merge --squash` and notify Chocolatier. */
+  private async mergePR(pr: PRInfo): Promise<void> {
+    const tracked = this.trackedPRs.get(pr.number);
+    if (tracked) {
+      tracked.state = "merging";
+    }
+
+    try {
+      const { stdout } = await this.execFn(
+        "gh",
+        [
+          "pr",
+          "merge",
+          String(pr.number),
+          "--squash",
+          "--delete-branch",
+        ],
+        { cwd: this.config.repoPath },
+      );
+
+      // Extract merge SHA from output or use a placeholder
+      const mergeSha = this.parseMergeSha(stdout);
+
+      if (tracked) {
+        tracked.state = "merged";
+      }
+
+      // Notify Chocolatier of the successful merge
+      await this.config.broker.send({
+        type: MessageType.PR_MERGED,
+        from: this.config.agentName,
+        to: this.config.chocolatierName,
+        payload: {
+          pr_number: pr.number,
+          pr_url: pr.url,
+          merge_sha: mergeSha,
+        },
+      });
+    } catch (err) {
+      // Merge failed - revert to watching so we retry next poll
+      if (tracked) {
+        tracked.state = "watching";
+      }
+      throw err;
+    }
+  }
+
+  /** Handle a CI failure: notify Chocolatier and request a fixup worker. */
+  private async handleCIFailure(
+    pr: PRInfo,
+    failureSummary: string,
+    workflowUrl?: string,
+  ): Promise<void> {
+    const tracked = this.trackedPRs.get(pr.number);
+    if (tracked) {
+      tracked.state = "fixup_requested";
+      tracked.fixupRequestedAt = Date.now();
+    }
+
+    // Send CI_FAILED notification
+    await this.config.broker.send({
+      type: MessageType.CI_FAILED,
+      from: this.config.agentName,
+      to: this.config.chocolatierName,
+      payload: {
+        pr_number: pr.number,
+        pr_url: pr.url,
+        failure_summary: failureSummary,
+        workflow_url: workflowUrl,
+      },
+      priority: "high",
+    });
+
+    // Request fixup worker via SPAWN_FIXUP
+    await this.config.broker.send({
+      type: MessageType.SPAWN_FIXUP,
+      from: this.config.agentName,
+      to: this.config.chocolatierName,
+      payload: {
+        pr_number: pr.number,
+        pr_url: pr.url,
+        failure_summary: failureSummary,
+        original_worker: tracked?.originalWorker ?? "unknown",
+      },
+      priority: "high",
+    });
+  }
+
+  /** Try to extract a merge SHA from gh pr merge output. */
+  private parseMergeSha(output: string): string {
+    // gh pr merge output may contain the merge commit SHA
+    const match = /([0-9a-f]{40})/i.exec(output);
+    return match ? match[1] : "unknown";
+  }
+}
