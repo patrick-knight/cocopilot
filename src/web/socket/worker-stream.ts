@@ -1,5 +1,5 @@
 /**
- * Worker Stream — Socket.IO ↔ Redis Bridge
+ * Worker Stream — Socket.IO <-> Redis Bridge
  *
  * Bridges Redis pub/sub stream channels to Socket.IO rooms so the
  * Truffle Inspector page can receive real-time output from a worker.
@@ -13,6 +13,15 @@
  *   worker:status     — worker status change
  *   worker:completed  — worker task completed
  *   worker:failed     — worker task failed
+ *
+ * Batched variants (via MessageBatcher):
+ *   batch:worker:output     — array of output events
+ *   batch:worker:status     — array of status events
+ *   batch:worker:completed  — array of completion events
+ *
+ * Room-based subscriptions:
+ *   worker:{name}  — per-worker output rooms (existing)
+ *   repo:{id}      — per-repository event rooms (new)
  */
 
 /**
@@ -34,6 +43,7 @@ interface SocketIOServer {
   on(event: string, handler: (...args: any[]) => void): void;
   to(room: string): SocketIORoom;
   in(room: string): SocketIORoom;
+  emit(event: string, data: unknown): void;
 }
 
 interface RedisSubscriber {
@@ -48,6 +58,7 @@ import {
   streamChannel,
 } from "../../messaging/index.js";
 import type { StateManager } from "../../state/index.js";
+import { MessageBatcher } from "./batching.js";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -61,6 +72,8 @@ export interface WorkerStreamConfig {
   redisSub: RedisSubscriber;
   /** StateManager for worker state change events. */
   stateManager: StateManager;
+  /** Batching window in milliseconds. Defaults to 100. */
+  batchWindowMs?: number;
 }
 
 /** Output event sent to Socket.IO clients. */
@@ -95,6 +108,14 @@ export interface WorkerCompletionEvent {
  * Manages Socket.IO rooms for individual workers, subscribing to their
  * Redis stream channels when clients join and cleaning up when they leave.
  *
+ * Integrates with {@link MessageBatcher} to aggregate high-frequency events
+ * (e.g. worker output) over configurable time windows and emit batched
+ * arrays, reducing per-frame overhead.
+ *
+ * Supports room-based selective subscriptions:
+ * - `worker:{name}` — receive output for a specific worker
+ * - `repo:{id}`     — receive events for all workers in a repository
+ *
  * Usage:
  * ```ts
  * const wsm = new WorkerStreamManager(config);
@@ -107,6 +128,7 @@ export class WorkerStreamManager {
   private readonly io: SocketIOServer;
   private readonly redisSub: RedisSubscriber;
   private readonly stateManager: StateManager;
+  private readonly batcher: MessageBatcher;
 
   /** Set of worker names with active Redis subscriptions. */
   private subscribedWorkers = new Set<string>();
@@ -116,6 +138,12 @@ export class WorkerStreamManager {
     this.io = config.io;
     this.redisSub = config.redisSub;
     this.stateManager = config.stateManager;
+
+    this.batcher = new MessageBatcher({
+      windowMs: config.batchWindowMs ?? 100,
+      roomResolver: (room: string) => this.io.to(room),
+      broadcastEmitter: { emit: (event, data) => this.io.emit(event, data) },
+    });
   }
 
   /**
@@ -124,6 +152,9 @@ export class WorkerStreamManager {
   async start(): Promise<void> {
     if (this.started) return;
     this.started = true;
+
+    // Start the batcher
+    this.batcher.start();
 
     // Subscribe to completions channel (always active)
     await this.redisSub.subscribe(COMPLETIONS_CHANNEL);
@@ -143,7 +174,17 @@ export class WorkerStreamManager {
           timestamp: Date.now(),
           error: worker.error,
         };
+
+        // Emit unbatched for immediate status visibility
         this.io.to(`worker:${worker.name}`).emit("worker:status", event);
+
+        // Also batch to repo room for dashboard consumers
+        this.batcher.enqueue({
+          event: "worker:status",
+          data: event,
+          room: `repo:${repoName}`,
+          dedupeKey: `worker-status:${worker.name}`,
+        });
       },
     );
 
@@ -159,6 +200,9 @@ export class WorkerStreamManager {
   async stop(): Promise<void> {
     if (!this.started) return;
     this.started = false;
+
+    // Stop the batcher (flushes remaining events)
+    this.batcher.stop();
 
     // Unsubscribe from all worker channels
     const channels = [
@@ -201,6 +245,18 @@ export class WorkerStreamManager {
       if (roomSockets.length === 0) {
         await this.unsubscribeFromWorker(workerName);
       }
+    });
+
+    // Client joins a repo room (selective subscription)
+    socket.on("repo:join", async (repoId: string) => {
+      if (typeof repoId !== "string" || repoId.length === 0) return;
+      await socket.join(`repo:${repoId}`);
+    });
+
+    // Client leaves a repo room
+    socket.on("repo:leave", async (repoId: string) => {
+      if (typeof repoId !== "string" || repoId.length === 0) return;
+      await socket.leave(`repo:${repoId}`);
     });
 
     // Clean up on disconnect
@@ -263,7 +319,13 @@ export class WorkerStreamManager {
         timestamp: Date.now(),
       };
 
-      this.io.to(`worker:${workerName}`).emit("worker:output", event);
+      // Batch high-frequency output events
+      this.batcher.enqueue({
+        event: "worker:output",
+        data: event,
+        room: `worker:${workerName}`,
+        // No dedupeKey — each output line is unique
+      });
     } catch {
       // Non-JSON message — emit as raw output
       const event: WorkerOutputEvent = {
@@ -272,7 +334,11 @@ export class WorkerStreamManager {
         content: raw,
         timestamp: Date.now(),
       };
-      this.io.to(`worker:${workerName}`).emit("worker:output", event);
+      this.batcher.enqueue({
+        event: "worker:output",
+        data: event,
+        room: `worker:${workerName}`,
+      });
     }
   }
 
@@ -294,6 +360,7 @@ export class WorkerStreamManager {
         timestamp: parsed.timestamp ?? Date.now(),
       };
 
+      // Completion events are rare — emit immediately (not batched)
       this.io
         .to(`worker:${parsed.agent}`)
         .emit("worker:completed", event);

@@ -1,5 +1,5 @@
 /**
- * Tests for the WorkerStreamManager (Socket.IO ↔ Redis bridge).
+ * Tests for the WorkerStreamManager (Socket.IO <-> Redis bridge).
  */
 
 import { EventEmitter } from "node:events";
@@ -23,13 +23,13 @@ class MockSocket extends EventEmitter {
 
 class MockSocketIOServer extends EventEmitter {
   private rooms = new Map<string, Set<MockSocket>>();
+  emitMock = jest.fn();
 
   to(room: string) {
     const self = this;
     return {
       emit: jest.fn((event: string, data: unknown) => {
-        // Track emitted events for assertions
-        (self as any).__lastEmit = { room, event, data };
+        self.emitMock(room, event, data);
       }),
       fetchSockets: jest.fn(async () => {
         return Array.from(self.rooms.get(room) ?? []);
@@ -70,6 +70,8 @@ function createConfig(): {
       io: io as any,
       redisSub: redisSub as any,
       stateManager: stateManager as any,
+      // Use a very short batch window so tests run quickly
+      batchWindowMs: 10,
     },
     redisSub,
     io,
@@ -88,6 +90,7 @@ describe("WorkerStreamManager", () => {
       const manager = new WorkerStreamManager(config);
 
       await manager.start();
+      await manager.stop();
 
       expect(redisSub.subscribe).toHaveBeenCalledWith(COMPLETIONS_CHANNEL);
     });
@@ -98,6 +101,7 @@ describe("WorkerStreamManager", () => {
 
       await manager.start();
       await manager.start();
+      await manager.stop();
 
       // Should only subscribe once
       expect(redisSub.subscribe).toHaveBeenCalledTimes(1);
@@ -145,6 +149,8 @@ describe("WorkerStreamManager", () => {
       expect(redisSub.subscribe).toHaveBeenCalledWith(
         streamChannel("Snickers"),
       );
+
+      await manager.stop();
     });
 
     it("ignores invalid worker names", async () => {
@@ -162,78 +168,123 @@ describe("WorkerStreamManager", () => {
 
       // Should only have the initial completions subscription
       expect(redisSub.subscribe).toHaveBeenCalledTimes(1);
+
+      await manager.stop();
+    });
+
+    it("joins repo room on repo:join event", async () => {
+      const { config, io } = createConfig();
+      const manager = new WorkerStreamManager(config);
+      await manager.start();
+
+      const socket = new MockSocket();
+      io.emit("connection", socket);
+
+      socket.emit("repo:join", "my-repo");
+
+      await new Promise((r) => setTimeout(r, 10));
+
+      expect(socket.join).toHaveBeenCalledWith("repo:my-repo");
+
+      await manager.stop();
+    });
+
+    it("leaves repo room on repo:leave event", async () => {
+      const { config, io } = createConfig();
+      const manager = new WorkerStreamManager(config);
+      await manager.start();
+
+      const socket = new MockSocket();
+      io.emit("connection", socket);
+
+      socket.emit("repo:leave", "my-repo");
+
+      await new Promise((r) => setTimeout(r, 10));
+
+      expect(socket.leave).toHaveBeenCalledWith("repo:my-repo");
+
+      await manager.stop();
+    });
+
+    it("ignores invalid repo identifiers", async () => {
+      const { config, io } = createConfig();
+      const manager = new WorkerStreamManager(config);
+      await manager.start();
+
+      const socket = new MockSocket();
+      io.emit("connection", socket);
+
+      socket.emit("repo:join", "");
+      socket.emit("repo:join", 42);
+
+      await new Promise((r) => setTimeout(r, 10));
+
+      expect(socket.join).not.toHaveBeenCalled();
+
+      await manager.stop();
     });
   });
 
   describe("Redis message handling", () => {
-    it("emits worker:output to the correct room on stream message", async () => {
+    it("batches worker:output events from stream messages", async () => {
       const { config, redisSub, io } = createConfig();
       const manager = new WorkerStreamManager(config);
       await manager.start();
-
-      // Track emitted events
-      const emitMock = jest.fn();
-      const originalTo = io.to.bind(io);
-      io.to = jest.fn((room: string) => {
-        const result = originalTo(room);
-        result.emit = emitMock;
-        return result;
-      }) as any;
 
       // Simulate Redis message on stream channel
       const channel = streamChannel("Snickers");
       const payload = JSON.stringify({ type: "output", content: "Hello world" });
       redisSub.emit("message", channel, payload);
 
-      expect(io.to).toHaveBeenCalledWith("worker:Snickers");
-      expect(emitMock).toHaveBeenCalledWith(
-        "worker:output",
-        expect.objectContaining({
-          workerName: "Snickers",
-          type: "output",
-          content: "Hello world",
-        }),
+      // Wait for batch window to flush
+      await new Promise((r) => setTimeout(r, 50));
+
+      // The batcher emits as batch:worker:output with an array
+      expect(io.emitMock).toHaveBeenCalledWith(
+        "worker:Snickers",
+        "batch:worker:output",
+        expect.arrayContaining([
+          expect.objectContaining({
+            workerName: "Snickers",
+            type: "output",
+            content: "Hello world",
+          }),
+        ]),
       );
+
+      await manager.stop();
     });
 
-    it("handles non-JSON stream messages gracefully", async () => {
+    it("batches non-JSON stream messages gracefully", async () => {
       const { config, redisSub, io } = createConfig();
       const manager = new WorkerStreamManager(config);
       await manager.start();
-
-      const emitMock = jest.fn();
-      const originalTo = io.to.bind(io);
-      io.to = jest.fn((room: string) => {
-        const result = originalTo(room);
-        result.emit = emitMock;
-        return result;
-      }) as any;
 
       const channel = streamChannel("KitKat");
       redisSub.emit("message", channel, "plain text output");
 
-      expect(emitMock).toHaveBeenCalledWith(
-        "worker:output",
-        expect.objectContaining({
-          workerName: "KitKat",
-          type: "output",
-          content: "plain text output",
-        }),
+      // Wait for batch window to flush
+      await new Promise((r) => setTimeout(r, 50));
+
+      expect(io.emitMock).toHaveBeenCalledWith(
+        "worker:KitKat",
+        "batch:worker:output",
+        expect.arrayContaining([
+          expect.objectContaining({
+            workerName: "KitKat",
+            type: "output",
+            content: "plain text output",
+          }),
+        ]),
       );
+
+      await manager.stop();
     });
 
-    it("emits worker:completed on completion messages", async () => {
+    it("emits worker:completed on completion messages (not batched)", async () => {
       const { config, redisSub, io } = createConfig();
       const manager = new WorkerStreamManager(config);
       await manager.start();
-
-      const emitMock = jest.fn();
-      const originalTo = io.to.bind(io);
-      io.to = jest.fn((room: string) => {
-        const result = originalTo(room);
-        result.emit = emitMock;
-        return result;
-      }) as any;
 
       const payload = JSON.stringify({
         agent: "Snickers",
@@ -243,8 +294,9 @@ describe("WorkerStreamManager", () => {
       });
       redisSub.emit("message", COMPLETIONS_CHANNEL, payload);
 
-      expect(io.to).toHaveBeenCalledWith("worker:Snickers");
-      expect(emitMock).toHaveBeenCalledWith(
+      // Completion events are emitted immediately (not batched)
+      expect(io.emitMock).toHaveBeenCalledWith(
+        "worker:Snickers",
         "worker:completed",
         expect.objectContaining({
           workerName: "Snickers",
@@ -252,22 +304,16 @@ describe("WorkerStreamManager", () => {
           prUrl: "https://github.com/org/repo/pull/42",
         }),
       );
+
+      await manager.stop();
     });
   });
 
   describe("StateManager event forwarding", () => {
-    it("emits worker:status on state change", async () => {
+    it("emits worker:status immediately on state change", async () => {
       const { config, io, stateManager } = createConfig();
       const manager = new WorkerStreamManager(config);
       await manager.start();
-
-      const emitMock = jest.fn();
-      const originalTo = io.to.bind(io);
-      io.to = jest.fn((room: string) => {
-        const result = originalTo(room);
-        result.emit = emitMock;
-        return result;
-      }) as any;
 
       // Simulate state change
       stateManager.emit("workerUpdated", "test-repo", {
@@ -276,8 +322,9 @@ describe("WorkerStreamManager", () => {
         error: "No activity",
       });
 
-      expect(io.to).toHaveBeenCalledWith("worker:Snickers");
-      expect(emitMock).toHaveBeenCalledWith(
+      // Status is emitted immediately to the worker room (not batched)
+      expect(io.emitMock).toHaveBeenCalledWith(
+        "worker:Snickers",
         "worker:status",
         expect.objectContaining({
           workerName: "Snickers",
@@ -285,6 +332,37 @@ describe("WorkerStreamManager", () => {
           error: "No activity",
         }),
       );
+
+      await manager.stop();
+    });
+
+    it("batches worker:status to repo room", async () => {
+      const { config, io, stateManager } = createConfig();
+      const manager = new WorkerStreamManager(config);
+      await manager.start();
+
+      stateManager.emit("workerUpdated", "test-repo", {
+        name: "Snickers",
+        status: "stuck",
+        error: "No activity",
+      });
+
+      // Wait for batch window to flush
+      await new Promise((r) => setTimeout(r, 50));
+
+      // Should also batch to repo room
+      expect(io.emitMock).toHaveBeenCalledWith(
+        "repo:test-repo",
+        "batch:worker:status",
+        expect.arrayContaining([
+          expect.objectContaining({
+            workerName: "Snickers",
+            status: "stuck",
+          }),
+        ]),
+      );
+
+      await manager.stop();
     });
   });
 });
