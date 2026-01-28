@@ -8,3 +8,4 @@ export * from "./agents/index.js";
 export * from "./copilot/index.js";
 export * from "./web/index.js";
 export * from "./server/index.js";
+export * from "./wave/index.js";
