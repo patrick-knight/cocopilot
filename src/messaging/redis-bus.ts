@@ -6,7 +6,7 @@
  * Messages are serialized as JSON.
  */
 
-import { Redis } from "ioredis";
+import IORedis, { type Redis as RedisClient } from "ioredis";
 import {
   CocoMessage,
   MessageHandler,
@@ -34,9 +34,20 @@ const DEFAULT_CONFIG: RedisConfig = {
  * using Redis pub/sub. It manages two Redis connections: one for publishing
  * and one for subscribing (required by Redis pub/sub protocol).
  */
+type RedisOptions = {
+  host: string;
+  port: number;
+  password?: string;
+  maxRetriesPerRequest?: number;
+  retryStrategy?: (times: number) => number | null;
+  lazyConnect?: boolean;
+};
+
+type RedisConstructor = new (options: RedisOptions) => RedisClient;
+
 export class RedisMessageBus {
-  private pub: Redis;
-  private sub: Redis;
+  private pub: RedisClient;
+  private sub: RedisClient;
   private handlers: Map<string, Set<MessageHandler>> = new Map();
   private subscribedChannels: Set<string> = new Set();
   private closed = false;
@@ -45,7 +56,9 @@ export class RedisMessageBus {
     const mergedConfig = { ...DEFAULT_CONFIG, ...config };
 
     // Redis requires separate connections for pub and sub
-    this.pub = new Redis({
+    const RedisCtor = IORedis as unknown as RedisConstructor;
+
+    this.pub = new RedisCtor({
       host: mergedConfig.host,
       port: mergedConfig.port,
       password: mergedConfig.password,
@@ -54,7 +67,7 @@ export class RedisMessageBus {
       lazyConnect: true,
     });
 
-    this.sub = new Redis({
+    this.sub = new RedisCtor({
       host: mergedConfig.host,
       port: mergedConfig.port,
       password: mergedConfig.password,

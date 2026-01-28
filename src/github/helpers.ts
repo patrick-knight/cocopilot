@@ -10,7 +10,6 @@ import { execFile as execFileCb } from "node:child_process";
 import { promisify } from "node:util";
 
 import type {
-  CICheck,
   CIStatusResult,
   CIStatusSummary,
   CreatePROptions,
@@ -19,10 +18,12 @@ import type {
   ListPRsOptions,
   MergePROptions,
   MergePRResult,
+  ParsedCI,
   PRInfo,
   PRReview,
   RepoInfo,
 } from "./types.js";
+import { categorizeFailure } from "./ci-monitor.js";
 
 const execFileDefault = promisify(execFileCb);
 
@@ -172,34 +173,44 @@ export async function getCIStatus(
       detailsUrl: string;
     }>;
 
-    const checks: CICheck[] = rawChecks.map((c) => ({
-      name: c.name,
-      status: c.state,
-      conclusion: c.conclusion,
-      url: c.detailsUrl,
-    }));
+    const checks: ParsedCI[] = rawChecks.map((c) => {
+      const conclusion = (c.conclusion ?? "").toUpperCase();
+      const state = (c.state ?? "").toUpperCase();
+
+      let status: ParsedCI["status"];
+      if (conclusion === "FAILURE" || conclusion === "TIMED_OUT" || conclusion === "CANCELLED") {
+        status = "failed";
+      } else if (state === "PENDING" || state === "QUEUED" || state === "IN_PROGRESS") {
+        status = "pending";
+      } else {
+        status = "passed";
+      }
+
+      return {
+        name: c.name,
+        status,
+        category: categorizeFailure({
+          name: c.name,
+          state: c.state,
+          conclusion: c.conclusion,
+          detailsUrl: c.detailsUrl,
+        }),
+        detailsUrl: c.detailsUrl,
+        conclusion: c.conclusion,
+      };
+    });
 
     if (checks.length === 0) {
       return { status: "no_checks", checks };
     }
 
-    const failed = checks.filter(
-      (c) =>
-        c.conclusion.toUpperCase() === "FAILURE" ||
-        c.conclusion.toUpperCase() === "TIMED_OUT" ||
-        c.conclusion.toUpperCase() === "CANCELLED",
-    );
-    const pending = checks.filter(
-      (c) =>
-        c.status.toUpperCase() === "PENDING" ||
-        c.status.toUpperCase() === "QUEUED" ||
-        c.status.toUpperCase() === "IN_PROGRESS",
-    );
+    const failed = checks.filter((c) => c.status === "failed");
+    const pending = checks.filter((c) => c.status === "pending");
 
     if (failed.length > 0) {
       const failedNames = failed.map((c) => c.name).join(", ");
       const failureSummary = `${failed.length} check(s) failed: ${failedNames}`;
-      const workflowUrl = failed[0]?.url;
+      const workflowUrl = failed[0]?.detailsUrl;
       return { status: "failing", checks, failureSummary, workflowUrl };
     }
 

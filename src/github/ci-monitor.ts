@@ -79,18 +79,9 @@ export async function getCIStatus(
     };
   }
 
-  // Map raw gh output to CICheck (state → status, detailsUrl → url)
-  const checks: CICheck[] = ghChecks.map((c) => ({
-    name: c.name,
-    status: c.state,
-    conclusion: c.conclusion,
-    url: c.detailsUrl ?? "",
-    detailsUrl: c.detailsUrl,
-  }));
-
-  const parsed = checks.map((check): ParsedCI => {
+  const parsed = rawChecks.map((check): ParsedCI => {
     const conclusion = check.conclusion.toUpperCase();
-    const state = check.status.toUpperCase();
+    const state = check.state.toUpperCase();
 
     let status: ParsedCI["status"];
     if (conclusion === "FAILURE" || conclusion === "CANCELLED" || conclusion === "TIMED_OUT") {
@@ -109,7 +100,7 @@ export async function getCIStatus(
       name: check.name,
       status,
       category: categorizeFailure(check),
-      detailsUrl: check.detailsUrl ?? check.url,
+      detailsUrl: check.detailsUrl,
       conclusion: check.conclusion,
     };
   });
