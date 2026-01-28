@@ -24,6 +24,7 @@ export type {
   MergePROptions,
   MergePRResult,
   ExecFn,
+  ForkInfo,
 } from "./types.js";
 
 export {
@@ -41,3 +42,9 @@ export {
   getPRReviews,
   getRepoInfo,
 } from "./helpers.js";
+
+export {
+  detectFork,
+  configureMultiplayer,
+  ownerAndRepoFromUrl,
+} from "./fork-detection.js";

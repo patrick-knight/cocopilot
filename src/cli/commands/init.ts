@@ -1,4 +1,6 @@
 import { Command } from "commander";
+import { detectFork, configureMultiplayer } from "../../github/fork-detection.js";
+import type { RepoConfig } from "../../state/schemas.js";
 
 const GITHUB_URL_PATTERN =
   /^https?:\/\/(www\.)?github\.com\/[\w.-]+\/[\w.-]+(\.git)?$/;
@@ -35,6 +37,33 @@ export function registerInitCommand(program: Command): void {
 
       console.log(`Initializing repository: ${name}`);
       console.log(`URL: ${repoUrl}`);
+
+      // Detect if this repository is a fork
+      let config: RepoConfig = {};
+      try {
+        const forkInfo = await detectFork(repoUrl);
+
+        if (forkInfo.isFork) {
+          console.log(
+            `Detected fork of ${forkInfo.parentOwner}/${forkInfo.parentRepo}`,
+          );
+          config = configureMultiplayer(config, forkInfo);
+          console.log("Configured for multiplayer mode (fork detected).");
+          console.log(
+            `  - autoMerge: disabled`,
+          );
+          console.log(
+            `  - activeAgent: enrober`,
+          );
+          console.log(
+            `  - upstream: ${forkInfo.parentOwner}/${forkInfo.parentRepo}`,
+          );
+        }
+      } catch (error) {
+        console.warn(
+          "Warning: Could not detect fork status. Continuing with default configuration.",
+        );
+      }
 
       // TODO: Clone/register repository, set up worktrees, configure tracking
       console.log(`Repository "${name}" initialized successfully.`);

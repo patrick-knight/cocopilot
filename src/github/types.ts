@@ -200,3 +200,18 @@ export type ExecFn = (
   args: string[],
   options: { cwd: string },
 ) => Promise<{ stdout: string; stderr: string }>;
+
+// ─── Fork Detection Types ───
+
+/**
+ * GitHub-specific types for fork detection and repository configuration.
+ */
+
+export interface ForkInfo {
+  isFork: boolean;
+  parentOwner?: string;
+  parentRepo?: string;
+  sourceOwner?: string;
+  sourceRepo?: string;
+  defaultBranch: string;
+}
