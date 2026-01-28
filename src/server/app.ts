@@ -20,6 +20,7 @@ import { configRoutes } from "./routes/config.js";
 import { repositoryRoutes } from "./routes/repositories.js";
 import { workerRoutes } from "./routes/workers.js";
 import { agentRoutes } from "./routes/agents.js";
+import { createExtApiRouter } from "../api/index.js";
 import { createSocketBridge } from "./socket-bridge.js";
 import { createStreamBridge } from "./stream-bridge.js";
 
@@ -61,6 +62,14 @@ export function createServer(deps: ServerDeps): CocoServer {
     agentRoutes(stateManager, broker),
   );
   app.use("/api/v1", api);
+
+  // External integration API (flat worker management, webhooks, status)
+  const extApi = createExtApiRouter({
+    stateManager,
+    broker,
+    redisConnected: redisBus ? () => redisBus.isReady : undefined,
+  });
+  app.use("/api/v1", extApi);
 
   // Error handler (must be after routes)
   app.use(errorHandler);
