@@ -138,6 +138,48 @@ export interface AgentToolDefinition {
 }
 
 // ---------------------------------------------------------------------------
+// Enrober (PR Shepherd) types
+// ---------------------------------------------------------------------------
+
+/** Configuration for the Enrober (PR shepherd) agent. */
+export interface EnroberConfig {
+  /** Path to the git repository to monitor. */
+  repoPath: string;
+  /** Polling interval in milliseconds. Defaults to 120000 (2 min). */
+  pollIntervalMs?: number;
+  /** Agent name for messaging. Defaults to "enrober". */
+  agentName?: string;
+  /** Chocolatier agent name. Defaults to "chocolatier". */
+  chocolatierName?: string;
+  /** PR label used to identify CoCoPilot PRs. Defaults to "cocopilot". */
+  label?: string;
+}
+
+/** Review status of an individual reviewer on a PR. */
+export interface ReviewerStatus {
+  /** GitHub login of the reviewer. */
+  login: string;
+  /** Current review state. */
+  state: "PENDING" | "APPROVED" | "CHANGES_REQUESTED" | "COMMENTED" | "DISMISSED";
+  /** When the review was last submitted (ISO string), or null if pending. */
+  submittedAt: string | null;
+}
+
+/** Aggregated approval state for a PR. */
+export interface ApprovalState {
+  /** Whether the PR has met approval requirements. */
+  approved: boolean;
+  /** Number of approvals received. */
+  approvalCount: number;
+  /** Number of approvals required (from branch protection). */
+  requiredApprovals: number;
+  /** Whether any reviewer has requested changes. */
+  changesRequested: boolean;
+  /** Per-reviewer status. */
+  reviewers: ReviewerStatus[];
+}
+
+// ---------------------------------------------------------------------------
 // Agent events
 // ---------------------------------------------------------------------------
 
@@ -155,6 +197,22 @@ export interface ChocolatierEvents {
   workerCompleted: [repoName: string, workerName: string, summary: string];
   /** Emitted when a worker signals failure. */
   workerFailed: [repoName: string, workerName: string, error: string];
+  /** Emitted when the agent starts. */
+  started: [];
+  /** Emitted when the agent stops. */
+  stopped: [];
+}
+
+/** Events emitted by the Enrober agent. */
+export interface EnroberEvents {
+  /** Emitted when a PR is found needing review. */
+  prNeedsReview: [prNumber: number, prUrl: string];
+  /** Emitted when a PR is approved. */
+  prApproved: [prNumber: number, prUrl: string];
+  /** Emitted when a PR has changes requested. */
+  prChangesRequested: [prNumber: number, prUrl: string];
+  /** Emitted when a PR is blocked (stale review, no reviewers, etc.). */
+  prBlocked: [prNumber: number, prUrl: string, reason: string];
   /** Emitted when the agent starts. */
   started: [];
   /** Emitted when the agent stops. */

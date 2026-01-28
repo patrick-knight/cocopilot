@@ -11,6 +11,10 @@ export type {
   AgentConfig,
   ChocolatierConfig,
   ChocolatierEvents,
+  EnroberConfig,
+  EnroberEvents,
+  ReviewerStatus,
+  ApprovalState,
   SpawnWorkerOptions,
   WorkerSummary,
   WorkerHealthStatus,
@@ -29,3 +33,12 @@ export {
   type TrackedPRState,
   type ExecFn,
 } from "./temperer.js";
+
+export {
+  Enrober,
+  ENROBER_SYSTEM_PROMPT,
+  type EnroberPRInfo,
+  type TrackedEnroberPR,
+  type TrackedEnroberPRState,
+  type ExecFn as EnroberExecFn,
+} from "./enrober.js";
