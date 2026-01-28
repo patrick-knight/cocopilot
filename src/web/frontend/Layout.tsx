@@ -17,6 +17,7 @@ export interface LayoutProps {
 const navLinks = [
   { to: "/", label: "Factory Floor" },
   { to: "/logs", label: "Batch Log" },
+  { to: "/metrics", label: "Metrics" },
   { to: "/config", label: "Recipe Book" },
 ];
 
