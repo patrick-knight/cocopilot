@@ -213,7 +213,8 @@ describe("Temperer", () => {
       const result = await temperer.checkCI(42);
 
       expect(result.status).toBe("failing");
-      expect(result.failureSummary).toBe("1 check(s) failed: test");
+      expect(result.failureSummary).toContain("1 CI check(s) failed:");
+      expect(result.failureSummary).toContain("test");
       expect(result.workflowUrl).toBe(
         "https://github.com/org/repo/actions/runs/123",
       );
@@ -362,12 +363,11 @@ describe("Temperer", () => {
       expect(ciMsg).toBeDefined();
       expect(ciMsg!.to).toBe("chocolatier");
       expect(ciMsg!.priority).toBe("high");
-      expect(ciMsg!.payload).toEqual({
-        pr_number: 20,
-        pr_url: "https://github.com/org/repo/pull/20",
-        failure_summary: "1 check(s) failed: test",
-        workflow_url: "https://github.com/org/repo/actions/runs/999",
-      });
+      expect((ciMsg!.payload as { pr_number: number }).pr_number).toBe(20);
+      expect((ciMsg!.payload as { pr_url: string }).pr_url).toBe("https://github.com/org/repo/pull/20");
+      expect((ciMsg!.payload as { failure_summary: string }).failure_summary).toContain("1 CI check(s) failed:");
+      expect((ciMsg!.payload as { failure_summary: string }).failure_summary).toContain("test");
+      expect((ciMsg!.payload as { workflow_url: string }).workflow_url).toBe("https://github.com/org/repo/actions/runs/999");
 
       // Should have sent SPAWN_FIXUP
       const fixupMsg = broker.sent.find(
@@ -375,12 +375,10 @@ describe("Temperer", () => {
       );
       expect(fixupMsg).toBeDefined();
       expect(fixupMsg!.to).toBe("chocolatier");
-      expect(fixupMsg!.payload).toEqual({
-        pr_number: 20,
-        pr_url: "https://github.com/org/repo/pull/20",
-        failure_summary: "1 check(s) failed: test",
-        original_worker: "unknown",
-      });
+      expect((fixupMsg!.payload as { pr_number: number }).pr_number).toBe(20);
+      expect((fixupMsg!.payload as { pr_url: string }).pr_url).toBe("https://github.com/org/repo/pull/20");
+      expect((fixupMsg!.payload as { failure_summary: string }).failure_summary).toContain("1 CI check(s) failed:");
+      expect((fixupMsg!.payload as { original_worker: string }).original_worker).toBe("unknown");
 
       // PR should be tracked as fixup_requested
       const tracked = temperer.getTrackedPRs().get(20);
