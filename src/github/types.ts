@@ -27,7 +27,7 @@ export interface ParsedCI {
   name: string;
   status: "passed" | "failed" | "pending";
   category: FailureCategory;
-  detailsUrl: string;
+  detailsUrl?: string;
   conclusion: string;
 }
 
@@ -46,13 +46,11 @@ export interface CICheck {
   /** Name of the check run (e.g., "build", "test"). */
   name: string;
   /** Current state (e.g., "COMPLETED", "IN_PROGRESS", "QUEUED"). */
-  status: string;
+  state: string;
   /** Check conclusion (e.g., "SUCCESS", "FAILURE", "NEUTRAL"). Empty if not completed. */
   conclusion: string;
   /** URL to the check details page. */
-  url: string;
-  /** Alias for url, used by ci-monitor. */
-  detailsUrl?: string;
+  detailsUrl: string;
 }
 
 /** A GitHub label. */
@@ -129,7 +127,7 @@ export interface CIStatusResult {
   /** Aggregated status. */
   status: CIStatusSummary;
   /** Individual check results. */
-  checks: CICheck[];
+  checks: ParsedCI[];
   /** Human-readable summary of failures (if any). */
   failureSummary?: string;
   /** URL to the first failing workflow (if any). */

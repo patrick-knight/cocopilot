@@ -261,9 +261,10 @@ describe("GitHub Helpers", () => {
       expect(result.checks).toHaveLength(2);
       expect(result.checks[0]).toEqual({
         name: "build",
-        status: "COMPLETED",
+        status: "passed",
+        category: "other",
+        detailsUrl: "",
         conclusion: "SUCCESS",
-        url: "",
       });
     });
 
