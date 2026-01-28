@@ -5,6 +5,11 @@
  * External dependencies (Docker, GitHub) are mocked.
  */
 
+// Mock the copilot SDK to avoid ESM import issues in test environment
+jest.mock("../../src/copilot/client.js", () => ({
+  CopilotClientWrapper: jest.fn(),
+}));
+
 import { createProgram } from "../../src/cli/coco";
 
 // Mock GitHub fork detection (used by `coco init`)

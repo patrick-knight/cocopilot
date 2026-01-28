@@ -1,3 +1,8 @@
+// Mock the copilot SDK to avoid ESM import issues in test environment
+jest.mock("../copilot/client.js", () => ({
+  CopilotClientWrapper: jest.fn(),
+}));
+
 import { createProgram } from "./coco";
 
 describe("coco CLI program", () => {
@@ -15,11 +20,12 @@ describe("coco CLI program", () => {
     expect(commandNames).toContain("status");
     expect(commandNames).toContain("init");
     expect(commandNames).toContain("list");
+    expect(commandNames).toContain("agents");
   });
 
-  it("has exactly 5 commands", () => {
+  it("has exactly 6 commands", () => {
     const program = createProgram();
-    expect(program.commands).toHaveLength(5);
+    expect(program.commands).toHaveLength(6);
   });
 });
 
