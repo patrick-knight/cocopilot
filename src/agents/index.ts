@@ -26,12 +26,12 @@ export type {
 export {
   Temperer,
   type TempererConfig,
-  type PRInfo,
+  type PRInfo as TempererPRInfo,
   type CheckInfo,
   type CIStatus,
   type TrackedPR,
   type TrackedPRState,
-  type ExecFn,
+  type ExecFn as TempererExecFn,
 } from "./temperer.js";
 
 export {

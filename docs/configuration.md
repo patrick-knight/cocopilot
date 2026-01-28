@@ -343,3 +343,149 @@ Containers are labeled for identification:
 Each container mounts:
 - `/workspace` -- the git worktree for the worker
 - `/messages` -- the agent's message directory for file-based persistence
+
+---
+
+## BYOK (Bring Your Own Key)
+
+CoCoPilot supports using your own API keys for Anthropic, OpenAI, and Azure instead of the default Copilot-provided model. Keys are encrypted at rest using AES-256-GCM and stored in `~/.cocopilot/keys.json`.
+
+### Supported Providers
+
+| Provider | Environment Variable | Key Format |
+|----------|---------------------|------------|
+| `anthropic` | `COCOPILOT_ANTHROPIC_KEY` | `sk-ant-` followed by 20+ alphanumeric characters |
+| `openai` | `COCOPILOT_OPENAI_KEY` | `sk-` followed by 20+ alphanumeric characters |
+| `azure` | `COCOPILOT_AZURE_KEY` | 32-character hexadecimal string |
+
+### Setting Up Keys
+
+Keys require a password for encryption. Set the `COCOPILOT_KEYS_PASSWORD` environment variable before running any key commands:
+
+```bash
+export COCOPILOT_KEYS_PASSWORD="your-secure-password"
+```
+
+Then store a key:
+
+```bash
+coco config keys set anthropic sk-ant-your-key-here
+```
+
+The `--skip-validation` flag bypasses format validation for non-standard key formats:
+
+```bash
+coco config keys set openai my-custom-key --skip-validation
+```
+
+### Listing Configured Keys
+
+List which providers have stored keys (keys themselves are never displayed):
+
+```bash
+coco config keys list
+```
+
+### Key Priority
+
+When loading keys, environment variables take precedence over stored keys. This allows temporary overrides without modifying the encrypted store:
+
+1. Environment variable (e.g., `COCOPILOT_ANTHROPIC_KEY`) -- highest priority
+2. Encrypted key store (`~/.cocopilot/keys.json`) -- fallback
+
+---
+
+## MCP Server Extensibility
+
+CoCoPilot agents use the Model Context Protocol (MCP) to access external tools and services. By default, the GitHub MCP server is configured for all agents. You can add additional MCP servers in per-repo configuration to give agents access to databases, internal APIs, or custom tools.
+
+### Configuration Format
+
+Add MCP servers to the `mcpServers` array in `.cocopilot/config.json`:
+
+```json
+{
+  "mcpServers": [
+    {
+      "name": "my-database",
+      "url": "http://localhost:8080/mcp",
+      "transport": "sse"
+    },
+    {
+      "name": "local-tool",
+      "url": "/usr/local/bin/my-mcp-tool",
+      "transport": "stdio",
+      "env": {
+        "API_TOKEN": "secret"
+      }
+    }
+  ]
+}
+```
+
+### MCP Server Fields
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `name` | `string` | Yes | Unique identifier for the MCP server |
+| `url` | `string` | Yes | Server URL (for SSE) or command path (for stdio) |
+| `transport` | `"stdio" \| "sse"` | Yes | Communication protocol |
+| `env` | `Record<string, string>` | No | Environment variables passed to the server process |
+
+### Transport Types
+
+- **stdio**: Runs a local process. The `url` field is the command path. Suitable for local tools that communicate via standard input/output.
+- **sse**: Connects to an HTTP server using Server-Sent Events. CoCoPilot validates reachability with a HEAD request (5-second timeout) when validating configuration.
+
+### Validation
+
+MCP server configurations are validated on load. For SSE servers, CoCoPilot checks URL reachability. Validation errors include:
+
+- Missing `name` or `url` field
+- Invalid `transport` value (must be `"stdio"` or `"sse"`)
+- Invalid `env` entries (all keys and values must be strings)
+- SSE server unreachable or returning error HTTP status
+
+### How MCP Servers Are Injected
+
+When an agent session starts, CoCoPilot:
+1. Loads MCP server configs from the repo's `.cocopilot/config.json`
+2. Merges them with the built-in GitHub MCP server
+3. Injects all servers into the Copilot SDK session options
+
+New servers are added alongside existing ones. If a server name matches an existing entry, the new config overrides it.
+
+---
+
+## Custom Agents
+
+Define custom agents using Markdown files with YAML frontmatter in `.cocopilot/agents/`. See the [Custom Agents Guide](custom-agents.md) for a full walkthrough.
+
+### CLI Commands
+
+```bash
+# List all agent definitions found in .cocopilot/agents/
+coco agents list [--dir <path>] [--json]
+
+# Spawn a custom agent from a definition file
+coco agents spawn --from <file> [--model <model>]
+```
+
+### Agent Definition Format
+
+```markdown
+---
+name: reviewer
+class: persistent
+tools:
+  - read_file
+  - search_code
+---
+You are a code reviewer. Review all PRs for correctness and style.
+```
+
+| Frontmatter Field | Type | Required | Description |
+|-------------------|------|----------|-------------|
+| `name` | `string` | Yes | Agent display name |
+| `class` | `"persistent" \| "ephemeral"` | Yes | Agent lifecycle type |
+| `tools` | `string[]` | No | Tool names the agent has access to |

@@ -2,7 +2,7 @@
  * End-to-end tests for the CoCoPilot CLI.
  *
  * Tests the full CLI command flows: init, start, stop, list, status.
- * External dependencies (Docker, GitHub) are mocked.
+ * External dependencies (Docker, GitHub, daemon) are mocked.
  */
 
 // Mock the copilot SDK to avoid ESM import issues in test environment
@@ -10,7 +10,77 @@ jest.mock("../../src/copilot/client.js", () => ({
   CopilotClientWrapper: jest.fn(),
 }));
 
-import { createProgram } from "../../src/cli/coco";
+// Mock daemon lifecycle functions used by start/stop commands
+jest.mock("../../src/cli/daemon", () => ({
+  startDaemon: jest.fn().mockResolvedValue(undefined),
+  stopDaemon: jest.fn().mockResolvedValue(undefined),
+  daemonStatus: jest.fn(),
+}));
+
+// Mock daemon PID utilities used by status command
+jest.mock("../../src/daemon/pid", () => ({
+  isDaemonRunning: jest.fn().mockReturnValue({ running: false, pid: null }),
+  readPid: jest.fn().mockReturnValue(null),
+  writePid: jest.fn().mockReturnValue(true),
+  removePid: jest.fn(),
+}));
+
+// Mock daemon config utilities used by init, status, and list commands
+jest.mock("../../src/daemon/config", () => ({
+  getCocopilotDir: jest.fn().mockReturnValue("/tmp/test-cocopilot"),
+  ensureCocopilotDir: jest.fn(),
+  loadConfig: jest.fn().mockReturnValue({
+    model: "claude-sonnet-4-5",
+    webPort: 3000,
+    maxWorkersPerRepo: 10,
+    workerTimeout: "4h",
+    supervisorNudgeInterval: "5m",
+    mergeQueuePollInterval: "2m",
+    containerMemoryLimit: "4g",
+    containerCpuLimit: "2",
+    autoMerge: true,
+    theme: "dark-chocolate",
+    github: { defaultBranch: "main", prLabels: ["cocopilot"], requireCI: true },
+    redis: { host: "localhost", port: 6379 },
+  }),
+  saveConfig: jest.fn(),
+}));
+
+// Mock fs for state file reads (used by status/list commands)
+const mockFs = {
+  existsSync: jest.fn().mockReturnValue(false),
+  readFileSync: jest.fn().mockReturnValue("{}"),
+  writeFileSync: jest.fn(),
+  renameSync: jest.fn(),
+  mkdirSync: jest.fn(),
+};
+jest.mock("node:fs", () => {
+  const actual = jest.requireActual("node:fs");
+  return {
+    ...actual,
+    existsSync: (...args: unknown[]) => mockFs.existsSync(...args),
+    readFileSync: (...args: unknown[]) => mockFs.readFileSync(...args),
+    writeFileSync: (...args: unknown[]) => mockFs.writeFileSync(...args),
+    renameSync: (...args: unknown[]) => mockFs.renameSync(...args),
+    mkdirSync: (...args: unknown[]) => mockFs.mkdirSync(...args),
+    promises: {
+      ...actual.promises,
+      mkdir: jest.fn().mockResolvedValue(undefined),
+      writeFile: jest.fn().mockResolvedValue(undefined),
+    },
+  };
+});
+
+// Mock child_process for git clone in init command
+jest.mock("node:child_process", () => ({
+  ...jest.requireActual("node:child_process"),
+  execFile: jest.fn((...args: unknown[]) => {
+    const cb = args[args.length - 1] as Function;
+    if (typeof cb === "function") {
+      cb(null, { stdout: "", stderr: "" });
+    }
+  }),
+}));
 
 // Mock GitHub fork detection (used by `coco init`)
 jest.mock("../../src/github/fork-detection", () => ({
@@ -18,9 +88,54 @@ jest.mock("../../src/github/fork-detection", () => ({
     isFork: false,
     parentOwner: undefined,
     parentRepo: undefined,
+    defaultBranch: "main",
   }),
-  configureMultiplayer: jest.fn().mockReturnValue({}),
+  configureMultiplayer: jest.fn().mockImplementation(
+    (_config: Record<string, unknown>, forkInfo: { parentOwner: string; parentRepo: string; defaultBranch: string }) => ({
+      mode: "multiplayer",
+      autoMerge: false,
+      activeAgent: "enrober",
+      upstream: {
+        owner: forkInfo.parentOwner,
+        repo: forkInfo.parentRepo,
+        defaultBranch: forkInfo.defaultBranch,
+      },
+    }),
+  ),
 }));
+
+// Mock StateManager (used by `coco init` to persist repo state)
+const mockStateManagerInstance = {
+  init: jest.fn().mockResolvedValue(undefined),
+  getRepo: jest.fn().mockReturnValue(undefined),
+  getBaseDir: jest.fn().mockReturnValue("/tmp/.cocopilot"),
+  addRepo: jest.fn().mockResolvedValue({
+    id: "mock-id",
+    name: "mock",
+    url: "",
+    localPath: "",
+    mode: "single-player",
+    status: "initializing",
+    defaultBranch: "main",
+    agents: {},
+    workers: {},
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  }),
+  setAgent: jest.fn().mockResolvedValue({
+    name: "mock-agent",
+    type: "supervisor",
+    status: "starting",
+    lastActivity: new Date().toISOString(),
+    startedAt: new Date().toISOString(),
+  }),
+  updateRepoStatus: jest.fn().mockResolvedValue({}),
+};
+jest.mock("../../src/state/state-manager", () => ({
+  StateManager: jest.fn().mockImplementation(() => mockStateManagerInstance),
+}));
+
+import { createProgram } from "../../src/cli/coco";
 
 /**
  * Helper to run a CLI command programmatically and capture output.
@@ -71,11 +186,26 @@ async function runCLI(
   };
 }
 
+beforeEach(() => {
+  jest.clearAllMocks();
+  // Reset fs mocks to defaults
+  mockFs.existsSync.mockReturnValue(false);
+  mockFs.readFileSync.mockReturnValue("{}");
+});
+
 // ---------------------------------------------------------------------------
 // coco init
 // ---------------------------------------------------------------------------
 
 describe("coco init", () => {
+  beforeEach(() => {
+    // Reset StateManager mocks between init tests to avoid state leakage
+    mockStateManagerInstance.getRepo.mockReturnValue(undefined);
+    mockStateManagerInstance.addRepo.mockClear();
+    mockStateManagerInstance.setAgent.mockClear();
+    mockStateManagerInstance.updateRepoStatus.mockClear();
+  });
+
   it("initializes a repository from a valid GitHub URL", async () => {
     const result = await runCLI([
       "init",
@@ -116,7 +246,9 @@ describe("coco init", () => {
       isFork: true,
       parentOwner: "upstream-org",
       parentRepo: "widgets",
-      parentDefaultBranch: "main",
+      sourceOwner: "upstream-org",
+      sourceRepo: "widgets",
+      defaultBranch: "main",
     });
 
     const result = await runCLI([
@@ -144,6 +276,21 @@ describe("coco init", () => {
     expect(result.exitCode).toBe(0);
     expect(result.stderr).toContain("Could not detect fork status");
     expect(result.stdout).toContain("initialized successfully");
+  });
+
+  it("rejects if repo is already tracked", async () => {
+    mockStateManagerInstance.getRepo.mockReturnValue({
+      name: "widgets",
+      url: "https://github.com/acme/widgets",
+    });
+
+    const result = await runCLI([
+      "init",
+      "https://github.com/acme/widgets",
+    ]);
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toContain("already tracked");
   });
 });
 
@@ -182,6 +329,16 @@ describe("coco start", () => {
     // When --no-ui is set, the dashboard URL should not appear
     expect(result.stdout).not.toContain("http://localhost");
   });
+
+  it("calls startDaemon from daemon module", async () => {
+    const { startDaemon } = jest.requireMock(
+      "../../src/cli/daemon",
+    ) as { startDaemon: jest.Mock };
+
+    await runCLI(["start"]);
+
+    expect(startDaemon).toHaveBeenCalled();
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -202,6 +359,16 @@ describe("coco stop", () => {
 
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toContain("Force stopping");
+  });
+
+  it("calls stopDaemon from daemon module", async () => {
+    const { stopDaemon } = jest.requireMock(
+      "../../src/cli/daemon",
+    ) as { stopDaemon: jest.Mock };
+
+    await runCLI(["stop"]);
+
+    expect(stopDaemon).toHaveBeenCalled();
   });
 });
 
@@ -224,6 +391,32 @@ describe("coco list", () => {
     const parsed = JSON.parse(result.stdout);
     expect(Array.isArray(parsed)).toBe(true);
     expect(parsed).toEqual([]);
+  });
+
+  it("lists tracked repositories from state", async () => {
+    mockFs.existsSync.mockReturnValue(true);
+    mockFs.readFileSync.mockReturnValue(
+      JSON.stringify({
+        version: 1,
+        status: "running",
+        repositories: {
+          "my-app": {
+            name: "my-app",
+            url: "https://github.com/acme/my-app",
+            workers: {
+              Snickers: { status: "working" },
+              KitKat: { status: "completed" },
+            },
+          },
+        },
+      }),
+    );
+
+    const result = await runCLI(["list"]);
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toContain("my-app");
+    expect(result.stdout).toContain("https://github.com/acme/my-app");
   });
 });
 
@@ -255,6 +448,18 @@ describe("coco status", () => {
     const result = await runCLI(["status"]);
 
     expect(result.stdout).toContain("Not running");
+  });
+
+  it("reports daemon running when PID is active", async () => {
+    const { isDaemonRunning } = jest.requireMock(
+      "../../src/daemon/pid",
+    ) as { isDaemonRunning: jest.Mock };
+
+    isDaemonRunning.mockReturnValue({ running: true, pid: 12345 });
+
+    const result = await runCLI(["status"]);
+
+    expect(result.stdout).toContain("Running (PID 12345)");
   });
 });
 

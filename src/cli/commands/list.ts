@@ -1,4 +1,7 @@
+import * as fs from "node:fs";
+import * as path from "node:path";
 import { Command } from "commander";
+import { getCocopilotDir } from "../../daemon/config.js";
 
 export interface TrackedRepo {
   name: string;
@@ -44,6 +47,46 @@ export function formatRepoList(repos: TrackedRepo[]): string {
   return lines.join("\n");
 }
 
+/**
+ * Read tracked repositories from ~/.cocopilot/state.json.
+ */
+export function readTrackedRepos(): TrackedRepo[] {
+  const statePath = path.join(getCocopilotDir(), "state.json");
+  try {
+    if (!fs.existsSync(statePath)) return [];
+    const raw = fs.readFileSync(statePath, "utf-8");
+    const state = JSON.parse(raw);
+    const repositories = state.repositories;
+
+    if (!repositories || typeof repositories !== "object") return [];
+
+    const repos: TrackedRepo[] = [];
+    for (const [key, repo] of Object.entries(repositories)) {
+      const r = repo as {
+        name?: string;
+        url?: string;
+        workers?: Record<string, { status?: string }>;
+      };
+
+      const workers = r.workers ? Object.values(r.workers) : [];
+      const activeWorkers = workers.filter(
+        (w) => w.status === "starting" || w.status === "working",
+      ).length;
+
+      repos.push({
+        name: r.name ?? key,
+        url: r.url ?? "",
+        workerCount: activeWorkers,
+        pendingPRs: 0, // PR count requires GitHub API
+      });
+    }
+
+    return repos;
+  } catch {
+    return [];
+  }
+}
+
 export function registerListCommand(program: Command): void {
   program
     .command("list")
@@ -51,8 +94,7 @@ export function registerListCommand(program: Command): void {
     .option("--json", "Output as JSON")
     .action(async (options: { json: boolean }) => {
       try {
-        // TODO: Read tracked repos from daemon/config
-        const repos: TrackedRepo[] = [];
+        const repos = readTrackedRepos();
 
         if (options.json) {
           console.log(JSON.stringify(repos, null, 2));

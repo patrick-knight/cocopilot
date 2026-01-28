@@ -353,6 +353,162 @@ Either terminate idle workers or increase the limit:
 
 ---
 
+## BYOK Key Errors
+
+**Symptom:** `coco config keys set` fails with an error about the password or key format.
+
+### Missing Password
+
+```
+Error: Set COCOPILOT_KEYS_PASSWORD environment variable to encrypt your keys.
+```
+
+**Fix:**
+
+```bash
+export COCOPILOT_KEYS_PASSWORD="your-secure-password"
+coco config keys set anthropic sk-ant-your-key
+```
+
+### Key Format Validation Failed
+
+```
+Error: Key does not match expected format for anthropic.
+```
+
+**Fix:**
+
+If your key is valid but doesn't match the expected format pattern, use `--skip-validation`:
+
+```bash
+coco config keys set anthropic your-key --skip-validation
+```
+
+Expected key formats:
+
+| Provider | Pattern |
+|----------|---------|
+| `anthropic` | Starts with `sk-ant-`, followed by 20+ alphanumeric characters |
+| `openai` | Starts with `sk-`, followed by 20+ alphanumeric characters |
+| `azure` | 32-character hexadecimal string |
+
+### Cannot Decrypt Keys File
+
+If you've changed your password or the `~/.cocopilot/keys.json` file is corrupted, the system will start fresh with a new file. To reset manually:
+
+```bash
+rm ~/.cocopilot/keys.json
+```
+
+Then re-add your keys with the new password.
+
+---
+
+## MCP Server Connection Failures
+
+**Symptom:** Custom MCP servers fail to load or agents can't access external tools.
+
+**Diagnosis:**
+
+Check the per-repo config for syntax errors:
+
+```bash
+cat .cocopilot/config.json | python3 -m json.tool
+```
+
+**Common issues:**
+
+1. **Missing required fields:** Every MCP server entry needs `name`, `url`, and `transport`.
+2. **Invalid transport:** Must be exactly `"stdio"` or `"sse"`.
+3. **SSE server unreachable:** For SSE transport, CoCoPilot validates reachability with a HEAD request (5-second timeout). Ensure the server is running and accessible.
+
+**Fix for SSE connectivity:**
+
+```bash
+# Test if the server is reachable
+curl -I http://localhost:8080/mcp
+```
+
+If the server isn't running, start it before starting CoCoPilot agents.
+
+**Fix for stdio transport:**
+
+Ensure the command path in `url` is executable:
+
+```bash
+which my-mcp-tool     # Verify it's in PATH
+chmod +x /path/to/tool  # Ensure it's executable
+```
+
+---
+
+## Custom Agent Parsing Errors
+
+**Symptom:** `coco agents list` shows fewer agents than expected, or `coco agents spawn` fails.
+
+**Diagnosis:**
+
+Check stderr output when listing agents -- malformed files are skipped with a warning:
+
+```bash
+coco agents list 2>&1
+```
+
+**Common issues:**
+
+1. **Missing frontmatter delimiters:** Files must start with `---` and have a closing `---`.
+2. **Missing `name` field:** Every agent definition requires a `name` in frontmatter.
+3. **Missing `class` field:** Must be `"persistent"` or `"ephemeral"`.
+4. **Invalid `class` value:** Only `persistent` and `ephemeral` are valid.
+
+**Fix:**
+
+Verify the file format:
+
+```markdown
+---
+name: my-agent
+class: persistent
+tools:
+  - read_file
+---
+Your system prompt here.
+```
+
+See the [Custom Agents Guide](custom-agents.md) for the full specification.
+
+---
+
+## Metrics Dashboard Not Loading
+
+**Symptom:** The metrics page at `http://localhost:3000/metrics` shows an error or no data.
+
+**Diagnosis:**
+
+Check that the metrics API endpoint is responding:
+
+```bash
+curl http://localhost:3000/api/v1/metrics
+```
+
+**Common issues:**
+
+1. **No data yet:** Metrics are computed from worker state. If no workers have completed tasks, charts will be empty.
+2. **Daemon not running:** The metrics API requires the Concher daemon to be active.
+3. **Dashboard connection lost:** The metrics page auto-refreshes every 30 seconds. If the daemon was restarted, refresh the browser page.
+
+**Fix:**
+
+Restart the daemon and ensure workers have run:
+
+```bash
+coco stop
+coco start
+coco status
+```
+
+---
+
 ## Need More Help?
 
 - Check the daemon log: `~/.cocopilot/daemon.log`
