@@ -7,6 +7,7 @@
 
 import type { Server as SocketIOServer } from "socket.io";
 import type { StateManager } from "../state/index.js";
+import type { WorkerState, WorkerStatus } from "../state/index.js";
 import type { MessageBroker } from "../messaging/index.js";
 import { MessageType, type CocoMessage } from "../messaging/index.js";
 
@@ -35,6 +36,16 @@ export function createSocketBridge(
 
   addListener("workerUpdated", (repoName: string, worker: unknown) => {
     io.emit("worker_updated", { repository: repoName, worker });
+
+    // Emit PR pipeline update when a worker with a PR changes status
+    const w = worker as WorkerState;
+    if (w.prNumber != null) {
+      io.emit("pr:status_changed", {
+        number: w.prNumber,
+        stage: workerStatusToPRStage(w.status),
+        updatedAt: w.updatedAt,
+      });
+    }
   });
 
   addListener("workerRemoved", (repoName: string, workerName: string) => {
@@ -60,12 +71,32 @@ export function createSocketBridge(
     io.emit("state_changed", { state });
   });
 
-  // Subscribe to broker broadcast channel for PR_MERGED and CI_FAILED
+  // Subscribe to broker broadcast channel for PR_MERGED, PR_CREATED, and CI_FAILED
   const broadcastHandler = (message: CocoMessage): void => {
     if (message.type === MessageType.PR_MERGED) {
       io.emit("pr_merged", message.payload);
+      // Also emit pipeline stage change
+      const payload = message.payload as { pr_number: number };
+      io.emit("pr:status_changed", {
+        number: payload.pr_number,
+        stage: "merged",
+        updatedAt: new Date().toISOString(),
+      });
+    } else if (message.type === MessageType.PR_CREATED) {
+      const payload = message.payload as { pr_number: number };
+      io.emit("pr:status_changed", {
+        number: payload.pr_number,
+        stage: "draft",
+        updatedAt: new Date().toISOString(),
+      });
     } else if (message.type === MessageType.CI_FAILED) {
       io.emit("ci_failed", message.payload);
+      const payload = message.payload as { pr_number: number };
+      io.emit("pr:status_changed", {
+        number: payload.pr_number,
+        stage: "ci_failed",
+        updatedAt: new Date().toISOString(),
+      });
     }
   };
 
@@ -82,4 +113,24 @@ export function createSocketBridge(
     listeners.length = 0;
     broker.unsubscribe(brokerAgentName).catch(() => {});
   };
+}
+
+/**
+ * Map worker status to a PR pipeline stage for real-time updates.
+ */
+function workerStatusToPRStage(status: WorkerStatus): string {
+  switch (status) {
+    case "starting":
+    case "working":
+      return "draft";
+    case "completed":
+      return "ready";
+    case "stuck":
+      return "ci_running";
+    case "failed":
+    case "terminated":
+      return "ci_failed";
+    default:
+      return "draft";
+  }
 }

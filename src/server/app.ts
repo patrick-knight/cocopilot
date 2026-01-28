@@ -20,6 +20,7 @@ import { configRoutes } from "./routes/config.js";
 import { repositoryRoutes } from "./routes/repositories.js";
 import { workerRoutes } from "./routes/workers.js";
 import { agentRoutes } from "./routes/agents.js";
+import { prRoutes } from "./routes/prs.js";
 import { createExtApiRouter } from "../api/index.js";
 import { metricsRoutes } from "../web/routes/metrics.js";
 import { createSocketBridge } from "./socket-bridge.js";
@@ -61,6 +62,10 @@ export function createServer(deps: ServerDeps): CocoServer {
   api.use(
     "/repositories/:repoName/agents",
     agentRoutes(stateManager, broker),
+  );
+  api.use(
+    "/repositories/:repoName/prs",
+    prRoutes(stateManager),
   );
   api.use("/metrics", metricsRoutes(stateManager));
   app.use("/api/v1", api);

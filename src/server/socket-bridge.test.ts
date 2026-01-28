@@ -103,6 +103,32 @@ describe("createSocketBridge", () => {
     expect(io.emit).toHaveBeenCalledWith("pr_merged", msg.payload);
   });
 
+  it("emits pr:status_changed with merged stage on PR_MERGED", () => {
+    const handler = broker.subscribe.mock.calls[0][1];
+    const msg = {
+      type: MessageType.PR_MERGED,
+      payload: { pr_number: 42, pr_url: "https://github.com/org/repo/pull/42", merge_sha: "abc" },
+    };
+    handler(msg);
+    expect(io.emit).toHaveBeenCalledWith("pr:status_changed", expect.objectContaining({
+      number: 42,
+      stage: "merged",
+    }));
+  });
+
+  it("emits pr:status_changed with draft stage on PR_CREATED", () => {
+    const handler = broker.subscribe.mock.calls[0][1];
+    const msg = {
+      type: MessageType.PR_CREATED,
+      payload: { pr_number: 10, pr_url: "https://github.com/org/repo/pull/10", title: "feat", branch: "work/Snickers" },
+    };
+    handler(msg);
+    expect(io.emit).toHaveBeenCalledWith("pr:status_changed", expect.objectContaining({
+      number: 10,
+      stage: "draft",
+    }));
+  });
+
   it("forwards CI_FAILED from broker to socket", () => {
     const handler = broker.subscribe.mock.calls[0][1];
     const msg = {
@@ -111,6 +137,42 @@ describe("createSocketBridge", () => {
     };
     handler(msg);
     expect(io.emit).toHaveBeenCalledWith("ci_failed", msg.payload);
+  });
+
+  it("emits pr:status_changed with ci_failed stage on CI_FAILED", () => {
+    const handler = broker.subscribe.mock.calls[0][1];
+    const msg = {
+      type: MessageType.CI_FAILED,
+      payload: { pr_number: 42, pr_url: "https://github.com/org/repo/pull/42", failure_summary: "test failed" },
+    };
+    handler(msg);
+    expect(io.emit).toHaveBeenCalledWith("pr:status_changed", expect.objectContaining({
+      number: 42,
+      stage: "ci_failed",
+    }));
+  });
+
+  it("emits pr:status_changed when worker with prNumber is updated", () => {
+    const worker = {
+      name: "Snickers",
+      status: "completed",
+      prNumber: 42,
+      updatedAt: "2026-01-28T12:00:00.000Z",
+    };
+    sm.emit("workerUpdated", "my-app", worker);
+    expect(io.emit).toHaveBeenCalledWith("pr:status_changed", {
+      number: 42,
+      stage: "ready",
+      updatedAt: "2026-01-28T12:00:00.000Z",
+    });
+  });
+
+  it("does not emit pr:status_changed when worker has no prNumber", () => {
+    const worker = { name: "KitKat", status: "working" };
+    sm.emit("workerUpdated", "my-app", worker);
+    // Should emit worker_updated but NOT pr:status_changed
+    expect(io.emit).toHaveBeenCalledWith("worker_updated", expect.anything());
+    expect(io.emit).not.toHaveBeenCalledWith("pr:status_changed", expect.anything());
   });
 
   it("cleanup removes all listeners", () => {
