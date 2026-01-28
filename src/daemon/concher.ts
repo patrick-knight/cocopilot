@@ -3,6 +3,8 @@ import { loadConfig } from "./config.js";
 import { writePid, removePid, isDaemonRunning } from "./pid.js";
 import { StateManager } from "./state.js";
 import { ContainerManager } from "./container.js";
+import { createServer, startServer, stopServer } from "../server/index.js";
+import type { CocoServer } from "../server/index.js";
 import type { CocoConfig } from "../types/index.js";
 
 /**
@@ -21,6 +23,7 @@ export class Concher {
   private shutdownPromise: Promise<void> | null = null;
   private isShuttingDown = false;
   private healthCheckTimer: ReturnType<typeof setInterval> | null = null;
+  private server: CocoServer | null = null;
 
   constructor() {
     this.config = loadConfig();
@@ -62,6 +65,28 @@ export class Concher {
     // Start periodic health check
     this.startHealthCheck();
 
+    // Start web server
+    try {
+      // The broker is not yet part of Concher's constructor, so we create
+      // a minimal one that satisfies the ServerDeps interface.  The routes
+      // that need a live broker (nudge, message) will fail gracefully when
+      // broker methods reject.  A future PR can wire the real broker in.
+      const { MessageBroker } = await import("../messaging/index.js");
+      const broker = new MessageBroker({
+        redis: this.config.redis,
+        fileStore: { basePath: "" },
+      });
+      this.server = createServer({
+        stateManager: this.state as never,
+        broker,
+      });
+      await startServer(this.server, this.config.webPort);
+      logger.info(`Web server listening on port ${this.config.webPort}`);
+    } catch (err) {
+      logger.error("Failed to start web server", err);
+      // Non-fatal: daemon can run without web server
+    }
+
     logger.info(`Concher daemon started (PID ${process.pid})`);
     return true;
   }
@@ -88,6 +113,17 @@ export class Concher {
     if (this.healthCheckTimer) {
       clearInterval(this.healthCheckTimer);
       this.healthCheckTimer = null;
+    }
+
+    // Stop web server
+    if (this.server) {
+      try {
+        await stopServer(this.server);
+        logger.info("Web server stopped");
+      } catch (err) {
+        logger.error("Error stopping web server during shutdown", err);
+      }
+      this.server = null;
     }
 
     // Stop all managed containers
