@@ -1,6 +1,10 @@
 #!/usr/bin/env node
 import { Command } from "commander";
 import { startDaemon, stopDaemon, daemonStatus } from "./daemon.js";
+import { registerInitCommand } from "./commands/init.js";
+import { registerListCommand } from "./commands/list.js";
+
+export { createProgram } from "./coco.js";
 
 const program = new Command();
 
@@ -44,5 +48,10 @@ program
   .action(() => {
     daemonStatus();
   });
+
+// --- Repository commands ---
+
+registerInitCommand(program);
+registerListCommand(program);
 
 program.parse(process.argv);
