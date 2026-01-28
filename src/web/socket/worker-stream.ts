@@ -1,0 +1,304 @@
+/**
+ * Worker Stream — Socket.IO ↔ Redis Bridge
+ *
+ * Bridges Redis pub/sub stream channels to Socket.IO rooms so the
+ * Truffle Inspector page can receive real-time output from a worker.
+ *
+ * Redis channels used:
+ *   cocopilot:stream:{agentName}  — streaming output from an agent
+ *   cocopilot:completions         — task completion notifications
+ *
+ * Socket.IO events emitted to clients:
+ *   worker:output     — new output line from a worker
+ *   worker:status     — worker status change
+ *   worker:completed  — worker task completed
+ *   worker:failed     — worker task failed
+ */
+
+/**
+ * Minimal Socket.IO interfaces to avoid hard dependency on socket.io types.
+ * The actual socket.io package will be installed when the web layer is set up.
+ */
+interface SocketIOSocket {
+  join(room: string): Promise<void>;
+  leave(room: string): Promise<void>;
+  on(event: string, handler: (...args: any[]) => void): void;
+}
+
+interface SocketIORoom {
+  emit(event: string, data: unknown): void;
+  fetchSockets(): Promise<unknown[]>;
+}
+
+interface SocketIOServer {
+  on(event: string, handler: (...args: any[]) => void): void;
+  to(room: string): SocketIORoom;
+  in(room: string): SocketIORoom;
+}
+
+interface RedisSubscriber {
+  subscribe(...channels: string[]): Promise<unknown>;
+  unsubscribe(...channels: string[]): Promise<unknown>;
+  on(event: string, handler: (...args: any[]) => void): void;
+}
+
+import {
+  STREAM_CHANNEL_PREFIX,
+  COMPLETIONS_CHANNEL,
+  streamChannel,
+} from "../../messaging/index.js";
+import type { StateManager } from "../../state/index.js";
+
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
+
+/** Configuration for the worker stream bridge. */
+export interface WorkerStreamConfig {
+  /** Socket.IO server instance. */
+  io: SocketIOServer;
+  /** Redis subscriber instance (must be dedicated for subscriptions). */
+  redisSub: RedisSubscriber;
+  /** StateManager for worker state change events. */
+  stateManager: StateManager;
+}
+
+/** Output event sent to Socket.IO clients. */
+export interface WorkerOutputEvent {
+  workerName: string;
+  type: "output" | "tool_call" | "tool_result" | "error";
+  content: string;
+  timestamp: number;
+}
+
+/** Status change event sent to Socket.IO clients. */
+export interface WorkerStatusEvent {
+  workerName: string;
+  status: string;
+  timestamp: number;
+  error?: string;
+}
+
+/** Completion event sent to Socket.IO clients. */
+export interface WorkerCompletionEvent {
+  workerName: string;
+  summary: string;
+  prUrl?: string;
+  timestamp: number;
+}
+
+// ---------------------------------------------------------------------------
+// Worker Stream Manager
+// ---------------------------------------------------------------------------
+
+/**
+ * Manages Socket.IO rooms for individual workers, subscribing to their
+ * Redis stream channels when clients join and cleaning up when they leave.
+ *
+ * Usage:
+ * ```ts
+ * const wsm = new WorkerStreamManager(config);
+ * await wsm.start();
+ * // ... later
+ * await wsm.stop();
+ * ```
+ */
+export class WorkerStreamManager {
+  private readonly io: SocketIOServer;
+  private readonly redisSub: RedisSubscriber;
+  private readonly stateManager: StateManager;
+
+  /** Set of worker names with active Redis subscriptions. */
+  private subscribedWorkers = new Set<string>();
+  private started = false;
+
+  constructor(config: WorkerStreamConfig) {
+    this.io = config.io;
+    this.redisSub = config.redisSub;
+    this.stateManager = config.stateManager;
+  }
+
+  /**
+   * Start listening for Socket.IO connections and bridging streams.
+   */
+  async start(): Promise<void> {
+    if (this.started) return;
+    this.started = true;
+
+    // Subscribe to completions channel (always active)
+    await this.redisSub.subscribe(COMPLETIONS_CHANNEL);
+
+    // Handle incoming Redis messages
+    this.redisSub.on("message", (channel: string, message: string) => {
+      this.handleRedisMessage(channel, message);
+    });
+
+    // Listen for state changes from StateManager
+    this.stateManager.on(
+      "workerUpdated",
+      (repoName: string, worker: { name: string; status: string; error?: string }) => {
+        const event: WorkerStatusEvent = {
+          workerName: worker.name,
+          status: worker.status,
+          timestamp: Date.now(),
+          error: worker.error,
+        };
+        this.io.to(`worker:${worker.name}`).emit("worker:status", event);
+      },
+    );
+
+    // Handle Socket.IO namespace for worker streams
+    this.io.on("connection", (socket: SocketIOSocket) => {
+      this.handleConnection(socket);
+    });
+  }
+
+  /**
+   * Stop all Redis subscriptions and clean up.
+   */
+  async stop(): Promise<void> {
+    if (!this.started) return;
+    this.started = false;
+
+    // Unsubscribe from all worker channels
+    const channels = [
+      COMPLETIONS_CHANNEL,
+      ...Array.from(this.subscribedWorkers).map(streamChannel),
+    ];
+    if (channels.length > 0) {
+      await this.redisSub.unsubscribe(...channels);
+    }
+    this.subscribedWorkers.clear();
+  }
+
+  // -----------------------------------------------------------------------
+  // Socket.IO connection handling
+  // -----------------------------------------------------------------------
+
+  private handleConnection(socket: SocketIOSocket): void {
+    // Client joins a worker room to receive its output stream
+    socket.on("worker:join", async (workerName: string) => {
+      if (typeof workerName !== "string" || workerName.length === 0) return;
+
+      const room = `worker:${workerName}`;
+      await socket.join(room);
+
+      // Subscribe to Redis channel if not already subscribed
+      if (!this.subscribedWorkers.has(workerName)) {
+        await this.subscribeToWorker(workerName);
+      }
+    });
+
+    // Client leaves a worker room
+    socket.on("worker:leave", async (workerName: string) => {
+      if (typeof workerName !== "string" || workerName.length === 0) return;
+
+      const room = `worker:${workerName}`;
+      await socket.leave(room);
+
+      // Unsubscribe from Redis if no clients remain in the room
+      const roomSockets = await this.io.in(room).fetchSockets();
+      if (roomSockets.length === 0) {
+        await this.unsubscribeFromWorker(workerName);
+      }
+    });
+
+    // Clean up on disconnect
+    socket.on("disconnect", async () => {
+      // Check all subscribed workers and unsubscribe if empty
+      for (const workerName of this.subscribedWorkers) {
+        const room = `worker:${workerName}`;
+        const roomSockets = await this.io.in(room).fetchSockets();
+        if (roomSockets.length === 0) {
+          await this.unsubscribeFromWorker(workerName);
+        }
+      }
+    });
+  }
+
+  // -----------------------------------------------------------------------
+  // Redis subscription management
+  // -----------------------------------------------------------------------
+
+  private async subscribeToWorker(workerName: string): Promise<void> {
+    const channel = streamChannel(workerName);
+    await this.redisSub.subscribe(channel);
+    this.subscribedWorkers.add(workerName);
+  }
+
+  private async unsubscribeFromWorker(workerName: string): Promise<void> {
+    const channel = streamChannel(workerName);
+    await this.redisSub.unsubscribe(channel);
+    this.subscribedWorkers.delete(workerName);
+  }
+
+  // -----------------------------------------------------------------------
+  // Redis message handling
+  // -----------------------------------------------------------------------
+
+  private handleRedisMessage(channel: string, message: string): void {
+    if (channel === COMPLETIONS_CHANNEL) {
+      this.handleCompletionMessage(message);
+      return;
+    }
+
+    // Worker stream channel: cocopilot:stream:{workerName}
+    if (channel.startsWith(STREAM_CHANNEL_PREFIX + ":")) {
+      const workerName = channel.slice(STREAM_CHANNEL_PREFIX.length + 1);
+      this.handleStreamMessage(workerName, message);
+    }
+  }
+
+  private handleStreamMessage(workerName: string, raw: string): void {
+    try {
+      const parsed = JSON.parse(raw) as {
+        type?: string;
+        content?: string;
+      };
+
+      const event: WorkerOutputEvent = {
+        workerName,
+        type: (parsed.type as WorkerOutputEvent["type"]) ?? "output",
+        content: parsed.content ?? raw,
+        timestamp: Date.now(),
+      };
+
+      this.io.to(`worker:${workerName}`).emit("worker:output", event);
+    } catch {
+      // Non-JSON message — emit as raw output
+      const event: WorkerOutputEvent = {
+        workerName,
+        type: "output",
+        content: raw,
+        timestamp: Date.now(),
+      };
+      this.io.to(`worker:${workerName}`).emit("worker:output", event);
+    }
+  }
+
+  private handleCompletionMessage(raw: string): void {
+    try {
+      const parsed = JSON.parse(raw) as {
+        agent?: string;
+        summary?: string;
+        pr_url?: string;
+        timestamp?: number;
+      };
+
+      if (!parsed.agent) return;
+
+      const event: WorkerCompletionEvent = {
+        workerName: parsed.agent,
+        summary: parsed.summary ?? "Task completed",
+        prUrl: parsed.pr_url,
+        timestamp: parsed.timestamp ?? Date.now(),
+      };
+
+      this.io
+        .to(`worker:${parsed.agent}`)
+        .emit("worker:completed", event);
+    } catch {
+      // Ignore malformed completion messages
+    }
+  }
+}
