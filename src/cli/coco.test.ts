@@ -21,11 +21,12 @@ describe("coco CLI program", () => {
     expect(commandNames).toContain("init");
     expect(commandNames).toContain("list");
     expect(commandNames).toContain("agents");
+    expect(commandNames).toContain("config");
   });
 
-  it("has exactly 6 commands", () => {
+  it("has exactly 7 commands", () => {
     const program = createProgram();
-    expect(program.commands).toHaveLength(6);
+    expect(program.commands).toHaveLength(7);
   });
 });
 
