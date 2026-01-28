@@ -18,3 +18,14 @@ export type {
   AgentToolDefinition,
   ToolParameterSchema,
 } from "./types.js";
+
+export {
+  Temperer,
+  type TempererConfig,
+  type PRInfo,
+  type CheckInfo,
+  type CIStatus,
+  type TrackedPR,
+  type TrackedPRState,
+  type ExecFn,
+} from "./temperer.js";
