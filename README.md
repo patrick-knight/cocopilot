@@ -105,6 +105,56 @@ coco status
 
 For a detailed walkthrough, see the [Quick Start Guide](docs/quick-start.md).
 
+## Features
+
+### Metrics Dashboard
+
+The Cocoa Board includes a metrics page at `http://localhost:3000/metrics` with charts for worker throughput, PR cycle time, CI success rate, and model usage. Data refreshes every 30 seconds. See the [Quick Start Guide](docs/quick-start.md) for details.
+
+### Custom Agents
+
+Define your own agents using YAML frontmatter + Markdown files in `.cocopilot/agents/`. Agents can be **persistent** (long-running) or **ephemeral** (run-once). See the [Custom Agents Guide](docs/custom-agents.md).
+
+```bash
+coco agents list           # List available agent definitions
+coco agents spawn --from .cocopilot/agents/reviewer.md
+```
+
+### BYOK (Bring Your Own Key)
+
+Use your own API keys for Anthropic, OpenAI, or Azure instead of the default Copilot-provided model. Keys are encrypted at rest with AES-256-GCM.
+
+```bash
+coco config keys set anthropic sk-ant-...
+coco config keys list
+```
+
+See [Configuration](docs/configuration.md#byok-bring-your-own-key) for details.
+
+### REST API
+
+All orchestration features are available via a REST API for external integrations, scripting, and custom dashboards. Register webhooks to receive notifications on worker and PR events.
+
+```bash
+# Spawn a worker via API
+curl -X POST http://localhost:3000/api/v1/workers \
+  -H 'Content-Type: application/json' \
+  -d '{"task": "Add tests", "repoName": "my-app"}'
+
+# Register a webhook
+curl -X POST http://localhost:3000/api/v1/webhooks \
+  -H 'Content-Type: application/json' \
+  -d '{"url": "https://example.com/hook", "events": ["worker.completed"]}'
+```
+
+See the [API Reference](docs/api-reference.md) for all endpoints.
+
+### MCP Server Extensibility
+
+Extend agent capabilities by adding custom MCP (Model Context Protocol) servers. Configure additional servers in `.cocopilot/config.json` to give agents access to databases, internal APIs, or other tools.
+
+See [Configuration](docs/configuration.md#mcp-server-extensibility) for setup.
+
 ## CLI Reference
 
 | Command | Description |
@@ -114,6 +164,10 @@ For a detailed walkthrough, see the [Quick Start Guide](docs/quick-start.md).
 | `coco stop` | Stop all CoCoPilot services |
 | `coco status` | Show system status |
 | `coco list` | List tracked repositories |
+| `coco agents list` | List available custom agent definitions |
+| `coco agents spawn --from <file>` | Spawn a custom agent from a definition file |
+| `coco config keys set <provider> <key>` | Store an API key for a provider (BYOK) |
+| `coco config keys list` | List configured API key providers |
 
 See [Configuration](docs/configuration.md) for all options and environment variables.
 
@@ -121,6 +175,8 @@ See [Configuration](docs/configuration.md) for all options and environment varia
 
 - [Quick Start Guide](docs/quick-start.md) -- Get up and running in minutes
 - [Configuration Reference](docs/configuration.md) -- CLI options, environment variables, and config schema
+- [API Reference](docs/api-reference.md) -- REST API endpoints for external integrations
+- [Custom Agents Guide](docs/custom-agents.md) -- Define and run your own agents
 - [Troubleshooting](docs/troubleshooting.md) -- Common issues and fixes
 
 ## Modes of Operation
