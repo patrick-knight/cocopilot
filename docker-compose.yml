@@ -1,0 +1,18 @@
+services:
+  cocopilot-app:
+    build: .
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./src:/app/src
+      - ./tsconfig.json:/app/tsconfig.json
+    depends_on:
+      - redis
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - NODE_ENV=development
+
+  redis:
+    image: redis:7.4.6-alpine
+    ports:
+      - "6379:6379"
