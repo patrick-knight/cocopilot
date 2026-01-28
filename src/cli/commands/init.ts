@@ -35,37 +35,51 @@ export function registerInitCommand(program: Command): void {
 
       const name = options.name ?? repoNameFromUrl(repoUrl);
 
-      console.log(`Initializing repository: ${name}`);
-      console.log(`URL: ${repoUrl}`);
-
-      // Detect if this repository is a fork
-      let config: RepoConfig = {};
       try {
-        const forkInfo = await detectFork(repoUrl);
+        console.log(`Initializing repository: ${name}`);
+        console.log(`URL: ${repoUrl}`);
 
-        if (forkInfo.isFork) {
-          console.log(
-            `Detected fork of ${forkInfo.parentOwner}/${forkInfo.parentRepo}`,
-          );
-          config = configureMultiplayer(config, forkInfo);
-          console.log("Configured for multiplayer mode (fork detected).");
-          console.log(
-            `  - autoMerge: disabled`,
-          );
-          console.log(
-            `  - activeAgent: enrober`,
-          );
-          console.log(
-            `  - upstream: ${forkInfo.parentOwner}/${forkInfo.parentRepo}`,
+        // Detect if this repository is a fork
+        let config: RepoConfig = {};
+        try {
+          const forkInfo = await detectFork(repoUrl);
+
+          if (forkInfo.isFork) {
+            console.log(
+              `Detected fork of ${forkInfo.parentOwner}/${forkInfo.parentRepo}`,
+            );
+            config = configureMultiplayer(config, forkInfo);
+            console.log("Configured for multiplayer mode (fork detected).");
+            console.log(
+              `  - autoMerge: disabled`,
+            );
+            console.log(
+              `  - activeAgent: enrober`,
+            );
+            console.log(
+              `  - upstream: ${forkInfo.parentOwner}/${forkInfo.parentRepo}`,
+            );
+          }
+        } catch {
+          console.warn(
+            "Warning: Could not detect fork status. Continuing with default configuration.",
           );
         }
-      } catch (error) {
-        console.warn(
-          "Warning: Could not detect fork status. Continuing with default configuration.",
-        );
-      }
 
-      // TODO: Clone/register repository, set up worktrees, configure tracking
-      console.log(`Repository "${name}" initialized successfully.`);
+        // TODO: Clone/register repository, set up worktrees, configure tracking
+        console.log(`Repository "${name}" initialized successfully.`);
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : String(err);
+        if (message.includes("ENOENT") && message.includes("git")) {
+          console.error("Error: Git is not installed or not in PATH. Install Git and try again.");
+        } else if (message.includes("docker")) {
+          console.error("Error: Docker is not running. Start Docker Desktop and try again.");
+        } else if (message.includes("EACCES") || message.includes("EPERM")) {
+          console.error("Error: Permission denied. Check file permissions and try again.");
+        } else {
+          console.error(`Error: Failed to initialize repository — ${message}`);
+        }
+        process.exitCode = 1;
+      }
     });
 }

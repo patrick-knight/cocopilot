@@ -71,19 +71,31 @@ export function registerStatusCommand(program: Command): void {
     .description("Show overall system status")
     .option("--json", "Output status as JSON")
     .action(async (options: { json: boolean }) => {
-      // TODO: Gather real status from daemon, Docker, etc.
-      const status: SystemStatus = {
-        daemon: { running: false },
-        repositories: [],
-        containers: 0,
-        memoryUsage: "0 B / 0 B",
-        cpuUsage: "0%",
-      };
+      try {
+        // TODO: Gather real status from daemon, Docker, etc.
+        const status: SystemStatus = {
+          daemon: { running: false },
+          repositories: [],
+          containers: 0,
+          memoryUsage: "0 B / 0 B",
+          cpuUsage: "0%",
+        };
 
-      if (options.json) {
-        console.log(JSON.stringify(status, null, 2));
-      } else {
-        console.log(formatStatus(status));
+        if (options.json) {
+          console.log(JSON.stringify(status, null, 2));
+        } else {
+          console.log(formatStatus(status));
+        }
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : String(err);
+        if (message.includes("ECONNREFUSED")) {
+          console.error("Error: Cannot reach the CoCoPilot daemon. Is it running? Start it with `coco start`.");
+        } else if (message.includes("docker")) {
+          console.error("Error: Docker is not running. Start Docker Desktop and try again.");
+        } else {
+          console.error(`Error: Failed to retrieve status — ${message}`);
+        }
+        process.exitCode = 1;
       }
     });
 }

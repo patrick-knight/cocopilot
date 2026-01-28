@@ -15,6 +15,7 @@
 import React from "react";
 import { BrowserRouter, Routes, Route, useNavigate, useParams } from "react-router-dom";
 import { Layout } from "./Layout.js";
+import { ErrorBoundary } from "./components/ErrorBoundary.js";
 import { FactoryFloor } from "./pages/FactoryFloor.js";
 import { TemperingStation } from "../pages/TemperingStation.js";
 import { TruffleInspector } from "./pages/TruffleInspector.js";
@@ -102,17 +103,19 @@ function PRPipelinePageWrapper(): React.ReactElement {
 
 export default function App(): React.ReactElement {
   return (
-    <BrowserRouter>
-      <Layout>
-        <Routes>
-          <Route path="/" element={<FactoryFloorPage />} />
-          <Route path="/repo/:id" element={<TemperingStationPage />} />
-          <Route path="/repo/:id/worker/:name" element={<TruffleInspectorPage />} />
-          <Route path="/repo/:id/prs" element={<PRPipelinePageWrapper />} />
-          <Route path="/logs" element={<BatchLog />} />
-          <Route path="/config" element={<RecipeBook />} />
-        </Routes>
-      </Layout>
-    </BrowserRouter>
+    <ErrorBoundary>
+      <BrowserRouter>
+        <Layout>
+          <Routes>
+            <Route path="/" element={<FactoryFloorPage />} />
+            <Route path="/repo/:id" element={<TemperingStationPage />} />
+            <Route path="/repo/:id/worker/:name" element={<TruffleInspectorPage />} />
+            <Route path="/repo/:id/prs" element={<PRPipelinePageWrapper />} />
+            <Route path="/logs" element={<BatchLog />} />
+            <Route path="/config" element={<RecipeBook />} />
+          </Routes>
+        </Layout>
+      </BrowserRouter>
+    </ErrorBoundary>
   );
 }

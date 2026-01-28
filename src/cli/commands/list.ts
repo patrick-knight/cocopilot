@@ -50,13 +50,25 @@ export function registerListCommand(program: Command): void {
     .description("List tracked repositories")
     .option("--json", "Output as JSON")
     .action(async (options: { json: boolean }) => {
-      // TODO: Read tracked repos from daemon/config
-      const repos: TrackedRepo[] = [];
+      try {
+        // TODO: Read tracked repos from daemon/config
+        const repos: TrackedRepo[] = [];
 
-      if (options.json) {
-        console.log(JSON.stringify(repos, null, 2));
-      } else {
-        console.log(formatRepoList(repos));
+        if (options.json) {
+          console.log(JSON.stringify(repos, null, 2));
+        } else {
+          console.log(formatRepoList(repos));
+        }
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : String(err);
+        if (message.includes("ECONNREFUSED")) {
+          console.error("Error: Cannot reach the CoCoPilot daemon. Is it running? Start it with `coco start`.");
+        } else if (message.includes("ENOENT")) {
+          console.error("Error: Configuration file not found. Run `coco init <repo-url>` first.");
+        } else {
+          console.error(`Error: Failed to list repositories — ${message}`);
+        }
+        process.exitCode = 1;
       }
     });
 }

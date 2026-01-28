@@ -52,7 +52,7 @@ export function TemperingStation({
   const { repo, agents, workers, loading, error } = useRepoState(repoName);
   const prs = usePRPipeline();
   const messages = useMessageQueue();
-  const socket = useSocket();
+  const { socket } = useSocket();
 
   // Live output panel state
   const [selectedAgent, setSelectedAgent] = useState<string | null>(null);
