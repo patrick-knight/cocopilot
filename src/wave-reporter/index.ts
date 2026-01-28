@@ -1,0 +1,31 @@
+export type {
+  WaveId,
+  WaveStatus,
+  WaveTaskSummary,
+  WavePRSummary,
+  TestCoverageDelta,
+  SecurityPostureChange,
+  WaveTimeSummary,
+  WaveRecommendation,
+  WaveReport,
+  WaveReportSummary,
+  BuildWaveReportOptions,
+  RecommendationSeverity,
+  RecommendationCategory,
+} from "./types.js";
+
+export {
+  VALID_WAVE_IDS,
+  collectWaveWorkers,
+  buildTaskSummaries,
+  buildPRSummaries,
+  computeTestCoverageDelta,
+  computeSecurityPosture,
+  computeTimeSummary,
+  generateRecommendations,
+  determineWaveStatus,
+  buildWaveReport,
+  saveReport,
+  loadReport,
+  listReports,
+} from "./wave-reporter.js";

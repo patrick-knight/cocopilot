@@ -23,6 +23,7 @@ import { TruffleInspector } from "./pages/TruffleInspector.js";
 import { PRPipelinePage } from "./pages/PRPipelinePage.js";
 import { BatchLog } from "./pages/BatchLog.js";
 import { MetricsDashboard } from "./pages/MetricsDashboard.js";
+import { WaveReportPage } from "./pages/WaveReportPage.js";
 
 // ---------------------------------------------------------------------------
 // Placeholder pages
@@ -106,6 +107,7 @@ export default function App(): React.ReactElement {
             <Route path="/repo/:id/prs" element={<PRPipelinePageWrapper />} />
             <Route path="/logs" element={<BatchLog />} />
             <Route path="/metrics" element={<MetricsDashboard />} />
+            <Route path="/waves/reports" element={<WaveReportPage />} />
             <Route path="/config" element={<RecipeBook />} />
           </Routes>
         </Layout>
