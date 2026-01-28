@@ -79,9 +79,9 @@ export async function getCIStatus(
     };
   }
 
-  const parsed = rawChecks.map((check): ParsedCI => {
-    const conclusion = check.conclusion.toUpperCase();
-    const state = check.state.toUpperCase();
+  const parsed = ghChecks.map((check): ParsedCI => {
+    const conclusion = (check.conclusion ?? "").toUpperCase();
+    const state = (check.state ?? "").toUpperCase();
 
     let status: ParsedCI["status"];
     if (conclusion === "FAILURE" || conclusion === "CANCELLED" || conclusion === "TIMED_OUT") {
@@ -99,8 +99,13 @@ export async function getCIStatus(
     return {
       name: check.name,
       status,
-      category: categorizeFailure(check),
-      detailsUrl: check.detailsUrl,
+      category: categorizeFailure({
+        name: check.name,
+        state: check.state,
+        conclusion: check.conclusion,
+        detailsUrl: check.detailsUrl ?? "",
+      }),
+      detailsUrl: check.detailsUrl ?? "",
       conclusion: check.conclusion,
     };
   });
@@ -112,7 +117,7 @@ export async function getCIStatus(
   if (failed.length > 0) {
     return {
       status: "failing",
-      checks,
+      checks: parsed,
       failureSummary: generateFixupSummary(failed),
       workflowUrl: failed[0]?.detailsUrl,
       passedCount: passed.length,
@@ -124,7 +129,7 @@ export async function getCIStatus(
   if (pending.length > 0) {
     return {
       status: "pending",
-      checks,
+      checks: parsed,
       passedCount: passed.length,
       failedCount: 0,
       pendingCount: pending.length,
@@ -133,7 +138,7 @@ export async function getCIStatus(
 
   return {
     status: "passing",
-    checks,
+    checks: parsed,
     passedCount: passed.length,
     failedCount: 0,
     pendingCount: 0,
@@ -167,9 +172,8 @@ export function parseWorkflowRuns(runs: WorkflowRun[]): ParsedCI[] {
 
     const check: CICheck = {
       name: run.name,
-      status: run.status,
+      state: run.status,
       conclusion: run.conclusion ?? "",
-      url: run.html_url,
       detailsUrl: run.html_url,
     };
 
