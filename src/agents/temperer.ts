@@ -18,6 +18,12 @@ import {
   type CocoMessage,
   type PRCreatedPayload,
 } from "../messaging/index.js";
+import {
+  getCIStatus,
+  generateFixupSummary,
+  type CIExecFn,
+} from "../github/index.js";
+import type { CIStatusResult } from "../github/types.js";
 
 const execFile = promisify(execFileCb);
 
@@ -274,8 +280,8 @@ export class Temperer {
   }
 
   /**
-   * Check CI status for a PR using `gh pr checks`.
-   * Returns aggregated status and failure details if applicable.
+   * Check CI status for a PR using the CI monitor module.
+   * Returns aggregated status with categorized failure details.
    */
   async checkCI(prNumber: number): Promise<{
     status: CIStatus;
@@ -283,54 +289,26 @@ export class Temperer {
     failureSummary?: string;
     workflowUrl?: string;
   }> {
-    try {
-      const { stdout } = await this.execFn(
-        "gh",
-        [
-          "pr",
-          "checks",
-          String(prNumber),
-          "--json",
-          "name,state,conclusion,detailsUrl",
-        ],
-        { cwd: this.config.repoPath },
-      );
+    const result: CIStatusResult = await getCIStatus(
+      prNumber,
+      this.config.repoPath,
+      this.execFn as CIExecFn,
+    );
 
-      const checks = JSON.parse(stdout) as CheckInfo[];
+    // Map ParsedCI[] back to CheckInfo[] for backward compatibility
+    const checks: CheckInfo[] = result.checks.map((c) => ({
+      name: c.name,
+      state: c.status === "pending" ? "PENDING" : "COMPLETED",
+      conclusion: c.status === "failed" ? "FAILURE" : c.status === "passed" ? "SUCCESS" : "",
+      detailsUrl: c.detailsUrl,
+    }));
 
-      if (checks.length === 0) {
-        return { status: "no_checks", checks };
-      }
-
-      const failed = checks.filter(
-        (c) => c.conclusion === "FAILURE" || c.conclusion === "failure",
-      );
-      const pending = checks.filter(
-        (c) =>
-          c.state === "PENDING" ||
-          c.state === "pending" ||
-          c.state === "QUEUED" ||
-          c.state === "queued" ||
-          c.state === "IN_PROGRESS" ||
-          c.state === "in_progress",
-      );
-
-      if (failed.length > 0) {
-        const failedNames = failed.map((c) => c.name).join(", ");
-        const failureSummary = `${failed.length} check(s) failed: ${failedNames}`;
-        const workflowUrl = failed[0]?.detailsUrl;
-        return { status: "failing", checks, failureSummary, workflowUrl };
-      }
-
-      if (pending.length > 0) {
-        return { status: "pending", checks };
-      }
-
-      return { status: "passing", checks };
-    } catch {
-      // If gh fails (e.g., no checks configured), treat as no_checks
-      return { status: "no_checks", checks: [] };
-    }
+    return {
+      status: result.status,
+      checks,
+      failureSummary: result.failureSummary,
+      workflowUrl: result.workflowUrl,
+    };
   }
 
   /** Merge a PR via `gh pr merge --squash` and notify Chocolatier. */
