@@ -1,0 +1,195 @@
+/**
+ * State schemas for CoCoPilot.
+ *
+ * Defines TypeScript interfaces for all persistent state:
+ * - GlobalConfig: user-level settings (~/.cocopilot/config.json)
+ * - DaemonState: runtime state (~/.cocopilot/state.json)
+ * - RepoState: per-repository tracking
+ * - WorkerState: per-worker tracking
+ * - RepoConfig: in-repo .cocopilot/config.json
+ */
+
+// ---------------------------------------------------------------------------
+// Enums / union types
+// ---------------------------------------------------------------------------
+
+export type AgentType = "supervisor" | "merge-queue" | "pr-shepherd" | "worker";
+
+export type AgentStatus =
+  | "starting"
+  | "healthy"
+  | "working"
+  | "stuck"
+  | "stopped"
+  | "crashed";
+
+export type WorkerStatus =
+  | "starting"
+  | "working"
+  | "stuck"
+  | "completed"
+  | "failed"
+  | "terminated";
+
+export type RepoMode = "single-player" | "multiplayer";
+
+export type RepoStatus = "initializing" | "active" | "paused" | "error";
+
+export type DaemonStatus = "running" | "stopping" | "stopped";
+
+export type MessagePriority = "low" | "normal" | "high";
+
+// ---------------------------------------------------------------------------
+// Global configuration (~/.cocopilot/config.json)
+// ---------------------------------------------------------------------------
+
+export interface GitHubConfig {
+  defaultBranch: string;
+  prLabels: string[];
+  requireCI: boolean;
+}
+
+export interface RedisConfig {
+  host: string;
+  port: number;
+  password?: string;
+}
+
+export interface GlobalConfig {
+  model: string;
+  webPort: number;
+  maxWorkersPerRepo: number;
+  workerTimeout: string;
+  supervisorNudgeInterval: string;
+  mergeQueuePollInterval: string;
+  containerMemoryLimit: string;
+  containerCpuLimit: string;
+  autoMerge: boolean;
+  theme: string;
+  github: GitHubConfig;
+  redis: RedisConfig;
+}
+
+// ---------------------------------------------------------------------------
+// Agent state (embedded in repo state)
+// ---------------------------------------------------------------------------
+
+export interface AgentState {
+  name: string;
+  type: AgentType;
+  status: AgentStatus;
+  containerId?: string;
+  lastActivity: string; // ISO 8601
+  startedAt: string; // ISO 8601
+  error?: string;
+}
+
+// ---------------------------------------------------------------------------
+// Worker state
+// ---------------------------------------------------------------------------
+
+export interface WorkerState {
+  id: string; // UUID
+  name: string; // Candy name (e.g. "Snickers")
+  task: string;
+  branch: string;
+  status: WorkerStatus;
+  containerId?: string;
+  model?: string;
+  prNumber?: number;
+  prUrl?: string;
+  createdAt: string; // ISO 8601
+  updatedAt: string; // ISO 8601
+  completedAt?: string; // ISO 8601
+  error?: string;
+}
+
+// ---------------------------------------------------------------------------
+// Repository state (tracked in daemon state)
+// ---------------------------------------------------------------------------
+
+export interface RepoState {
+  id: string; // UUID
+  name: string;
+  url: string;
+  localPath: string;
+  mode: RepoMode;
+  status: RepoStatus;
+  defaultBranch: string;
+  agents: Record<string, AgentState>;
+  workers: Record<string, WorkerState>;
+  createdAt: string; // ISO 8601
+  updatedAt: string; // ISO 8601
+  lastMerge?: string; // ISO 8601
+}
+
+// ---------------------------------------------------------------------------
+// Daemon state (~/.cocopilot/state.json)
+// ---------------------------------------------------------------------------
+
+export interface DaemonState {
+  version: number; // Schema version for migrations
+  status: DaemonStatus;
+  pid?: number;
+  startedAt?: string; // ISO 8601
+  repositories: Record<string, RepoState>; // keyed by repo name
+}
+
+// ---------------------------------------------------------------------------
+// In-repo configuration (.cocopilot/config.json)
+// ---------------------------------------------------------------------------
+
+export interface CustomAgentDef {
+  name: string;
+  prompt: string;
+  triggers?: string[];
+}
+
+export interface McpServerConfig {
+  type: "stdio" | "http";
+  command?: string;
+  args?: string[];
+  url?: string;
+}
+
+export interface RepoConfig {
+  mode?: RepoMode;
+  model?: string;
+  maxWorkers?: number;
+  customAgents?: CustomAgentDef[];
+  mcpServers?: Record<string, McpServerConfig>;
+}
+
+// ---------------------------------------------------------------------------
+// Defaults
+// ---------------------------------------------------------------------------
+
+export const DEFAULT_GLOBAL_CONFIG: GlobalConfig = {
+  model: "claude-sonnet-4-5",
+  webPort: 3000,
+  maxWorkersPerRepo: 10,
+  workerTimeout: "4h",
+  supervisorNudgeInterval: "5m",
+  mergeQueuePollInterval: "2m",
+  containerMemoryLimit: "4g",
+  containerCpuLimit: "2",
+  autoMerge: true,
+  theme: "dark-chocolate",
+  github: {
+    defaultBranch: "main",
+    prLabels: ["cocopilot"],
+    requireCI: true,
+  },
+  redis: {
+    host: "localhost",
+    port: 6379,
+  },
+};
+
+export const CURRENT_STATE_VERSION = 1;
+
+export const DEFAULT_DAEMON_STATE: DaemonState = {
+  version: CURRENT_STATE_VERSION,
+  status: "stopped",
+  repositories: {},
+};

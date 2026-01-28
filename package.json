@@ -17,7 +17,8 @@
     "start": "node dist/cli/index.js",
     "test": "jest",
     "test:watch": "jest --watch",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit",
+    "clean": "rm -rf dist/"
   },
   "dependencies": {
     "commander": "^12.1.0",
