@@ -18,6 +18,7 @@ import { io, Socket } from "socket.io-client";
 import type {
   RepositorySummary,
   ActivityEvent,
+  SystemStatus,
   ServerToClientEvents,
   ClientToServerEvents,
 } from "../types.js";
@@ -262,6 +263,7 @@ export function FactoryFloor({ serverUrl, onNavigateToRepo }: FactoryFloorProps)
   const [repos, setRepos] = useState<RepositorySummary[]>([]);
   const [activities, setActivities] = useState<ActivityEvent[]>([]);
   const [connected, setConnected] = useState(false);
+  const [systemStatus, setSystemStatus] = useState<SystemStatus | null>(null);
 
   // Init repo form
   const [showInitForm, setShowInitForm] = useState(false);
@@ -321,6 +323,11 @@ export function FactoryFloor({ serverUrl, onNavigateToRepo }: FactoryFloorProps)
           ? next.slice(0, MAX_ACTIVITY_EVENTS)
           : next;
       });
+    });
+
+    // System status updates
+    socket.on("system:status", (status) => {
+      setSystemStatus(status);
     });
 
     return () => {
@@ -391,27 +398,90 @@ export function FactoryFloor({ serverUrl, onNavigateToRepo }: FactoryFloorProps)
 
   // ---- Render ----
 
-  return (
-    <div className="min-h-screen bg-[#FFF8E7]">
-      {/* Header */}
-      <header className="bg-[#3B1F0B] px-6 py-4 shadow-md">
-        <div className="mx-auto flex max-w-7xl items-center justify-between">
-          <h1 className="text-xl font-bold text-[#FFF8E7]">CoCoPilot</h1>
-          <div className="flex items-center gap-3">
-            <span
-              className={`inline-block h-2 w-2 rounded-full ${
-                connected ? "bg-green-400" : "bg-red-400"
-              }`}
-              title={connected ? "Connected" : "Disconnected"}
-            />
-            <span className="text-sm text-[#FFF8E7]/70">
-              {connected ? "Connected" : "Disconnected"}
-            </span>
-          </div>
-        </div>
-      </header>
+  /** Format uptime seconds to human-readable string. */
+  const formatUptime = (seconds: number | null): string => {
+    if (seconds === null) return "—";
+    const h = Math.floor(seconds / 3600);
+    const m = Math.floor((seconds % 3600) / 60);
+    if (h > 0) return `${h}h ${m}m`;
+    return `${m}m`;
+  };
 
-      <main className="mx-auto max-w-7xl px-6 py-8">
+  return (
+    <div className="px-6 py-8">
+      {/* Connection status indicator */}
+      <div className="mb-6 flex items-center justify-between">
+        <h1 className="text-2xl font-bold text-[#3B1F0B]">Factory Floor</h1>
+        <div className="flex items-center gap-2">
+          <span
+            className={`inline-block h-2 w-2 rounded-full ${
+              connected ? "bg-green-400" : "bg-red-400"
+            }`}
+            title={connected ? "Connected" : "Disconnected"}
+          />
+          <span className="text-sm text-gray-500">
+            {connected ? "Connected" : "Disconnected"}
+          </span>
+        </div>
+      </div>
+
+      {/* System Resource Utilization */}
+      {systemStatus && (
+        <section className="mb-8">
+          <div className="rounded-lg border border-[#C68B3C]/30 bg-white p-4 shadow-sm">
+            <h2 className="mb-3 text-sm font-semibold text-[#3B1F0B]">
+              System Status
+            </h2>
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              <div className="flex items-center gap-3">
+                <span
+                  className={`inline-block h-3 w-3 rounded-full ${
+                    systemStatus.daemonRunning ? "bg-green-500" : "bg-red-500"
+                  }`}
+                />
+                <div>
+                  <p className="text-xs text-gray-500">Daemon</p>
+                  <p className="text-sm font-medium text-[#3B1F0B]">
+                    {systemStatus.daemonRunning ? "Running" : "Stopped"}
+                  </p>
+                </div>
+              </div>
+              <div>
+                <p className="text-xs text-gray-500">Uptime</p>
+                <p className="text-sm font-medium text-[#3B1F0B]">
+                  {formatUptime(systemStatus.uptime)}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs text-gray-500">Containers</p>
+                <p className="text-sm font-medium text-[#3B1F0B]">
+                  {systemStatus.totalContainers} running
+                </p>
+              </div>
+              <div className="flex gap-6">
+                {systemStatus.memoryUsage && (
+                  <div>
+                    <p className="text-xs text-gray-500">Memory</p>
+                    <p className="text-sm font-medium text-[#3B1F0B]">
+                      {systemStatus.memoryUsage}
+                    </p>
+                  </div>
+                )}
+                {systemStatus.cpuUsage && (
+                  <div>
+                    <p className="text-xs text-gray-500">CPU</p>
+                    <p className="text-sm font-medium text-[#3B1F0B]">
+                      {systemStatus.cpuUsage}
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </section>
+      )}
+
+      <div className="mx-auto max-w-7xl">
         {/* Initialize repo action */}
         <section className="mb-8">
           {showInitForm ? (
@@ -523,7 +593,7 @@ export function FactoryFloor({ serverUrl, onNavigateToRepo }: FactoryFloorProps)
             </ul>
           )}
         </section>
-      </main>
+      </div>
     </div>
   );
 }
