@@ -7,6 +7,7 @@
  *  /repo/:id/worker/:name   → Truffle Inspector (worker detail)
  *  /repo/:id/prs            → PR Pipeline (pipeline visualization)
  *  /logs                    → Batch Log (activity timeline)
+ *  /metrics                 → Metrics Dashboard (analytics)
  *  /config                  → Recipe Book (placeholder)
  *
  * Wraps all routes in the shared Layout component.
@@ -21,6 +22,7 @@ import { TemperingStation } from "../pages/TemperingStation.js";
 import { TruffleInspector } from "./pages/TruffleInspector.js";
 import { PRPipelinePage } from "./pages/PRPipelinePage.js";
 import { BatchLog } from "./pages/BatchLog.js";
+import { MetricsDashboard } from "./pages/MetricsDashboard.js";
 
 // ---------------------------------------------------------------------------
 // Placeholder pages
@@ -103,6 +105,7 @@ export default function App(): React.ReactElement {
             <Route path="/repo/:id/worker/:name" element={<TruffleInspectorPage />} />
             <Route path="/repo/:id/prs" element={<PRPipelinePageWrapper />} />
             <Route path="/logs" element={<BatchLog />} />
+            <Route path="/metrics" element={<MetricsDashboard />} />
             <Route path="/config" element={<RecipeBook />} />
           </Routes>
         </Layout>
