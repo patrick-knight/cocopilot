@@ -21,10 +21,12 @@
   },
   "dependencies": {
     "commander": "^12.1.0",
+    "dockerode": "^4.0.9",
     "ioredis": "^5.6.0",
     "uuid": "^11.1.0"
   },
   "devDependencies": {
+    "@types/dockerode": "^4.0.1",
     "@types/jest": "^29.5.14",
     "@types/node": "^22.12.0",
     "@types/uuid": "^10.0.0",
