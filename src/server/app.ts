@@ -12,6 +12,7 @@ import cors from "cors";
 import { Server as SocketIOServer } from "socket.io";
 
 import type { StateManager } from "../state/index.js";
+import type { EventStore } from "../state/index.js";
 import type { MessageBroker } from "../messaging/index.js";
 import type { RedisMessageBus } from "../messaging/index.js";
 
@@ -20,9 +21,11 @@ import { configRoutes } from "./routes/config.js";
 import { repositoryRoutes } from "./routes/repositories.js";
 import { workerRoutes } from "./routes/workers.js";
 import { agentRoutes } from "./routes/agents.js";
+import { prRoutes } from "./routes/prs.js";
+import { eventsRoutes } from "./routes/events.js";
 import { createExtApiRouter } from "../api/index.js";
 import { metricsRoutes } from "../web/routes/metrics.js";
-import { waveRoutes } from "./routes/wave.js";
+import { waveReportRoutes } from "./routes/wave-reports.js";
 import { createSocketBridge } from "./socket-bridge.js";
 import { createStreamBridge } from "./stream-bridge.js";
 
@@ -30,6 +33,7 @@ export interface ServerDeps {
   stateManager: StateManager;
   broker: MessageBroker;
   redisBus?: RedisMessageBus;
+  eventStore?: EventStore;
 }
 
 export interface CocoServer {
@@ -43,7 +47,7 @@ export interface CocoServer {
  * attached, and bridges wired up.
  */
 export function createServer(deps: ServerDeps): CocoServer {
-  const { stateManager, broker, redisBus } = deps;
+  const { stateManager, broker, redisBus, eventStore } = deps;
 
   const app = express();
 
@@ -63,11 +67,12 @@ export function createServer(deps: ServerDeps): CocoServer {
     "/repositories/:repoName/agents",
     agentRoutes(stateManager, broker),
   );
-  api.use("/metrics", metricsRoutes(stateManager));
   api.use(
-    "/repositories/:repoName/wave",
-    waveRoutes(stateManager),
+    "/repositories/:repoName/prs",
+    prRoutes(stateManager),
   );
+  api.use("/metrics", metricsRoutes(stateManager));
+  api.use("/waves", waveReportRoutes(stateManager));
   app.use("/api/v1", api);
 
   // External integration API (flat worker management, webhooks, status)
@@ -90,7 +95,7 @@ export function createServer(deps: ServerDeps): CocoServer {
   });
 
   // Wire up bridges
-  const cleanupSocketBridge = createSocketBridge(io, stateManager, broker);
+  const cleanupSocketBridge = createSocketBridge(io, stateManager, broker, eventStore);
   let cleanupStreamBridge: (() => void) | undefined;
   if (redisBus) {
     cleanupStreamBridge = createStreamBridge(io, redisBus);
