@@ -33,3 +33,11 @@ export {
 } from "./atomic-write.js";
 
 export { recoverState } from "./recovery.js";
+
+export {
+  EventStore,
+  type ActivityEvent,
+  type ActivityEventType,
+  type EventFilter,
+  type EventStoreConfig,
+} from "./event-store.js";
