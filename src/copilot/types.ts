@@ -122,6 +122,13 @@ export interface CopilotWrapperConfig {
    * When set, uses the provided API endpoint instead of the Copilot API.
    */
   provider?: ProviderConfig;
+
+  /**
+   * Convenience shorthand for BYOK API key.
+   * When set, injects the key into the provider config's `apiKey` field.
+   * If a `provider` is also specified, this value is merged into it.
+   */
+  apiKey?: string;
 }
 
 /**
@@ -146,6 +153,9 @@ export interface CopilotSessionOptions {
 
   /** Override provider for this session. */
   provider?: ProviderConfig;
+
+  /** Override API key for this session (merged into provider config). */
+  apiKey?: string;
 
   /** Override permission handler for this session. */
   onPermissionRequest?: PermissionHandler;

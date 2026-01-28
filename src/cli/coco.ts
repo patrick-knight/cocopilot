@@ -14,6 +14,7 @@ import { registerStatusCommand } from "./commands/status.js";
 import { registerInitCommand } from "./commands/init.js";
 import { registerListCommand } from "./commands/list.js";
 import { registerAgentsCommand } from "./commands/agents.js";
+import { registerConfigCommand } from "./commands/config-keys.js";
 
 export function createProgram(): Command {
   const program = new Command();
@@ -31,6 +32,7 @@ export function createProgram(): Command {
   registerInitCommand(program);
   registerListCommand(program);
   registerAgentsCommand(program);
+  registerConfigCommand(program);
 
   return program;
 }

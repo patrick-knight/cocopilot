@@ -103,7 +103,10 @@ export class CopilotClientWrapper {
     const mergedTools = this.mergeTools(options.tools);
     const mergedMcpServers = this.mergeMcpServers(options.mcpServers);
 
-    const provider = options.provider ?? this.config.provider;
+    const provider = this.resolveProvider(
+      options.provider ?? this.config.provider,
+      options.apiKey ?? this.config.apiKey,
+    );
 
     const sessionConfig: SessionConfig = {
       sessionId: options.sessionId,
@@ -148,7 +151,10 @@ export class CopilotClientWrapper {
   ): Promise<CopilotSession> {
     const mergedTools = this.mergeTools(options.tools);
 
-    const resumeProvider = options.provider ?? this.config.provider;
+    const resumeProvider = this.resolveProvider(
+      options.provider ?? this.config.provider,
+      options.apiKey ?? this.config.apiKey,
+    );
 
     const session = await this.client.resumeSession(sessionId, {
       tools: mergedTools.length > 0 ? mergedTools : undefined,
@@ -269,6 +275,29 @@ export class CopilotClientWrapper {
   // ---------------------------------------------------------------------------
   // Private helpers
   // ---------------------------------------------------------------------------
+
+  /**
+   * Resolve a provider config, injecting an apiKey if provided.
+   * Returns undefined if neither provider nor apiKey is set.
+   */
+  private resolveProvider(
+    provider?: import("./types.js").ProviderConfig,
+    apiKey?: string,
+  ): import("./types.js").ProviderConfig | undefined {
+    if (!provider && !apiKey) return undefined;
+
+    if (apiKey && !provider) {
+      // apiKey without explicit provider — create a minimal provider config.
+      // The SDK will use the key with its default endpoint.
+      return { apiKey, baseUrl: "" } as import("./types.js").ProviderConfig;
+    }
+
+    if (apiKey && provider) {
+      return { ...provider, apiKey };
+    }
+
+    return provider;
+  }
 
   /**
    * Merge wrapper-level default tools with session-specific tools.
