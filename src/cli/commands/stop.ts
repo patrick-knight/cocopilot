@@ -1,4 +1,5 @@
 import { Command } from "commander";
+import { stopDaemon } from "../daemon.js";
 
 export function registerStopCommand(program: Command): void {
   program
@@ -13,7 +14,8 @@ export function registerStopCommand(program: Command): void {
           console.log("Stopping CoCoPilot services gracefully...");
         }
 
-        // TODO: Implement actual daemon/container shutdown
+        await stopDaemon();
+
         console.log("All services stopped.");
       } catch (err: unknown) {
         const message = err instanceof Error ? err.message : String(err);

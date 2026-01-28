@@ -3,6 +3,25 @@ jest.mock("../copilot/client.js", () => ({
   CopilotClientWrapper: jest.fn(),
 }));
 
+// Mock daemon lifecycle functions (daemon.ts uses import.meta.url unsupported by ts-jest)
+jest.mock("./daemon", () => ({
+  startDaemon: jest.fn().mockResolvedValue(undefined),
+  stopDaemon: jest.fn().mockResolvedValue(undefined),
+  daemonStatus: jest.fn(),
+}));
+
+// Mock daemon PID utilities (used by status command)
+jest.mock("../daemon/pid", () => ({
+  isDaemonRunning: jest.fn().mockReturnValue({ running: false, pid: null }),
+  readPid: jest.fn().mockReturnValue(null),
+}));
+
+// Mock daemon config utilities (used by status, list, init commands)
+jest.mock("../daemon/config", () => ({
+  getCocopilotDir: jest.fn().mockReturnValue("/tmp/test-cocopilot"),
+  ensureCocopilotDir: jest.fn(),
+}));
+
 import { createProgram } from "./coco";
 
 describe("coco CLI program", () => {
