@@ -18,6 +18,14 @@ import type {
 
 const execFile = promisify(execFileCb);
 
+/** Raw check data as returned by `gh pr checks --json`. */
+interface RawGHCheck {
+  name: string;
+  state: string;
+  conclusion: string;
+  detailsUrl?: string;
+}
+
 /** Function signature for executing shell commands. Exposed for testing. */
 export type ExecFn = (
   file: string,
@@ -36,7 +44,7 @@ export async function getCIStatus(
   repo: string,
   exec: ExecFn = execFile,
 ): Promise<CIStatusResult> {
-  let rawChecks: CICheck[];
+  let ghChecks: RawGHCheck[];
 
   try {
     const { stdout } = await exec(
@@ -50,7 +58,7 @@ export async function getCIStatus(
       ],
       { cwd: repo },
     );
-    rawChecks = JSON.parse(stdout) as CICheck[];
+    ghChecks = JSON.parse(stdout) as RawGHCheck[];
   } catch {
     return {
       status: "no_checks",
@@ -61,7 +69,7 @@ export async function getCIStatus(
     };
   }
 
-  if (rawChecks.length === 0) {
+  if (ghChecks.length === 0) {
     return {
       status: "no_checks",
       checks: [],
@@ -71,9 +79,18 @@ export async function getCIStatus(
     };
   }
 
-  const parsed = rawChecks.map((check): ParsedCI => {
+  // Map raw gh output to CICheck (state → status, detailsUrl → url)
+  const checks: CICheck[] = ghChecks.map((c) => ({
+    name: c.name,
+    status: c.state,
+    conclusion: c.conclusion,
+    url: c.detailsUrl ?? "",
+    detailsUrl: c.detailsUrl,
+  }));
+
+  const parsed = checks.map((check): ParsedCI => {
     const conclusion = check.conclusion.toUpperCase();
-    const state = check.state.toUpperCase();
+    const state = check.status.toUpperCase();
 
     let status: ParsedCI["status"];
     if (conclusion === "FAILURE" || conclusion === "CANCELLED" || conclusion === "TIMED_OUT") {
@@ -92,7 +109,7 @@ export async function getCIStatus(
       name: check.name,
       status,
       category: categorizeFailure(check),
-      detailsUrl: check.detailsUrl,
+      detailsUrl: check.detailsUrl ?? check.url,
       conclusion: check.conclusion,
     };
   });
@@ -104,7 +121,7 @@ export async function getCIStatus(
   if (failed.length > 0) {
     return {
       status: "failing",
-      checks: parsed,
+      checks,
       failureSummary: generateFixupSummary(failed),
       workflowUrl: failed[0]?.detailsUrl,
       passedCount: passed.length,
@@ -116,7 +133,7 @@ export async function getCIStatus(
   if (pending.length > 0) {
     return {
       status: "pending",
-      checks: parsed,
+      checks,
       passedCount: passed.length,
       failedCount: 0,
       pendingCount: pending.length,
@@ -125,7 +142,7 @@ export async function getCIStatus(
 
   return {
     status: "passing",
-    checks: parsed,
+    checks,
     passedCount: passed.length,
     failedCount: 0,
     pendingCount: 0,
@@ -159,8 +176,9 @@ export function parseWorkflowRuns(runs: WorkflowRun[]): ParsedCI[] {
 
     const check: CICheck = {
       name: run.name,
-      state: run.status,
+      status: run.status,
       conclusion: run.conclusion ?? "",
+      url: run.html_url,
       detailsUrl: run.html_url,
     };
 
