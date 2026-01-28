@@ -10,17 +10,80 @@ jest.mock("../../src/copilot/client.js", () => ({
   CopilotClientWrapper: jest.fn(),
 }));
 
-import { createProgram } from "../../src/cli/coco";
-
 // Mock GitHub fork detection (used by `coco init`)
 jest.mock("../../src/github/fork-detection", () => ({
   detectFork: jest.fn().mockResolvedValue({
     isFork: false,
     parentOwner: undefined,
     parentRepo: undefined,
+    defaultBranch: "main",
   }),
-  configureMultiplayer: jest.fn().mockReturnValue({}),
+  configureMultiplayer: jest.fn().mockImplementation(
+    (_config: Record<string, unknown>, forkInfo: { parentOwner: string; parentRepo: string; defaultBranch: string }) => ({
+      mode: "multiplayer",
+      autoMerge: false,
+      activeAgent: "enrober",
+      upstream: {
+        owner: forkInfo.parentOwner,
+        repo: forkInfo.parentRepo,
+        defaultBranch: forkInfo.defaultBranch,
+      },
+    }),
+  ),
 }));
+
+// Mock StateManager (used by `coco init` to persist repo state)
+const mockStateManagerInstance = {
+  init: jest.fn().mockResolvedValue(undefined),
+  getRepo: jest.fn().mockReturnValue(undefined),
+  getBaseDir: jest.fn().mockReturnValue("/tmp/.cocopilot"),
+  addRepo: jest.fn().mockResolvedValue({
+    id: "mock-id",
+    name: "mock",
+    url: "",
+    localPath: "",
+    mode: "single-player",
+    status: "initializing",
+    defaultBranch: "main",
+    agents: {},
+    workers: {},
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  }),
+  setAgent: jest.fn().mockResolvedValue({
+    name: "mock-agent",
+    type: "supervisor",
+    status: "starting",
+    lastActivity: new Date().toISOString(),
+    startedAt: new Date().toISOString(),
+  }),
+  updateRepoStatus: jest.fn().mockResolvedValue({}),
+};
+jest.mock("../../src/state/state-manager", () => ({
+  StateManager: jest.fn().mockImplementation(() => mockStateManagerInstance),
+}));
+
+// Mock child_process (used by init for git clone)
+jest.mock("node:child_process", () => ({
+  execFile: jest.fn((_cmd: string, _args: string[], callback: Function) => {
+    callback(null, { stdout: "", stderr: "" });
+  }),
+}));
+
+// Mock fs.promises for mkdir and writeFile used by init
+jest.mock("node:fs", () => {
+  const actual = jest.requireActual("node:fs");
+  return {
+    ...actual,
+    promises: {
+      ...actual.promises,
+      mkdir: jest.fn().mockResolvedValue(undefined),
+      writeFile: jest.fn().mockResolvedValue(undefined),
+    },
+  };
+});
+
+import { createProgram } from "../../src/cli/coco";
 
 /**
  * Helper to run a CLI command programmatically and capture output.
@@ -76,6 +139,14 @@ async function runCLI(
 // ---------------------------------------------------------------------------
 
 describe("coco init", () => {
+  beforeEach(() => {
+    // Reset StateManager mocks between init tests to avoid state leakage
+    mockStateManagerInstance.getRepo.mockReturnValue(undefined);
+    mockStateManagerInstance.addRepo.mockClear();
+    mockStateManagerInstance.setAgent.mockClear();
+    mockStateManagerInstance.updateRepoStatus.mockClear();
+  });
+
   it("initializes a repository from a valid GitHub URL", async () => {
     const result = await runCLI([
       "init",
@@ -116,7 +187,9 @@ describe("coco init", () => {
       isFork: true,
       parentOwner: "upstream-org",
       parentRepo: "widgets",
-      parentDefaultBranch: "main",
+      sourceOwner: "upstream-org",
+      sourceRepo: "widgets",
+      defaultBranch: "main",
     });
 
     const result = await runCLI([
