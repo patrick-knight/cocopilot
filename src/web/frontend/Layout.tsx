@@ -18,6 +18,7 @@ const navLinks = [
   { to: "/", label: "Factory Floor" },
   { to: "/logs", label: "Batch Log" },
   { to: "/metrics", label: "Metrics" },
+  { to: "/waves", label: "Wave Reports" },
   { to: "/config", label: "Recipe Book" },
 ];
 

@@ -22,6 +22,7 @@ import { workerRoutes } from "./routes/workers.js";
 import { agentRoutes } from "./routes/agents.js";
 import { createExtApiRouter } from "../api/index.js";
 import { metricsRoutes } from "../web/routes/metrics.js";
+import { waveReportRoutes } from "./routes/wave-reports.js";
 import { createSocketBridge } from "./socket-bridge.js";
 import { createStreamBridge } from "./stream-bridge.js";
 
@@ -63,6 +64,7 @@ export function createServer(deps: ServerDeps): CocoServer {
     agentRoutes(stateManager, broker),
   );
   api.use("/metrics", metricsRoutes(stateManager));
+  api.use("/waves", waveReportRoutes(stateManager));
   app.use("/api/v1", api);
 
   // External integration API (flat worker management, webhooks, status)
