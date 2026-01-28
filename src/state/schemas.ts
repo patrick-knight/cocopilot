@@ -152,10 +152,19 @@ export interface McpServerConfig {
   url?: string;
 }
 
+export interface UpstreamConfig {
+  owner: string;
+  repo: string;
+  defaultBranch: string;
+}
+
 export interface RepoConfig {
   mode?: RepoMode;
   model?: string;
   maxWorkers?: number;
+  autoMerge?: boolean;
+  activeAgent?: string;
+  upstream?: UpstreamConfig;
   customAgents?: CustomAgentDef[];
   mcpServers?: Record<string, McpServerConfig>;
 }
