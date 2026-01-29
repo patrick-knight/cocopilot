@@ -103,6 +103,11 @@ coco status
 # Or open http://localhost:3000 in your browser
 ```
 
+> **Docker note:** The compose files start the daemon automatically by running
+> `coco start` inside the container. If you run the image manually, be sure to
+> pass `start` (e.g., `node dist/cli/index.js start`) or the container will exit
+> after showing CLI help.
+
 For a detailed walkthrough, see the [Quick Start Guide](docs/quick-start.md).
 
 ## Features

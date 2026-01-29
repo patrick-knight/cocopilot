@@ -1,11 +1,13 @@
 services:
   cocopilot-app:
     build: .
+    command: ["node", "dist/cli/index.js", "start", "--foreground"]
     ports:
       - "3000:3000"
     volumes:
       - ./src:/app/src
       - ./tsconfig.json:/app/tsconfig.json
+      - /var/run/docker.sock:/var/run/docker.sock
     depends_on:
       - redis
     environment:

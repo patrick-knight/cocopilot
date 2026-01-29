@@ -26,8 +26,10 @@ export async function startDaemon(foreground: boolean = false): Promise<void> {
       console.error("Failed to start daemon");
       process.exit(1);
     }
-    // Keep process alive
-    return;
+    // Keep process alive until a signal triggers shutdown
+    const keepAlive = setInterval(() => {}, 60_000);
+    keepAlive.unref?.();
+    await new Promise<void>(() => {});
   }
 
   // Fork a detached child process running the daemon entry point

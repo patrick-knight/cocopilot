@@ -2,6 +2,9 @@ services:
   cocopilot-app:
     restart: unless-stopped
     env_file: .env
+    command: ["node", "dist/cli/index.js", "start", "--foreground"]
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
     deploy:
       resources:
         limits:
