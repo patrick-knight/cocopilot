@@ -197,8 +197,8 @@ function CISuccessRateChart({
           cx="50%"
           cy="50%"
           outerRadius={90}
-          label={({ status, count }: { status: string; count: number }) =>
-            `${status}: ${count}`
+          label={(props: any) =>
+            `${props.status}: ${props.count}`
           }
         >
           {data.map((_entry, index) => (

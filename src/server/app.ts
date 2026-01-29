@@ -7,6 +7,8 @@
  */
 
 import { createServer as createHttpServer, type Server as HttpServer } from "node:http";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import express from "express";
 import cors from "cors";
 import { Server as SocketIOServer } from "socket.io";
@@ -30,7 +32,7 @@ import { createSocketBridge } from "./socket-bridge.js";
 import { createStreamBridge } from "./stream-bridge.js";
 
 export interface ServerDeps {
-  stateManager: StateManager;
+  stateManager: any;
   broker: MessageBroker;
   redisBus?: RedisMessageBus;
   eventStore?: EventStore;
@@ -54,6 +56,12 @@ export function createServer(deps: ServerDeps): CocoServer {
   // Middleware
   app.use(cors());
   app.use(express.json());
+
+  // Serve static frontend files (in production)
+  const __filename = fileURLToPath(import.meta.url);
+  const __dirname = path.dirname(__filename);
+  const distWebPath = path.resolve(__dirname, "../../dist-web");
+  app.use(express.static(distWebPath));
 
   // REST API routes under /api/v1
   const api = express.Router();
@@ -85,6 +93,16 @@ export function createServer(deps: ServerDeps): CocoServer {
 
   // Error handler (must be after routes)
   app.use(errorHandler);
+
+  // Catch-all route to serve index.html for client-side routing
+  // Must be after error handler and API routes
+  app.use((req, res) => {
+    if (req.path.startsWith("/api")) {
+      res.status(404).json({ error: "Not found" });
+    } else {
+      res.sendFile(path.join(distWebPath, "index.html"));
+    }
+  });
 
   // HTTP server
   const httpServer = createHttpServer(app);

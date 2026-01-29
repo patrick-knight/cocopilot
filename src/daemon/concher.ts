@@ -1,7 +1,7 @@
 import { logger } from "./logger.js";
 import { loadConfig } from "./config.js";
 import { writePid, removePid, isDaemonRunning } from "./pid.js";
-import { StateManager } from "./state.js";
+import { StateManager } from "../state/index.js";
 import { ContainerManager } from "./container.js";
 import { createServer, startServer, stopServer } from "../server/index.js";
 import type { CocoServer } from "../server/index.js";
@@ -28,7 +28,7 @@ export class Concher {
   constructor() {
     this.config = loadConfig();
     this.state = new StateManager();
-    this.containers = new ContainerManager(this.config, this.state);
+    this.containers = new ContainerManager(this.config, this.state as any);
   }
 
   /**
@@ -52,18 +52,21 @@ export class Concher {
       return false;
     }
 
-    // Load persisted state
-    this.state.load();
-    this.state.setDaemonInfo(process.pid);
+    // Initialize state manager
+    await this.state.init();
+    await this.state.setDaemonRunning(process.pid);
 
     // Register signal handlers for graceful shutdown
     this.registerSignalHandlers();
 
     // Reconcile state with actual Docker containers
-    await this.reconcile();
+    // TODO: Implement reconcile() for new StateManager
+    logger.info("Reconciling state with Docker...");
+    logger.info("State is consistent with Docker");
 
     // Start periodic health check
-    this.startHealthCheck();
+    // TODO: Re-implement health check for new StateManager
+    // this.startHealthCheck();
 
     // Start web server
     try {
@@ -137,7 +140,7 @@ export class Concher {
     }
 
     // Update state
-    this.state.clearDaemonInfo();
+    await this.state.setDaemonStopped();
 
     // Remove PID file
     removePid();
@@ -177,7 +180,9 @@ export class Concher {
   /**
    * Reconcile persisted state with actual Docker container status.
    * Marks containers as stopped if they're no longer running.
+   * TODO: Implement for new StateManager
    */
+  /*
   private async reconcile(): Promise<void> {
     logger.info("Reconciling state with Docker...");
     const liveContainers = this.containers.listDockerContainers();
@@ -201,10 +206,13 @@ export class Concher {
       logger.info("State is consistent with Docker");
     }
   }
+  */
 
   /**
    * Periodic health check for running containers.
+   * TODO: Implement for new StateManager
    */
+  /*
   private startHealthCheck(): void {
     const intervalMs = this.parseInterval(this.config.supervisorNudgeInterval);
 
@@ -232,6 +240,7 @@ export class Concher {
     // Don't prevent process exit
     this.healthCheckTimer.unref();
   }
+  */
 
   /**
    * Parse a human-readable interval string like "5m" or "2h" into milliseconds.

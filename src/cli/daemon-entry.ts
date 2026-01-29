@@ -19,7 +19,7 @@ async function main(): Promise<void> {
 
     // Disconnect IPC so parent can exit
     if (process.connected) {
-      process.disconnect();
+      process.disconnect?.();
     }
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);

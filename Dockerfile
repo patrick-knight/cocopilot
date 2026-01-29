@@ -1,17 +1,18 @@
 # Stage 1: Builder
-FROM node:22-alpine AS builder
+FROM node:23-alpine AS builder
 
 WORKDIR /app
 
 COPY package.json package-lock.json* ./
 RUN npm ci
 
-COPY tsconfig.json ./
+COPY tsconfig.json vite.config.ts tailwind.config.js ./
 COPY src/ ./src/
+COPY web/ ./web/
 RUN npm run build
 
 # Stage 2: Runtime
-FROM node:22-alpine
+FROM node:23-alpine
 
 WORKDIR /app
 
@@ -21,6 +22,7 @@ COPY package.json package-lock.json* ./
 RUN npm ci --omit=dev
 
 COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/dist-web ./dist-web
 
 EXPOSE 3000
 

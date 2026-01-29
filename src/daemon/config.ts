@@ -8,6 +8,25 @@ const COCOPILOT_DIR = path.join(
 );
 const CONFIG_PATH = path.join(COCOPILOT_DIR, "config.json");
 
+function getRedisConfig() {
+  const redisUrl = process.env.REDIS_URL;
+  if (redisUrl) {
+    try {
+      const url = new URL(redisUrl);
+      return {
+        host: url.hostname,
+        port: parseInt(url.port || "6379", 10),
+      };
+    } catch {
+      // Invalid URL, fall back to default
+    }
+  }
+  return {
+    host: "localhost",
+    port: 6379,
+  };
+}
+
 const DEFAULT_CONFIG: CocoConfig = {
   model: "claude-sonnet-4-5",
   webPort: 3000,
@@ -24,10 +43,7 @@ const DEFAULT_CONFIG: CocoConfig = {
     prLabels: ["cocopilot"],
     requireCI: true,
   },
-  redis: {
-    host: "localhost",
-    port: 6379,
-  },
+  redis: getRedisConfig(),
 };
 
 export function getCocopilotDir(): string {
