@@ -14,6 +14,7 @@ import type { MessageBroker } from "../messaging/index.js";
 import { extWorkerRoutes } from "./v1/workers.js";
 import { extWebhookRoutes } from "./v1/webhooks.js";
 import { extStatusRoutes, type StatusDeps } from "./v1/status.js";
+import { reloadState, type SystemDeps } from "./v1/system.js";
 
 export interface ExtApiDeps {
   stateManager: StateManager;
@@ -35,6 +36,11 @@ export function createExtApiRouter(deps: ExtApiDeps): Router {
   router.use(
     "/status",
     extStatusRoutes({ stateManager, redisConnected } satisfies StatusDeps),
+  );
+  
+  // System control endpoints
+  router.post("/system/reload-state", (req, res) =>
+    reloadState(req, res, { stateManager } satisfies SystemDeps),
   );
 
   return router;

@@ -60,30 +60,137 @@
 
 ## Prerequisites
 
-- **Node.js 22+** (`>=22.13.1`)
-- **Docker** (running daemon)
-- **Redis** (default `localhost:6379`)
+- **Node.js 23+** (`>=23.0.0`)
+- **Docker** & **Docker Compose** (running daemon)
 - **GitHub CLI** (`gh`) authenticated via `gh auth login`
 - **Git** with worktree support
 
 ## Installation
 
+### Option 1: Docker (Recommended)
+
+The easiest way to run CoCoPilot is with Docker Compose:
+
 ```bash
 # Clone the repository
-git clone https://github.com/your-org/cocopilot.git
+git clone https://github.com/patrick-knight/cocopilot.git
+cd cocopilot
+
+# Build and start the containers
+docker compose up --build -d
+
+# View logs
+docker compose logs -f cocopilot-app
+
+# Access the web dashboard
+open http://localhost:3000
+```
+
+**What's included in the container:**
+- ✅ Concher daemon (auto-starts in foreground)
+- ✅ Web server on port 3000
+- ✅ Redis for pub/sub messaging
+- ✅ GitHub CLI (`gh`)
+- ✅ GitHub Copilot SDK
+- ✅ Docker CLI (for managing worker containers)
+- ✅ `coco` command available globally
+
+**First-time setup inside container:**
+
+The first time you open a shell in the container, an interactive setup wizard will run automatically to:
+1. Authenticate with GitHub (`gh auth login`)
+2. Install the GitHub Copilot CLI (via official installer)
+
+```bash
+# Open a shell in the container
+# Note: Windows users must set HOME=/root to ensure proper authentication
+docker exec -e HOME=/root -it cocopilot-cocopilot-app-1 sh
+
+# Follow the prompts to complete authentication
+# After setup, check status
+coco status
+```
+
+**Manual setup (if needed):**
+```bash
+# Open shell with proper HOME environment (required for Windows)
+docker exec -e HOME=/root -it cocopilot-cocopilot-app-1 sh
+
+# If you need to re-authenticate or skip the automatic setup
+gh auth login
+
+# Install Copilot CLI with the official installer
+wget -qO- https://gh.io/copilot-install | bash
+```
+
+**Managing the containers:**
+```bash
+# Start
+docker compose up -d
+
+# Stop
+docker compose down
+
+# Rebuild after code changes
+docker compose up --build -d
+
+# View logs
+docker compose logs -f
+
+# Execute commands in the container
+# Windows users: Add -e HOME=/root to override environment variable
+docker exec -e HOME=/root cocopilot-cocopilot-app-1 coco status
+```
+
+### Option 2: Local Installation
+
+For local development without Docker:
+
+```bash
+# Clone the repository
+git clone https://github.com/patrick-knight/cocopilot.git
 cd cocopilot
 
 # Install dependencies
 npm install
 
-# Build
+# Build backend and frontend
 npm run build
 
-# Link the CLI globally (optional)
+# Link the CLI globally
 npm link
+
+# Start Redis (required)
+# macOS: brew services start redis
+# Linux: sudo systemctl start redis
 ```
 
 ## Quick Start
+
+### Using Docker (Recommended)
+
+```bash
+# 1. Start the containers (if not already running)
+docker compose up -d
+
+# 2. Open the web dashboard
+open http://localhost:3000
+
+# 3. Initialize a repository (from inside the container)
+# Windows users: Add -e HOME=/root to override environment variable
+docker exec -e HOME=/root cocopilot-cocopilot-app-1 coco init https://github.com/your-org/your-repo
+
+# 4. Spawn a worker via the API
+curl -X POST http://localhost:3000/api/v1/repositories/your-repo/workers \
+  -H 'Content-Type: application/json' \
+  -d '{"task": "Fix the login bug in auth.ts"}'
+
+# 5. Monitor progress
+docker exec -e HOME=/root cocopilot-cocopilot-app-1 coco status
+# Or view the dashboard at http://localhost:3000
+```
+
+### Using Local Installation
 
 ```bash
 # 1. Initialize a repository for tracking
@@ -93,7 +200,6 @@ coco init https://github.com/your-org/your-repo
 coco start
 
 # 3. Spawn a worker to begin a task
-# (Use the dashboard at http://localhost:3000 or the REST API)
 curl -X POST http://localhost:3000/api/v1/repositories/your-repo/workers \
   -H 'Content-Type: application/json' \
   -d '{"task": "Fix the login bug in auth.ts"}'

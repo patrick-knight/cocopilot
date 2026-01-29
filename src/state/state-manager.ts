@@ -91,6 +91,9 @@ export class StateManager extends EventEmitter {
   private readonly configPath: string;
   private readonly statePath: string;
   private readonly pidPath: string;
+  
+  private stateWatcher: fs.FSWatcher | null = null;
+  private isReloadingState = false;
 
   constructor(baseDir?: string) {
     super();
@@ -128,6 +131,84 @@ export class StateManager extends EventEmitter {
     // Load daemon state (with recovery)
     const loadedState = await this.loadStateWithRecovery();
     this.state = loadedState;
+    
+    // Watch for external state file changes (e.g., from CLI commands)
+    this.startStateFileWatcher();
+  }
+
+  /**
+   * Start watching the state file for external changes.
+   * When the CLI modifies state.json, reload it automatically.
+   */
+  private startStateFileWatcher(): void {
+    if (this.stateWatcher) return;
+
+    try {
+      this.stateWatcher = fs.watch(this.statePath, async (eventType) => {
+        // Only reload on 'change' events, and prevent reloading our own writes
+        if (eventType === 'change' && !this.isReloadingState) {
+          this.isReloadingState = true;
+          try {
+            // Wait a bit to ensure the write is complete
+            await new Promise(resolve => setTimeout(resolve, 100));
+            const newState = await this.loadStateWithRecovery();
+            
+            // Only update if repositories actually changed
+            const oldRepoNames = Object.keys(this.state.repositories).sort();
+            const newRepoNames = Object.keys(newState.repositories).sort();
+            
+            if (JSON.stringify(oldRepoNames) !== JSON.stringify(newRepoNames)) {
+              // Preserve daemon runtime state (status, pid, startedAt)
+              newState.status = this.state.status;
+              newState.pid = this.state.pid;
+              newState.startedAt = this.state.startedAt;
+              
+              this.state = newState;
+              this.emit('stateChanged', this.state);
+              console.log('[StateManager] Reloaded state from disk - repositories updated');
+            }
+          } catch (error) {
+            console.error('[StateManager] Failed to reload state:', error);
+          } finally {
+            this.isReloadingState = false;
+          }
+        }
+      });
+    } catch (error) {
+      console.error('[StateManager] Failed to start state file watcher:', error);
+    }
+  }
+
+  /**
+   * Stop watching the state file and clean up resources.
+   */
+  stopStateFileWatcher(): void {
+    if (this.stateWatcher) {
+      this.stateWatcher.close();
+      this.stateWatcher = null;
+    }
+  }
+
+  /**
+   * Reload state from disk (called by API when CLI modifies state.json).
+   * Preserves daemon runtime state (status, pid, startedAt).
+   */
+  async reloadState(): Promise<void> {
+    this.isReloadingState = true;
+    try {
+      const newState = await this.loadStateWithRecovery();
+      
+      // Preserve daemon runtime state
+      newState.status = this.state.status;
+      newState.pid = this.state.pid;
+      newState.startedAt = this.state.startedAt;
+      
+      this.state = newState;
+      this.emit('stateChanged', this.state);
+      console.log('[StateManager] State reloaded via API - repositories updated');
+    } finally {
+      this.isReloadingState = false;
+    }
   }
 
   private async loadStateWithRecovery(): Promise<DaemonState> {
@@ -162,7 +243,14 @@ export class StateManager extends EventEmitter {
   }
 
   private async persistState(state?: DaemonState): Promise<void> {
-    await writeJsonFile(this.statePath, state ?? this.state);
+    // Set flag to prevent reloading our own write
+    this.isReloadingState = true;
+    try {
+      await writeJsonFile(this.statePath, state ?? this.state);
+    } finally {
+      // Clear flag after a brief delay to ensure fs.watch doesn't trigger
+      setTimeout(() => { this.isReloadingState = false; }, 150);
+    }
   }
 
   /** Sync flush for use in signal handlers. */

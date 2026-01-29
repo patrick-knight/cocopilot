@@ -141,6 +141,9 @@ export class Concher {
 
     // Update state
     await this.state.setDaemonStopped();
+    
+    // Stop state file watcher
+    this.state.stopStateFileWatcher();
 
     // Remove PID file
     removePid();

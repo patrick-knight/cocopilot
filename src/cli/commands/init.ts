@@ -24,6 +24,27 @@ export function repoNameFromUrl(url: string): string {
   return parts[parts.length - 1];
 }
 
+/**
+ * Signal the daemon to reload state after CLI modifications.
+ * Silently fails if daemon is not running (which is fine).
+ */
+async function signalDaemonReload(): Promise<void> {
+  try {
+    const response = await fetch("http://localhost:3000/api/v1/system/reload-state", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+    });
+    
+    if (response.ok) {
+      const data = await response.json();
+      console.log("✓ Daemon reloaded:", data.repositories.join(", "));
+    }
+  } catch {
+    // Daemon not running or not reachable - that's okay
+    // User will need to restart daemon manually or it will reload on next restart
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Core initialization logic (extracted for testability)
 // ---------------------------------------------------------------------------
@@ -237,6 +258,9 @@ export function registerInitCommand(program: Command): void {
         } else {
           console.log("Mode: single-player (Chocolatier + Temperer)");
         }
+        
+        // Signal daemon to reload state if it's running
+        await signalDaemonReload();
       } catch (err: unknown) {
         const message = err instanceof Error ? err.message : String(err);
         if (message.includes("already tracked")) {

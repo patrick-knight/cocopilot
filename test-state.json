@@ -1,0 +1,1 @@
+{"version":1,"status":"stopped","repositories":{"test":{"id":"1","name":"test","url":"https://github.com/test/test","localPath":"/root/.cocopilot/repos/test","mode":"single-player","status":"active","defaultBranch":"main","agents":{},"workers":{},"createdAt":"2026-01-29T03:00:00.000Z","updatedAt":"2026-01-29T03:00:00.000Z"}}}

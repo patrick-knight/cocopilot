@@ -8,9 +8,11 @@ services:
       - ./src:/app/src
       - ./tsconfig.json:/app/tsconfig.json
       - /var/run/docker.sock:/var/run/docker.sock
+      - cocopilot-data:/root/.cocopilot
     depends_on:
       - redis
     environment:
+      - HOME=/root
       - REDIS_URL=redis://redis:6379
       - NODE_ENV=development
 
@@ -18,3 +20,6 @@ services:
     image: redis:7.4.6-alpine
     ports:
       - "6379:6379"
+
+volumes:
+  cocopilot-data:
