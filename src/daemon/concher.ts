@@ -72,18 +72,21 @@ export class Concher {
       // that need a live broker (nudge, message) will fail gracefully when
       // broker methods reject.  A future PR can wire the real broker in.
       const { MessageBroker } = await import("../messaging/index.js");
+      const { getCocopilotDir } = await import("./config.js");
+      const path = await import("node:path");
       const broker = new MessageBroker({
         redis: this.config.redis,
-        fileStore: { basePath: "" },
+        fileStore: { basePath: path.default.join(getCocopilotDir(), "messages") },
       });
       this.server = createServer({
-        stateManager: this.state as never,
+        stateManager: this.state,
         broker,
       });
       await startServer(this.server, this.config.webPort);
       logger.info(`Web server listening on port ${this.config.webPort}`);
     } catch (err) {
-      logger.error("Failed to start web server", err);
+      const message = err instanceof Error ? err.message : String(err);
+      logger.error(`Failed to start web server: ${message}`, err);
       // Non-fatal: daemon can run without web server
     }
 

@@ -27,8 +27,7 @@ export async function startDaemon(foreground: boolean = false): Promise<void> {
       process.exit(1);
     }
     // Keep process alive until a signal triggers shutdown
-    const keepAlive = setInterval(() => {}, 60_000);
-    keepAlive.unref?.();
+    setInterval(() => {}, 60_000);
     await new Promise<void>(() => {});
   }
 
