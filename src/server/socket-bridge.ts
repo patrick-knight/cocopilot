@@ -41,6 +41,55 @@ export function createSocketBridge(
     listeners.push({ event, handler });
   }
 
+  // Socket client handlers
+  io.on("connection", (socket) => {
+    socket.on("repo:subscribe", (repoName: string) => {
+      const repo = stateManager.getRepo(repoName);
+      if (!repo) {
+        socket.emit("repo:error", {
+          repoName,
+          message: `Repository "${repoName}" not found`,
+        });
+        return;
+      }
+      socket.join(`repo:${repoName}`);
+      socket.emit("repo:state", repo);
+    });
+
+    socket.on("repo:unsubscribe", (repoName: string) => {
+      socket.leave(`repo:${repoName}`);
+    });
+
+    socket.on("worker:spawn", async (payload: { repoName?: string; repoId?: string; task: string; branch?: string; model?: string; name?: string }, callback?: (result: { success: boolean; error?: string; workerName?: string }) => void) => {
+      try {
+        const repoName = payload.repoName ?? payload.repoId;
+        if (!repoName) {
+          throw new Error("Missing repo name");
+        }
+        const worker = await stateManager.addWorker(repoName, {
+          task: payload.task,
+          branch: payload.branch,
+          model: payload.model,
+          name: payload.name,
+        });
+        callback?.({ success: true, workerName: worker.name });
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        callback?.({ success: false, error: message });
+      }
+    });
+
+    socket.on("worker:stop", async (workerName: string) => {
+      const repos = stateManager.getRepos();
+      for (const [repoName, repo] of Object.entries(repos)) {
+        if (repo.workers[workerName]) {
+          await stateManager.removeWorker(repoName, workerName).catch(() => {});
+          break;
+        }
+      }
+    });
+  });
+
   // Worker events
   addListener("workerAdded", (repoName: string, worker: WorkerState) => {
     io.emit("worker_spawned", { repository: repoName, worker });

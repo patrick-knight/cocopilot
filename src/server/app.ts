@@ -76,6 +76,9 @@ export function createServer(deps: ServerDeps): CocoServer {
     "/repositories/:repoName/prs",
     prRoutes(stateManager),
   );
+  if (eventStore) {
+    api.use("/events", eventsRoutes(eventStore));
+  }
   api.use("/metrics", metricsRoutes(stateManager));
   api.use("/waves", waveReportRoutes(stateManager));
   app.use("/api/v1", api);

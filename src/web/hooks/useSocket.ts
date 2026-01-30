@@ -267,6 +267,14 @@ export function useRepoState(repoName: string): UseRepoStateResult {
       setError(null);
     };
 
+    const handleRepoError = (data: { repoName: string; message: string }) => {
+      if (data.repoName === repoName) {
+        setRepo(null);
+        setLoading(false);
+        setError(data.message);
+      }
+    };
+
     const handleAgentUpdate = (agent: AgentState) => {
       setRepo((prev) => {
         if (!prev) return prev;
@@ -313,6 +321,7 @@ export function useRepoState(repoName: string): UseRepoStateResult {
 
     // Individual events
     socket.on("repo:state", handleRepoState);
+    socket.on("repo:error", handleRepoError);
     socket.on("agent:update", handleAgentUpdate);
     socket.on("worker:update", handleWorkerUpdate);
     socket.on("worker:removed", handleWorkerRemoved);
@@ -325,6 +334,7 @@ export function useRepoState(repoName: string): UseRepoStateResult {
     return () => {
       socket.emit("repo:unsubscribe", repoName);
       socket.off("repo:state", handleRepoState);
+      socket.off("repo:error", handleRepoError);
       socket.off("agent:update", handleAgentUpdate);
       socket.off("worker:update", handleWorkerUpdate);
       socket.off("worker:removed", handleWorkerRemoved);

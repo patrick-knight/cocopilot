@@ -1,11 +1,12 @@
 import { logger } from "./logger.js";
-import { loadConfig } from "./config.js";
+import { loadConfig, getCocopilotDir } from "./config.js";
 import { writePid, removePid, isDaemonRunning } from "./pid.js";
-import { StateManager } from "../state/index.js";
+import { StateManager, EventStore } from "../state/index.js";
 import { ContainerManager } from "./container.js";
 import { createServer, startServer, stopServer } from "../server/index.js";
 import type { CocoServer } from "../server/index.js";
 import type { CocoConfig } from "../types/index.js";
+import path from "node:path";
 
 /**
  * The Concher daemon — background orchestration process for CoCoPilot.
@@ -75,15 +76,19 @@ export class Concher {
       // that need a live broker (nudge, message) will fail gracefully when
       // broker methods reject.  A future PR can wire the real broker in.
       const { MessageBroker } = await import("../messaging/index.js");
-      const { getCocopilotDir } = await import("./config.js");
-      const path = await import("node:path");
       const broker = new MessageBroker({
         redis: this.config.redis,
-        fileStore: { basePath: path.default.join(getCocopilotDir(), "messages") },
+        fileStore: { basePath: path.join(getCocopilotDir(), "messages") },
       });
+      const eventStore = new EventStore({
+        persistPath: path.join(getCocopilotDir(), "events.json"),
+      });
+      await eventStore.init();
+
       this.server = createServer({
         stateManager: this.state,
         broker,
+        eventStore,
       });
       await startServer(this.server, this.config.webPort);
       logger.info(`Web server listening on port ${this.config.webPort}`);

@@ -75,6 +75,13 @@ export interface InitResult {
   config: RepoConfig;
 }
 
+export interface InitOptions {
+  /** Delete any existing clone directory before cloning. */
+  force?: boolean;
+  /** Reuse an existing clone directory if present. */
+  reuse?: boolean;
+}
+
 /**
  * Initialize a repository for CoCoPilot tracking.
  *
@@ -90,6 +97,7 @@ export async function initializeRepository(
   repoUrl: string,
   name: string,
   deps: InitDeps,
+  options: InitOptions = {},
 ): Promise<InitResult> {
   const { stateManager, execFn, detectForkFn, mkdirFn, writeFileFn } = deps;
 
@@ -103,11 +111,31 @@ export async function initializeRepository(
   const repoDir = path.join(baseDir, "repos", name);
   const clonePath = path.join(repoDir, "clone");
 
+  const cloneExists = fs.existsSync(clonePath);
+  if (cloneExists) {
+    if (options.force) {
+      await fs.promises.rm(clonePath, { recursive: true, force: true });
+    } else if (options.reuse) {
+      const gitDir = path.join(clonePath, ".git");
+      if (!fs.existsSync(gitDir)) {
+        throw new Error(
+          `Clone path already exists but is not a git repository: ${clonePath}. Use --force to replace it.`,
+        );
+      }
+    } else {
+      throw new Error(
+        `Clone path already exists: ${clonePath}. Use --force to replace it or --reuse to keep it.`,
+      );
+    }
+  }
+
   // Create directory structure
   await mkdirFn(repoDir, { recursive: true });
 
-  // Clone the repository
-  await execFn("git", ["clone", repoUrl, clonePath]);
+  // Clone the repository (unless reusing an existing clone)
+  if (!cloneExists || options.force) {
+    await execFn("git", ["clone", repoUrl, clonePath]);
+  }
 
   // Detect fork status
   let config: RepoConfig = {};
@@ -202,7 +230,9 @@ export function registerInitCommand(program: Command): void {
     .description("Initialize repository tracking")
     .argument("<repo-url>", "GitHub repository URL to track")
     .option("--name <name>", "Custom name for the repository")
-    .action(async (repoUrl: string, options: { name?: string }) => {
+    .option("--force", "Overwrite an existing clone directory")
+    .option("--reuse", "Reuse an existing clone directory")
+    .action(async (repoUrl: string, options: { name?: string; force?: boolean; reuse?: boolean }) => {
       if (!isValidGitHubUrl(repoUrl)) {
         console.error(
           `Error: "${repoUrl}" is not a valid GitHub repository URL.`,
@@ -232,7 +262,10 @@ export function registerInitCommand(program: Command): void {
           writeFileFn: fs.promises.writeFile as InitDeps["writeFileFn"],
         };
 
-        const result = await initializeRepository(repoUrl, name, deps);
+        const result = await initializeRepository(repoUrl, name, deps, {
+          force: options.force,
+          reuse: options.reuse,
+        });
 
         if (result.forkDetectionFailed) {
           console.warn(

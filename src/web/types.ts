@@ -87,6 +87,8 @@ export interface MessageEntry {
 export interface ServerToClientEvents {
   /** Full repo state snapshot (sent on connection and periodically). */
   "repo:state": (state: RepoState) => void;
+  /** Repo error (e.g., repo not found). */
+  "repo:error": (data: { repoName: string; message: string }) => void;
   /** Individual agent state update. */
   "agent:update": (agent: AgentState) => void;
   /** Individual worker state update. */
