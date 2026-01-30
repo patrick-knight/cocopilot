@@ -1,6 +1,8 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { Command } from "commander";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
 import { getCocopilotDir } from "../../daemon/config.js";
 import { FileMessageStore, MessageType } from "../../messaging/index.js";
 import type { ActivityEvent } from "../../state/index.js";
@@ -13,6 +15,129 @@ import { registerStatusCommand } from "./status.js";
 import { registerStopCommand } from "./stop.js";
 
 const CLI_VERSION = "0.1.0";
+
+const execFileAsync = promisify(execFile);
+
+interface LogTarget {
+  container: string;
+  repo?: string;
+  type?: string;
+  worker?: string;
+  label: string;
+  window: string;
+}
+
+function sanitizeTmuxName(value: string): string {
+  return value.replace(/[\s:./\\]+/g, "-").replace(/[^\w-]/g, "-").slice(0, 40);
+}
+
+async function ensureTmuxAvailable(): Promise<void> {
+  try {
+    await execFileAsync("tmux", ["-V"]);
+  } catch {
+    throw new Error("tmux is not installed. Rebuild the container after installing tmux.");
+  }
+}
+
+async function listLogTargets(repoName?: string): Promise<LogTarget[]> {
+  const args = [
+    "ps",
+    "--filter",
+    "label=cocopilot.managed=true",
+  ];
+  if (repoName) {
+    args.push("--filter", `label=cocopilot.repository=${repoName}`);
+  }
+  args.push(
+    "--format",
+    "{{.Names}}|{{.Label \"cocopilot.type\"}}|{{.Label \"cocopilot.worker-name\"}}|{{.Label \"cocopilot.repository\"}}",
+  );
+
+  const { stdout } = await execFileAsync("docker", args);
+  const lines = stdout.split("\n").map((line) => line.trim()).filter(Boolean);
+  const targets: LogTarget[] = [];
+
+  for (const line of lines) {
+    const [container, type, worker, repo] = line.split("|");
+    const label = worker || type || container;
+    targets.push({ container, type, worker, repo, label, window: "" });
+  }
+
+  return targets;
+}
+
+function assignWindowNames(targets: LogTarget[], includeRepoPrefix: boolean): LogTarget[] {
+  const used = new Set<string>();
+  for (const target of targets) {
+    const base = includeRepoPrefix && target.repo
+      ? `${target.repo}-${target.label}`
+      : target.label;
+    const sanitizedBase = sanitizeTmuxName(base);
+    let window = sanitizedBase || sanitizeTmuxName(target.container);
+    let suffix = 2;
+    while (used.has(window)) {
+      window = `${sanitizedBase}-${suffix}`;
+      suffix += 1;
+    }
+    used.add(window);
+    target.window = window;
+  }
+  return targets;
+}
+
+async function ensureTmuxSession(
+  sessionName: string,
+  targets: LogTarget[],
+  refresh: boolean,
+): Promise<void> {
+  const hasSession = async (): Promise<boolean> => {
+    try {
+      await execFileAsync("tmux", ["has-session", "-t", sessionName]);
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
+  if (refresh) {
+    await execFileAsync("tmux", ["kill-session", "-t", sessionName]).catch(() => {});
+  }
+
+  const exists = await hasSession();
+  if (exists) return;
+
+  if (targets.length === 0) {
+    throw new Error("No running agent containers found.");
+  }
+
+  const [first, ...rest] = targets;
+  await execFileAsync("tmux", [
+    "new-session",
+    "-d",
+    "-s",
+    sessionName,
+    "-n",
+    first.window,
+    "docker",
+    "logs",
+    "-f",
+    first.container,
+  ]);
+
+  for (const target of rest) {
+    await execFileAsync("tmux", [
+      "new-window",
+      "-t",
+      sessionName,
+      "-n",
+      target.window,
+      "docker",
+      "logs",
+      "-f",
+      target.container,
+    ]);
+  }
+}
 
 function tailLines(filePath: string, lines: number): string[] {
   if (!fs.existsSync(filePath)) return [];
@@ -796,31 +921,52 @@ export function registerCommands(program: Command): void {
   program
     .command("attach")
     .description("Attach to an agent's tmux window")
-    .argument("<agent-name>", "Agent or worker name")
-    .option("--repo <name>", "Repository name")
+    .argument("[agent-name]", "Agent or worker name")
+    .option("--repo <name>", "Repository name (optional; defaults to all)")
     .option("--read-only", "Attach in read-only mode")
-    .action(async (agentName: string, options: { repo?: string; readOnly?: boolean }) => {
+    .option("--refresh", "Rebuild the tmux session before attaching")
+    .action(async (agentName: string | undefined, options: { repo?: string; readOnly?: boolean; refresh?: boolean }) => {
       try {
-        const repoName = resolveRepoName(options.repo);
+        await ensureTmuxAvailable();
+
+        const repoName = options.repo;
+        const includeRepoPrefix = !repoName;
+        const sessionName = repoName
+          ? `mc-${sanitizeTmuxName(repoName)}`
+          : "mc-all";
+
+        let targets = await listLogTargets(repoName);
+        targets = assignWindowNames(targets, includeRepoPrefix);
+
+        await ensureTmuxSession(sessionName, targets, options.refresh ?? false);
+
+        let targetWindow: string | undefined;
+        if (agentName) {
+          const normalized = agentName.toLowerCase();
+          const matches = targets.filter((t) =>
+            t.label.toLowerCase() === normalized ||
+            t.window.toLowerCase() === sanitizeTmuxName(agentName).toLowerCase(),
+          );
+          if (matches.length === 1) {
+            targetWindow = matches[0].window;
+          } else if (matches.length > 1) {
+            throw new Error("Multiple agents match that name. Use --repo to disambiguate.");
+          } else {
+            throw new Error(`No agent container found for "${agentName}".`);
+          }
+        }
+
         const { spawn } = await import("node:child_process");
-
-        const tmuxSession = `mc-${repoName.replace(/[.:/ ]/g, "-")}`;
-        const target = `${tmuxSession}:${agentName}`;
-
-        const tmuxArgs = ["attach", "-t", target];
+        const tmuxArgs = ["attach", "-t", targetWindow ? `${sessionName}:${targetWindow}` : sessionName];
         if (options.readOnly) {
           tmuxArgs.push("-r");
         }
 
-        const proc = spawn("tmux", tmuxArgs, {
-          stdio: "inherit",
-        });
-
+        const proc = spawn("tmux", tmuxArgs, { stdio: "inherit" });
         proc.on("error", (err) => {
           console.error(`Error: Failed to attach — ${err.message}`);
           process.exitCode = 1;
         });
-
         proc.on("close", (code) => {
           if (code !== 0) {
             process.exitCode = code ?? 1;

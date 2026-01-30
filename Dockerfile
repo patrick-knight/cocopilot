@@ -19,14 +19,45 @@ WORKDIR /app
 # Set HOME explicitly for container
 ENV HOME=/root
 
-# Install system dependencies: docker CLI, git, GitHub CLI, and CA certs
-RUN apt-get update \
+# Install system dependencies: Docker CLI, git, GitHub CLI, tmux, and CA certs
+RUN rm -rf /var/lib/apt/lists/* \
+    && apt-get update \
     && apt-get install -y --no-install-recommends \
         ca-certificates \
-        docker.io \
+        curl \
+        gnupg \
+        lsb-release \
+    && install -m 0755 -d /etc/apt/keyrings \
+    && curl -fsSL https://download.docker.com/linux/debian/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg \
+    && chmod a+r /etc/apt/keyrings/docker.gpg \
+    && echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/debian $(lsb_release -cs) stable" \
+        > /etc/apt/sources.list.d/docker.list \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends \
+        docker-ce-cli \
         git \
         gh \
-    && rm -rf /var/lib/apt/lists/*
+        tmux \
+    && rm -rf /var/lib/apt/lists/* \
+    || (rm -rf /var/lib/apt/lists/* \
+        && apt-get update \
+        && apt-get install -y --no-install-recommends \
+            ca-certificates \
+            curl \
+            gnupg \
+            lsb-release \
+        && install -m 0755 -d /etc/apt/keyrings \
+        && curl -fsSL https://download.docker.com/linux/debian/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg \
+        && chmod a+r /etc/apt/keyrings/docker.gpg \
+        && echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/debian $(lsb_release -cs) stable" \
+            > /etc/apt/sources.list.d/docker.list \
+        && apt-get update \
+        && apt-get install -y --no-install-recommends \
+            docker-ce-cli \
+            git \
+            gh \
+            tmux \
+        && rm -rf /var/lib/apt/lists/*)
 
 # Install GitHub Copilot CLI extension
 # Note: This requires gh auth, so it may need to be done at runtime

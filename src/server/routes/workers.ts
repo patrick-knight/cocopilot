@@ -9,9 +9,13 @@
  */
 
 import { Router } from "express";
+import { execFile } from "node:child_process";
+import * as fs from "node:fs";
+import { promisify } from "node:util";
 import type { StateManager } from "../../state/index.js";
 import type { MessageBroker } from "../../messaging/index.js";
 import { MessageType } from "../../messaging/index.js";
+import { getWorktreePath } from "../../git/worktree.js";
 import { createApiError } from "../middleware/error-handler.js";
 
 interface RepoParams {
@@ -28,6 +32,7 @@ export function workerRoutes(
   broker: MessageBroker,
 ): Router {
   const router = Router({ mergeParams: true });
+  const execFileAsync = promisify(execFile);
 
   // POST /repositories/:repoName/workers -- Spawn worker
   router.post("/", async (req, res, next) => {
@@ -82,6 +87,43 @@ export function workerRoutes(
       return;
     }
     res.json(worker);
+  });
+
+  // GET /repositories/:repoName/workers/:workerName/git-log -- Git log
+  router.get("/:workerName/git-log", async (req, res, next) => {
+    const { repoName, workerName } = req.params as unknown as WorkerParams;
+    const worker = stateManager.getWorker(repoName, workerName);
+    if (!worker) {
+      next(createApiError(404, `Worker "${workerName}" not found in "${repoName}"`));
+      return;
+    }
+
+    const worktreePath = getWorktreePath(repoName, workerName);
+    if (!fs.existsSync(worktreePath)) {
+      next(createApiError(404, `Worktree not found for worker "${workerName}"`));
+      return;
+    }
+
+    try {
+      const format = "%H|%h|%an|%ad|%s";
+      const { stdout } = await execFileAsync(
+        "git",
+        ["-C", worktreePath, "log", "-n", "50", `--pretty=${format}`, "--date=iso"],
+      );
+
+      const commits = stdout
+        .split("\n")
+        .map((line) => line.trim())
+        .filter(Boolean)
+        .map((line) => {
+          const [hash, shortHash, author, date, message] = line.split("|");
+          return { hash, shortHash, author, date, message };
+        });
+
+      res.json({ commits });
+    } catch (err) {
+      next(err);
+    }
   });
 
   // DELETE /repositories/:repoName/workers/:workerName -- Terminate worker

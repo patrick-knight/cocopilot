@@ -1,7 +1,7 @@
 services:
   cocopilot-app:
     build: .
-    command: ["node", "dist/cli/index.js", "start", "--foreground"]
+    command: ["sh", "-lc", "node dist/cli/index.js start --foreground || true; tail -f /dev/null"]
     ports:
       - "3000:3000"
     volumes:

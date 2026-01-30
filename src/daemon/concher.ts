@@ -7,6 +7,13 @@ import { createServer, startServer, stopServer } from "../server/index.js";
 import type { CocoServer } from "../server/index.js";
 import type { CocoConfig } from "../types/index.js";
 import path from "node:path";
+import * as fs from "node:fs";
+import { MessageBroker } from "../messaging/index.js";
+import { Chocolatier } from "../agents/chocolatier.js";
+import { Temperer } from "../agents/temperer.js";
+import { Enrober } from "../agents/enrober.js";
+import { ContainerManager as AgentContainerManager } from "../docker/index.js";
+import { DEFAULT_AGENT_IMAGE } from "../docker/index.js";
 
 /**
  * The Concher daemon — background orchestration process for CoCoPilot.
@@ -21,6 +28,12 @@ export class Concher {
   private config: CocoConfig;
   private state: StateManager;
   private containers: ContainerManager;
+  private broker: MessageBroker | null = null;
+  private agentContainerManager: AgentContainerManager;
+  private repoAgents: Map<string, {
+    chocolatier: Chocolatier;
+    mergeAgent: Temperer | Enrober;
+  }> = new Map();
   private shutdownPromise: Promise<void> | null = null;
   private isShuttingDown = false;
   private healthCheckTimer: ReturnType<typeof setInterval> | null = null;
@@ -30,6 +43,7 @@ export class Concher {
     this.config = loadConfig();
     this.state = new StateManager();
     this.containers = new ContainerManager(this.config, this.state as any);
+    this.agentContainerManager = new AgentContainerManager();
   }
 
   /**
@@ -57,6 +71,9 @@ export class Concher {
     await this.state.init();
     await this.state.setDaemonRunning(process.pid);
 
+    // Clear crash statuses from the previous daemon session
+    await this.resetAgentStatusesAfterRestart();
+
     // Register signal handlers for graceful shutdown
     this.registerSignalHandlers();
 
@@ -75,10 +92,12 @@ export class Concher {
       // a minimal one that satisfies the ServerDeps interface.  The routes
       // that need a live broker (nudge, message) will fail gracefully when
       // broker methods reject.  A future PR can wire the real broker in.
-      const { MessageBroker } = await import("../messaging/index.js");
-      const broker = new MessageBroker({
+      this.broker = new MessageBroker({
         redis: this.config.redis,
         fileStore: { basePath: path.join(getCocopilotDir(), "messages") },
+      });
+      await this.broker.connect().catch((err) => {
+        logger.warn(`Failed to connect message broker: ${err instanceof Error ? err.message : String(err)}`);
       });
       const eventStore = new EventStore({
         persistPath: path.join(getCocopilotDir(), "events.json"),
@@ -87,7 +106,7 @@ export class Concher {
 
       this.server = createServer({
         stateManager: this.state,
-        broker,
+        broker: this.broker,
         eventStore,
       });
       await startServer(this.server, this.config.webPort);
@@ -98,8 +117,22 @@ export class Concher {
       // Non-fatal: daemon can run without web server
     }
 
+    // Start agent runtimes for tracked repositories
+    await this.startRepoAgents();
+
     logger.info(`Concher daemon started (PID ${process.pid})`);
     return true;
+  }
+
+  private async resetAgentStatusesAfterRestart(): Promise<void> {
+    const repos = this.state.getRepos();
+    for (const [repoName, repo] of Object.entries(repos)) {
+      for (const agent of Object.values(repo.agents)) {
+        if (agent.status === "crashed" && agent.error?.includes("Daemon restarted")) {
+          await this.state.updateAgentStatus(repoName, agent.name, "stopped", "Daemon restarted; agent runtime not restarted");
+        }
+      }
+    }
   }
 
   /**
@@ -137,6 +170,9 @@ export class Concher {
       this.server = null;
     }
 
+    // Stop agent runtimes
+    await this.stopRepoAgents();
+
     // Stop all managed containers
     try {
       await this.containers.stopAll();
@@ -156,6 +192,94 @@ export class Concher {
     // Close logger
     logger.info("Concher daemon stopped");
     logger.close();
+  }
+
+  private async startRepoAgents(): Promise<void> {
+    if (!this.broker) {
+      logger.warn("Message broker unavailable; skipping agent startup");
+      return;
+    }
+
+    const repos = this.state.getRepos();
+    const pollIntervalMs = this.parseInterval(this.config.mergeQueuePollInterval);
+    const healthIntervalMs = this.parseInterval(this.config.supervisorNudgeInterval);
+    const label = this.config.github?.prLabels?.[0] ?? "cocopilot";
+
+    for (const [repoName, repo] of Object.entries(repos)) {
+      if (!repo.localPath || !fs.existsSync(repo.localPath)) {
+        logger.warn(`Skipping agent start for ${repoName} — repo path not found`);
+        continue;
+      }
+
+      if (this.repoAgents.has(repoName)) {
+        continue;
+      }
+
+      try {
+        const chocolatier = new Chocolatier(
+          this.state,
+          this.agentContainerManager,
+          this.broker,
+          {
+            repoName,
+            agentImage: DEFAULT_AGENT_IMAGE,
+            containerMemoryLimit: this.config.containerMemoryLimit,
+            containerCpuLimit: this.config.containerCpuLimit,
+            healthCheckIntervalMs: healthIntervalMs,
+            stuckThresholdMs: 15 * 60 * 1000,
+          },
+        );
+
+        await chocolatier.start();
+
+        const mergeAgent = repo.mode === "multiplayer"
+          ? new Enrober({
+            repoPath: repo.localPath,
+            broker: this.broker,
+            pollIntervalMs,
+            label,
+          })
+          : new Temperer({
+            repoPath: repo.localPath,
+            broker: this.broker,
+            pollIntervalMs,
+            label,
+          });
+
+        await mergeAgent.start();
+
+        await this.state.setAgent(repoName, {
+          name: "chocolatier",
+          type: "supervisor",
+          status: "healthy",
+        });
+
+        await this.state.setAgent(repoName, {
+          name: repo.mode === "multiplayer" ? "enrober" : "temperer",
+          type: repo.mode === "multiplayer" ? "pr-shepherd" : "merge-queue",
+          status: "healthy",
+        });
+
+        this.repoAgents.set(repoName, { chocolatier, mergeAgent });
+        logger.info(`Started agents for ${repoName}`);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        logger.error(`Failed to start agents for ${repoName}: ${message}`);
+        await this.state.updateRepoStatus(repoName, "error").catch(() => {});
+      }
+    }
+  }
+
+  private async stopRepoAgents(): Promise<void> {
+    const entries = Array.from(this.repoAgents.entries());
+    for (const [repoName, agents] of entries) {
+      await agents.chocolatier.stop().catch(() => {});
+      await agents.mergeAgent.stop().catch(() => {});
+      await this.state.updateAgentStatus(repoName, "chocolatier", "stopped").catch(() => {});
+      const mergeName = agents.mergeAgent instanceof Enrober ? "enrober" : "temperer";
+      await this.state.updateAgentStatus(repoName, mergeName, "stopped").catch(() => {});
+      this.repoAgents.delete(repoName);
+    }
   }
 
   /**

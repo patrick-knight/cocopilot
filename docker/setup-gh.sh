@@ -53,17 +53,26 @@ if ! command -v copilot >/dev/null 2>&1; then
     echo "This enables AI-powered code assistance for workers."
     echo ""
 
-    if ! npm install -g @github/copilot; then
+    if npm install -g @github/copilot; then
         echo ""
-        echo "⚠️  Failed to install GitHub Copilot CLI. You can try again with:"
-        echo "    npm install -g @github/copilot"
+        echo "✅ GitHub Copilot CLI installed!"
         echo ""
-        exit 1
+    else
+        echo ""
+        echo "Retrying with OpenSSL legacy provider..."
+        echo ""
+        if NODE_OPTIONS=--openssl-legacy-provider npm install -g @github/copilot; then
+            echo ""
+            echo "✅ GitHub Copilot CLI installed!"
+            echo ""
+        else
+            echo ""
+            echo "⚠️  Failed to install GitHub Copilot CLI. You can try again with:"
+            echo "    NODE_OPTIONS=--openssl-legacy-provider npm install -g @github/copilot"
+            echo ""
+            exit 1
+        fi
     fi
-
-    echo ""
-    echo "✅ GitHub Copilot CLI installed!"
-    echo ""
 else
     echo "✅ GitHub Copilot CLI already installed"
     echo ""
