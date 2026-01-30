@@ -135,16 +135,16 @@ export function FactoryFloor() {
   };
 
   const SortIcon = ({ field }: { field: SortField }) => {
-    if (sortField !== field) return <span className="text-stone-300 ml-1">↕</span>;
-    return <span className="text-amber-600 ml-1">{sortDirection === "asc" ? "↑" : "↓"}</span>;
+    if (sortField !== field) return <span className="text-muted-foreground/50 ml-1">↕</span>;
+    return <span className="text-primary ml-1">{sortDirection === "asc" ? "↑" : "↓"}</span>;
   };
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-amber-50 to-orange-100">
+      <div className="flex min-h-screen items-center justify-center bg-background">
         <div className="text-center">
           <div className="text-6xl mb-4 animate-bounce">🍫</div>
-          <p className="text-stone-700 text-lg">Loading chocolate factory...</p>
+          <p className="text-muted-foreground text-lg">Loading chocolate factory...</p>
         </div>
       </div>
     );
@@ -152,33 +152,33 @@ export function FactoryFloor() {
 
   if (error) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-amber-50 to-orange-100">
-        <div className="text-center bg-white p-8 rounded-lg shadow-lg">
+      <div className="flex min-h-screen items-center justify-center bg-background">
+        <div className="text-center bg-card p-8 rounded-lg shadow-lg border border-border">
           <div className="text-4xl mb-4">⚠️</div>
-          <h2 className="text-xl font-bold text-red-600 mb-2">Connection Error</h2>
-          <p className="text-stone-600">{error}</p>
+          <h2 className="text-xl font-bold text-destructive mb-2">Connection Error</h2>
+          <p className="text-muted-foreground">{error}</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-amber-50 to-orange-100">
+    <div className="min-h-screen bg-background">
       <div className="container mx-auto px-4 py-8">
         {/* Header */}
         <header className="mb-12 text-center">
           <div className="text-6xl mb-4">🍫</div>
-          <h1 className="text-5xl font-bold text-stone-800 mb-2">
+          <h1 className="text-5xl font-bold text-foreground mb-2">
             Cocoa Board
           </h1>
-          <p className="text-stone-600 text-lg italic">
+          <p className="text-muted-foreground text-lg italic">
             "Good code, like good chocolate, requires the right blend of chaos and control."
           </p>
           <div className="mt-4 flex items-center justify-center gap-4">
-            <div className="bg-green-100 text-green-800 px-4 py-2 rounded-full text-sm font-semibold">
+            <div className="bg-chart-2/10 text-chart-2 px-4 py-2 rounded-full text-sm font-semibold">
               ✓ Concher Active
             </div>
-            <div className="bg-blue-100 text-blue-800 px-4 py-2 rounded-full text-sm font-semibold">
+            <div className="bg-primary/10 text-primary px-4 py-2 rounded-full text-sm font-semibold">
               ✓ Redis Connected
             </div>
           </div>
@@ -188,26 +188,26 @@ export function FactoryFloor() {
         {repos.length === 0 ? (
           <div className="text-center py-16">
             <div className="text-4xl mb-4">📦</div>
-            <h3 className="text-2xl font-bold text-stone-700 mb-2">No Repositories</h3>
-            <p className="text-stone-600 mb-6">
+            <h3 className="text-2xl font-bold text-foreground mb-2">No Repositories</h3>
+            <p className="text-muted-foreground mb-6">
               Initialize a repository to get started:
             </p>
-            <code className="bg-stone-800 text-green-400 px-6 py-3 rounded-lg inline-block font-mono text-sm">
+            <code className="bg-primary text-primary-foreground px-6 py-3 rounded-lg inline-block font-mono text-sm">
               coco init https://github.com/your-org/your-repo
             </code>
           </div>
         ) : (
           <>
             {/* Search and Filter Controls */}
-            <div className="bg-white rounded-lg shadow-md p-4 mb-6">
+            <div className="bg-card rounded-lg shadow-md p-4 mb-6 border border-border">
               <div className="flex flex-col md:flex-row gap-4">
                 {/* Search Input */}
                 <div className="flex-1">
-                  <label className="block text-sm font-medium text-stone-700 mb-1">
+                  <label className="block text-sm font-medium text-foreground mb-1">
                     Search
                   </label>
                   <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
                       🔍
                     </span>
                     <input
@@ -215,20 +215,20 @@ export function FactoryFloor() {
                       placeholder="Search by name or branch..."
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
-                      className="w-full pl-10 pr-4 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none"
+                      className="w-full pl-10 pr-4 py-2 border border-input rounded-lg bg-background text-foreground focus:ring-2 focus:ring-ring focus:border-ring outline-none"
                     />
                   </div>
                 </div>
 
                 {/* Branch Filter */}
                 <div className="md:w-48">
-                  <label className="block text-sm font-medium text-stone-700 mb-1">
+                  <label className="block text-sm font-medium text-foreground mb-1">
                     Branch
                   </label>
                   <select
                     value={branchFilter}
                     onChange={(e) => setBranchFilter(e.target.value)}
-                    className="w-full px-3 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none bg-white"
+                    className="w-full px-3 py-2 border border-input rounded-lg bg-background text-foreground focus:ring-2 focus:ring-ring focus:border-ring outline-none"
                   >
                     <option value="">All Branches</option>
                     {uniqueBranches.map((branch) => (
@@ -241,13 +241,13 @@ export function FactoryFloor() {
 
                 {/* Status Filter */}
                 <div className="md:w-40">
-                  <label className="block text-sm font-medium text-stone-700 mb-1">
+                  <label className="block text-sm font-medium text-foreground mb-1">
                     Status
                   </label>
                   <select
                     value={statusFilter}
                     onChange={(e) => setStatusFilter(e.target.value as "all" | "active" | "idle")}
-                    className="w-full px-3 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none bg-white"
+                    className="w-full px-3 py-2 border border-input rounded-lg bg-background text-foreground focus:ring-2 focus:ring-ring focus:border-ring outline-none"
                   >
                     <option value="all">All Status</option>
                     <option value="active">Active Workers</option>
@@ -257,7 +257,7 @@ export function FactoryFloor() {
               </div>
 
               {/* Results count */}
-              <div className="mt-3 text-sm text-stone-500">
+              <div className="mt-3 text-sm text-muted-foreground">
                 Showing {paginatedRepos.length} of {filteredRepos.length} repositories
                 {filteredRepos.length !== repos.length && (
                   <span> (filtered from {repos.length} total)</span>
@@ -266,13 +266,13 @@ export function FactoryFloor() {
             </div>
 
             {/* Repository Table */}
-            <div className="bg-white rounded-lg shadow-lg overflow-hidden">
+            <div className="bg-card rounded-lg shadow-lg overflow-hidden border border-border">
               <div className="overflow-x-auto">
                 <table className="w-full">
-                  <thead className="bg-stone-100 border-b border-stone-200">
+                  <thead className="bg-muted border-b border-border">
                     <tr>
                       <th
-                        className="px-6 py-4 text-left text-sm font-semibold text-stone-700 cursor-pointer hover:bg-stone-200 transition-colors"
+                        className="px-6 py-4 text-left text-sm font-semibold text-foreground cursor-pointer hover:bg-accent transition-colors"
                         onClick={() => handleSort("name")}
                       >
                         <div className="flex items-center">
@@ -281,7 +281,7 @@ export function FactoryFloor() {
                         </div>
                       </th>
                       <th
-                        className="px-6 py-4 text-left text-sm font-semibold text-stone-700 cursor-pointer hover:bg-stone-200 transition-colors"
+                        className="px-6 py-4 text-left text-sm font-semibold text-foreground cursor-pointer hover:bg-accent transition-colors"
                         onClick={() => handleSort("branch")}
                       >
                         <div className="flex items-center">
@@ -290,7 +290,7 @@ export function FactoryFloor() {
                         </div>
                       </th>
                       <th
-                        className="px-6 py-4 text-center text-sm font-semibold text-stone-700 cursor-pointer hover:bg-stone-200 transition-colors"
+                        className="px-6 py-4 text-center text-sm font-semibold text-foreground cursor-pointer hover:bg-accent transition-colors"
                         onClick={() => handleSort("workersActive")}
                       >
                         <div className="flex items-center justify-center">
@@ -299,7 +299,7 @@ export function FactoryFloor() {
                         </div>
                       </th>
                       <th
-                        className="px-6 py-4 text-center text-sm font-semibold text-stone-700 cursor-pointer hover:bg-stone-200 transition-colors"
+                        className="px-6 py-4 text-center text-sm font-semibold text-foreground cursor-pointer hover:bg-accent transition-colors"
                         onClick={() => handleSort("workersTotal")}
                       >
                         <div className="flex items-center justify-center">
@@ -307,18 +307,18 @@ export function FactoryFloor() {
                           <SortIcon field="workersTotal" />
                         </div>
                       </th>
-                      <th className="px-6 py-4 text-center text-sm font-semibold text-stone-700">
+                      <th className="px-6 py-4 text-center text-sm font-semibold text-foreground">
                         Status
                       </th>
-                      <th className="px-6 py-4 text-right text-sm font-semibold text-stone-700">
+                      <th className="px-6 py-4 text-right text-sm font-semibold text-foreground">
                         Actions
                       </th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-stone-200">
+                  <tbody className="divide-y divide-border">
                     {paginatedRepos.length === 0 ? (
                       <tr>
-                        <td colSpan={6} className="px-6 py-12 text-center text-stone-500">
+                        <td colSpan={6} className="px-6 py-12 text-center text-muted-foreground">
                           <div className="text-3xl mb-2">🔍</div>
                           No repositories match your filters
                         </td>
@@ -327,17 +327,17 @@ export function FactoryFloor() {
                       paginatedRepos.map((repo) => (
                         <tr
                           key={repo.name}
-                          className="hover:bg-amber-50 transition-colors"
+                          className="hover:bg-accent transition-colors"
                         >
                           <td className="px-6 py-4">
                             <div className="flex items-center gap-3">
                               <span className="text-2xl">🏭</span>
                               <div>
-                                <div className="font-semibold text-stone-800">
+                                <div className="font-semibold text-foreground">
                                   {repo.name}
                                 </div>
                                 {repo.url && (
-                                  <div className="text-xs text-stone-400 truncate max-w-xs">
+                                  <div className="text-xs text-muted-foreground truncate max-w-xs">
                                     {repo.url}
                                   </div>
                                 )}
@@ -345,27 +345,27 @@ export function FactoryFloor() {
                             </div>
                           </td>
                           <td className="px-6 py-4">
-                            <code className="bg-stone-100 text-stone-700 px-2 py-1 rounded text-sm font-mono">
+                            <code className="bg-muted text-foreground px-2 py-1 rounded text-sm font-mono">
                               {repo.branch}
                             </code>
                           </td>
                           <td className="px-6 py-4 text-center">
-                            <span className={`font-semibold ${repo.workersActive > 0 ? "text-green-600" : "text-stone-400"}`}>
+                            <span className={`font-semibold ${repo.workersActive > 0 ? "text-chart-2" : "text-muted-foreground"}`}>
                               {repo.workersActive}
                             </span>
                           </td>
-                          <td className="px-6 py-4 text-center text-stone-600">
+                          <td className="px-6 py-4 text-center text-muted-foreground">
                             {repo.workersTotal}
                           </td>
                           <td className="px-6 py-4 text-center">
                             {repo.workersActive > 0 ? (
-                              <span className="inline-flex items-center gap-1 bg-green-100 text-green-800 px-3 py-1 rounded-full text-xs font-semibold">
-                                <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+                              <span className="inline-flex items-center gap-1 bg-chart-2/10 text-chart-2 px-3 py-1 rounded-full text-xs font-semibold">
+                                <span className="w-2 h-2 bg-chart-2 rounded-full animate-pulse"></span>
                                 Active
                               </span>
                             ) : (
-                              <span className="inline-flex items-center gap-1 bg-stone-100 text-stone-600 px-3 py-1 rounded-full text-xs font-semibold">
-                                <span className="w-2 h-2 bg-stone-400 rounded-full"></span>
+                              <span className="inline-flex items-center gap-1 bg-muted text-muted-foreground px-3 py-1 rounded-full text-xs font-semibold">
+                                <span className="w-2 h-2 bg-muted-foreground rounded-full"></span>
                                 Idle
                               </span>
                             )}
@@ -373,7 +373,7 @@ export function FactoryFloor() {
                           <td className="px-6 py-4 text-right">
                             <Link
                               to={`/repos/${repo.name}`}
-                              className="inline-flex items-center gap-1 bg-amber-500 hover:bg-amber-600 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors"
+                              className="inline-flex items-center gap-1 bg-primary hover:bg-primary/90 text-primary-foreground px-4 py-2 rounded-lg text-sm font-semibold transition-colors"
                             >
                               View
                               <span>→</span>
@@ -388,22 +388,22 @@ export function FactoryFloor() {
 
               {/* Pagination */}
               {totalPages > 1 && (
-                <div className="px-6 py-4 bg-stone-50 border-t border-stone-200 flex flex-col sm:flex-row items-center justify-between gap-4">
-                  <div className="text-sm text-stone-600">
+                <div className="px-6 py-4 bg-muted border-t border-border flex flex-col sm:flex-row items-center justify-between gap-4">
+                  <div className="text-sm text-muted-foreground">
                     Page {currentPage} of {totalPages}
                   </div>
                   <div className="flex items-center gap-2">
                     <button
                       onClick={() => setCurrentPage(1)}
                       disabled={currentPage === 1}
-                      className="px-3 py-1 rounded border border-stone-300 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed hover:bg-stone-100 transition-colors"
+                      className="px-3 py-1 rounded border border-border text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed hover:bg-accent transition-colors"
                     >
                       ««
                     </button>
                     <button
                       onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
                       disabled={currentPage === 1}
-                      className="px-3 py-1 rounded border border-stone-300 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed hover:bg-stone-100 transition-colors"
+                      className="px-3 py-1 rounded border border-border text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed hover:bg-accent transition-colors"
                     >
                       «
                     </button>
@@ -426,8 +426,8 @@ export function FactoryFloor() {
                           onClick={() => setCurrentPage(page)}
                           className={`px-3 py-1 rounded text-sm font-medium transition-colors ${
                             currentPage === page
-                              ? "bg-amber-500 text-white"
-                              : "border border-stone-300 hover:bg-stone-100"
+                              ? "bg-primary text-primary-foreground"
+                              : "border border-border hover:bg-accent"
                           }`}
                         >
                           {page}
@@ -438,14 +438,14 @@ export function FactoryFloor() {
                     <button
                       onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
                       disabled={currentPage === totalPages}
-                      className="px-3 py-1 rounded border border-stone-300 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed hover:bg-stone-100 transition-colors"
+                      className="px-3 py-1 rounded border border-border text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed hover:bg-accent transition-colors"
                     >
                       »
                     </button>
                     <button
                       onClick={() => setCurrentPage(totalPages)}
                       disabled={currentPage === totalPages}
-                      className="px-3 py-1 rounded border border-stone-300 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed hover:bg-stone-100 transition-colors"
+                      className="px-3 py-1 rounded border border-border text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed hover:bg-accent transition-colors"
                     >
                       »»
                     </button>
@@ -457,14 +457,14 @@ export function FactoryFloor() {
         )}
 
         {/* Footer */}
-        <footer className="mt-16 text-center text-stone-500 text-sm">
+        <footer className="mt-16 text-center text-muted-foreground text-sm">
           <p>CoCoPilot v0.1.0 · Collaborative Copilot Orchestration Platform</p>
           <p className="mt-1">
-            <a href="https://github.com/patrick-knight/cocopilot" className="hover:text-amber-600 underline">
+            <a href="https://github.com/patrick-knight/cocopilot" className="hover:text-primary underline">
               Documentation
             </a>
             {" · "}
-            <a href="/api/v1/status" className="hover:text-amber-600 underline">
+            <a href="/api/v1/status" className="hover:text-primary underline">
               API Status
             </a>
           </p>

@@ -2,9 +2,9 @@
  * Layout — Shared layout component for the Cocoa Board.
  *
  * Provides:
- *  - Dark chocolate (#3B1F0B) header with CoCoPilot branding
+ *  - Primary header with CoCoPilot branding
  *  - Sidebar navigation linking to all dashboard routes
- *  - Cream (#FFF8E7) content area that renders children
+ *  - Background content area that renders children
  */
 
 import React from "react";
@@ -38,11 +38,11 @@ export function Layout({ children }: LayoutProps): React.ReactElement {
   return (
     <div className="flex min-h-screen flex-col">
       {/* Header */}
-      <header className="bg-[#3B1F0B] px-6 py-4 shadow-md">
+      <header className="bg-sidebar px-6 py-4 shadow-md border-b border-sidebar-border">
         <div className="mx-auto flex max-w-7xl items-center justify-between">
           <Link
             to="/"
-            className="text-xl font-bold text-[#FFF8E7] hover:text-[#FFF8E7]/90 transition-colors"
+            className="text-xl font-bold text-sidebar-foreground hover:text-sidebar-foreground/90 transition-colors"
           >
             CoCoPilot
           </Link>
@@ -51,7 +51,7 @@ export function Layout({ children }: LayoutProps): React.ReactElement {
 
       <div className="flex flex-1">
         {/* Sidebar */}
-        <nav className="w-56 flex-shrink-0 bg-[#3B1F0B]/95 px-4 py-6">
+        <nav className="w-56 flex-shrink-0 bg-sidebar px-4 py-6 border-r border-sidebar-border">
           <ul className="space-y-1">
             {navLinks.map((link) => {
               const active = isActive(link.to);
@@ -61,8 +61,8 @@ export function Layout({ children }: LayoutProps): React.ReactElement {
                     to={link.to}
                     className={`block rounded px-3 py-2 text-sm font-medium transition ${
                       active
-                        ? "bg-[#C68B3C] text-white"
-                        : "text-[#FFF8E7]/70 hover:bg-[#FFF8E7]/10 hover:text-[#FFF8E7]"
+                        ? "bg-sidebar-primary text-sidebar-primary-foreground"
+                        : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
                     }`}
                   >
                     {link.label}
@@ -74,7 +74,7 @@ export function Layout({ children }: LayoutProps): React.ReactElement {
         </nav>
 
         {/* Content */}
-        <main className="flex-1 bg-[#FFF8E7] overflow-auto">
+        <main className="flex-1 bg-background overflow-auto">
           {children}
         </main>
       </div>

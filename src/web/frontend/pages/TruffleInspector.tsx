@@ -156,30 +156,30 @@ export const TruffleInspector: React.FC<TruffleInspectorProps> = ({
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-stone-50 flex items-center justify-center">
-        <p className="text-stone-500">Loading worker details...</p>
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <p className="text-muted-foreground">Loading worker details...</p>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="min-h-screen bg-stone-50 p-6">
+      <div className="min-h-screen bg-background p-6">
         <div className="max-w-4xl mx-auto">
           <button
             onClick={onBack}
-            className="text-sm text-stone-500 hover:text-stone-700 mb-4"
+            className="text-sm text-muted-foreground hover:text-foreground mb-4"
           >
             &larr; Back to repository
           </button>
-          <div className="p-6 bg-red-50 border border-red-200 rounded-lg">
-            <h1 className="text-lg font-bold text-red-800 mb-2">
+          <div className="p-6 bg-destructive/10 border border-destructive/20 rounded-lg">
+            <h1 className="text-lg font-bold text-destructive mb-2">
               Error Loading Worker
             </h1>
-            <p className="text-red-700">{error}</p>
+            <p className="text-destructive/90">{error}</p>
             <button
               onClick={fetchWorker}
-              className="mt-4 px-4 py-2 bg-red-100 hover:bg-red-200 text-red-800 rounded-md text-sm font-medium"
+              className="mt-4 px-4 py-2 bg-destructive/20 hover:bg-destructive/30 text-destructive rounded-md text-sm font-medium"
             >
               Retry
             </button>
@@ -191,40 +191,40 @@ export const TruffleInspector: React.FC<TruffleInspectorProps> = ({
 
   if (!worker) {
     return (
-      <div className="min-h-screen bg-stone-50 p-6">
+      <div className="min-h-screen bg-background p-6">
         <div className="max-w-4xl mx-auto">
           <button
             onClick={onBack}
-            className="text-sm text-stone-500 hover:text-stone-700 mb-4"
+            className="text-sm text-muted-foreground hover:text-foreground mb-4"
           >
             &larr; Back to repository
           </button>
-          <p className="text-stone-500">Worker not found.</p>
+          <p className="text-muted-foreground">Worker not found.</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-stone-50">
+    <div className="min-h-screen bg-background">
       {/* Navigation breadcrumb */}
-      <div className="bg-stone-800 text-stone-300 px-6 py-3">
+      <div className="bg-primary text-primary-foreground/80 px-6 py-3">
         <div className="max-w-6xl mx-auto flex items-center gap-2 text-sm">
           <button
             onClick={onBack}
-            className="hover:text-white"
+            className="hover:text-primary-foreground"
           >
             CoCoPilot
           </button>
-          <span className="text-stone-500">/</span>
+          <span className="text-primary-foreground/50">/</span>
           <button
             onClick={onBack}
-            className="hover:text-white"
+            className="hover:text-primary-foreground"
           >
             {repoName}
           </button>
-          <span className="text-stone-500">/</span>
-          <span className="text-amber-400 font-medium">{worker.name}</span>
+          <span className="text-primary-foreground/50">/</span>
+          <span className="text-chart-4 font-medium">{worker.name}</span>
         </div>
       </div>
 

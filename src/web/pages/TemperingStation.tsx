@@ -91,10 +91,10 @@ export function TemperingStation({
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-cream-50">
+      <div className="flex min-h-screen items-center justify-center bg-background">
         <div className="text-center">
           <div className="text-4xl mb-2">🍫</div>
-          <p className="text-stone-600">Loading {repoName}...</p>
+          <p className="text-muted-foreground">Loading {repoName}...</p>
         </div>
       </div>
     );
@@ -102,12 +102,12 @@ export function TemperingStation({
 
   if (error) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-cream-50">
+      <div className="flex min-h-screen items-center justify-center bg-background">
         <div className="text-center">
-          <p className="text-red-600">{error}</p>
+          <p className="text-destructive">{error}</p>
           <button
             type="button"
-            className="mt-2 text-sm text-caramel-600 hover:underline"
+            className="mt-2 text-sm text-primary hover:underline"
             onClick={onNavigateHome}
           >
             Back to Factory Floor
@@ -131,19 +131,19 @@ export function TemperingStation({
   // ---------------------------------------------------------------------------
 
   return (
-    <div className="min-h-screen bg-cream-50">
+    <div className="min-h-screen bg-background">
       {/* Header */}
-      <header className="bg-stone-800 text-white px-6 py-4 shadow-md">
+      <header className="bg-primary text-primary-foreground px-6 py-4 shadow-md">
         <div className="flex items-center justify-between max-w-7xl mx-auto">
           <div className="flex items-center gap-3">
             <button
               type="button"
-              className="text-stone-300 hover:text-white transition-colors text-sm"
+              className="text-primary-foreground/70 hover:text-primary-foreground transition-colors text-sm"
               onClick={onNavigateHome}
             >
               🍫 CoCoPilot
             </button>
-            <span className="text-stone-500">&gt;</span>
+            <span className="text-primary-foreground/50">&gt;</span>
             <h1 className="text-lg font-semibold">{repoName}</h1>
             {repo && (
               <StatusIndicator status={repo.status} />
@@ -152,7 +152,7 @@ export function TemperingStation({
           <div className="flex items-center gap-3">
             <button
               type="button"
-              className="rounded bg-caramel-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-caramel-500 transition-colors"
+              className="rounded bg-secondary text-secondary-foreground px-4 py-1.5 text-sm font-medium hover:bg-secondary/80 transition-colors"
               onClick={onSpawnWorker}
             >
               + New Truffle
@@ -165,7 +165,7 @@ export function TemperingStation({
       <main className="max-w-7xl mx-auto px-6 py-6 space-y-8">
         {/* Agent Cards Section */}
         <section aria-label="Agents">
-          <h2 className="text-lg font-semibold text-stone-800 mb-3">Agents</h2>
+          <h2 className="text-lg font-semibold text-foreground mb-3">Agents</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
             {/* System agents */}
             {systemAgents.map((agent) => (
@@ -217,15 +217,15 @@ export function TemperingStation({
 
 function StatusIndicator({ status }: { status: string }): React.ReactElement {
   const colors: Record<string, string> = {
-    active: "bg-green-500",
-    initializing: "bg-blue-400",
-    paused: "bg-yellow-500",
-    error: "bg-red-500",
+    active: "bg-chart-2",
+    initializing: "bg-chart-1",
+    paused: "bg-chart-4",
+    error: "bg-destructive",
   };
-  const color = colors[status] ?? "bg-gray-400";
+  const color = colors[status] ?? "bg-muted-foreground";
 
   return (
-    <span className="inline-flex items-center gap-1 rounded-full bg-stone-700 px-2 py-0.5 text-xs">
+    <span className="inline-flex items-center gap-1 rounded-full bg-secondary px-2 py-0.5 text-xs">
       <span className={`inline-block h-2 w-2 rounded-full ${color}`} aria-hidden="true" />
       {status}
     </span>
@@ -247,7 +247,7 @@ function CompletedWorkersSection({
     <div className="mt-4">
       <button
         type="button"
-        className="text-sm text-stone-500 hover:text-stone-700 transition-colors"
+        className="text-sm text-muted-foreground hover:text-foreground transition-colors"
         onClick={() => setShow(!show)}
       >
         {show ? "▾" : "▸"} {workers.length} completed/stopped worker{workers.length !== 1 ? "s" : ""}
