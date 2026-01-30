@@ -25,6 +25,7 @@ interface LogTarget {
   worker?: string;
   label: string;
   window: string;
+  cmd: string[];
 }
 
 function sanitizeTmuxName(value: string): string {
@@ -60,7 +61,15 @@ async function listLogTargets(repoName?: string): Promise<LogTarget[]> {
   for (const line of lines) {
     const [container, type, worker, repo] = line.split("|");
     const label = worker || type || container;
-    targets.push({ container, type, worker, repo, label, window: "" });
+    targets.push({
+      container,
+      type,
+      worker,
+      repo,
+      label,
+      window: "",
+      cmd: ["docker", "logs", "-f", container],
+    });
   }
 
   return targets;
@@ -85,6 +94,31 @@ function assignWindowNames(targets: LogTarget[], includeRepoPrefix: boolean): Lo
   return targets;
 }
 
+function buildBaseTargets(repoName?: string): LogTarget[] {
+  const daemonLog = path.join(getCocopilotDir(), "daemon.log");
+  const containerFilter = repoName
+    ? `--filter label=cocopilot.repository=${repoName}`
+    : "";
+  const listCmd = containerFilter
+    ? `docker ps --filter label=cocopilot.managed=true ${containerFilter} --format 'table {{.Names}}\t{{.Status}}\t{{.Label "cocopilot.type"}}\t{{.Label "cocopilot.worker-name"}}'`
+    : `docker ps --filter label=cocopilot.managed=true --format 'table {{.Names}}\t{{.Status}}\t{{.Label "cocopilot.type"}}\t{{.Label "cocopilot.worker-name"}}'`;
+
+  return [
+    {
+      container: "",
+      label: "daemon-log",
+      window: "daemon-log",
+      cmd: ["sh", "-lc", `tail -f ${daemonLog}`],
+    },
+    {
+      container: "",
+      label: "containers",
+      window: "containers",
+      cmd: ["sh", "-lc", `while true; do date; ${listCmd}; sleep 2; done`],
+    },
+  ];
+}
+
 async function ensureTmuxSession(
   sessionName: string,
   targets: LogTarget[],
@@ -107,7 +141,7 @@ async function ensureTmuxSession(
   if (exists) return;
 
   if (targets.length === 0) {
-    throw new Error("No running agent containers found.");
+    throw new Error("No attachable targets found.");
   }
 
   const [first, ...rest] = targets;
@@ -118,10 +152,7 @@ async function ensureTmuxSession(
     sessionName,
     "-n",
     first.window,
-    "docker",
-    "logs",
-    "-f",
-    first.container,
+    ...first.cmd,
   ]);
 
   for (const target of rest) {
@@ -131,10 +162,7 @@ async function ensureTmuxSession(
       sessionName,
       "-n",
       target.window,
-      "docker",
-      "logs",
-      "-f",
-      target.container,
+      ...target.cmd,
     ]);
   }
 }
@@ -327,7 +355,8 @@ export function registerCommands(program: Command): void {
       .option("--branch <name>", "Start from a specific branch")
       .option("--name <name>", "Custom worker name")
       .option("--model <model>", "Override model")
-      .action(async (task: string, options: { repo?: string; branch?: string; name?: string; model?: string }) => {
+      .option("--push-to <branch>", "Push to existing branch (iterate on existing PR)")
+      .action(async (task: string, options: { repo?: string; branch?: string; name?: string; model?: string; pushTo?: string }) => {
         try {
           const repoName = resolveRepoName(options.repo);
           const response = await fetch("http://localhost:3000/api/v1/workers", {
@@ -339,6 +368,7 @@ export function registerCommands(program: Command): void {
               branch: options.branch,
               name: options.name,
               model: options.model,
+              pushTo: options.pushTo,
             }),
           });
 
@@ -348,7 +378,11 @@ export function registerCommands(program: Command): void {
           }
 
           const worker = await response.json();
-          console.log(`Worker "${worker.name}" spawned in ${repoName}.`);
+          if (options.pushTo) {
+            console.log(`Worker "${worker.name}" spawned in ${repoName} (iterating on ${options.pushTo}).`);
+          } else {
+            console.log(`Worker "${worker.name}" spawned in ${repoName}.`);
+          }
         } catch (err: unknown) {
           const message = err instanceof Error ? err.message : String(err);
           console.error(`Error: Failed to spawn worker — ${message}`);
@@ -935,8 +969,9 @@ export function registerCommands(program: Command): void {
           ? `mc-${sanitizeTmuxName(repoName)}`
           : "mc-all";
 
+        const baseTargets = buildBaseTargets(repoName);
         let targets = await listLogTargets(repoName);
-        targets = assignWindowNames(targets, includeRepoPrefix);
+        targets = assignWindowNames([...baseTargets, ...targets], includeRepoPrefix);
 
         await ensureTmuxSession(sessionName, targets, options.refresh ?? false);
 

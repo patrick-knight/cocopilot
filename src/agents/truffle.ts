@@ -60,6 +60,12 @@ export interface TruffleConfig {
   supervisorName?: string;
   /** Name of the merge queue agent to notify of PRs. */
   mergeQueueName?: string;
+  /**
+   * Push to an existing branch instead of creating a new one.
+   * When set, the worker will checkout this existing branch and push to it.
+   * Useful for iterating on existing PRs.
+   */
+  pushTo?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -223,20 +229,35 @@ export class TruffleAgent extends EventEmitter<TruffleEvents> {
 
   /**
    * Create an isolated git worktree for this worker.
-   * Creates a new branch from baseBranch (default "main").
+   * If pushTo is set, checks out the existing branch for iteration.
+   * Otherwise creates a new branch from baseBranch (default "main").
    */
   async setupWorktree(): Promise<void> {
-    const { repoPath, worktreePath, branch } = this.config;
+    const { repoPath, worktreePath, branch, pushTo } = this.config;
     const baseBranch = this.config.baseBranch ?? "main";
 
     // Ensure parent directory exists
     await fs.promises.mkdir(path.dirname(worktreePath), { recursive: true });
 
-    // Create the worktree on a new branch
-    await this.git(
-      ["worktree", "add", "-b", branch, worktreePath, baseBranch],
-      repoPath,
-    );
+    if (pushTo) {
+      // Iterating on existing PR: fetch and checkout the existing branch
+      await this.git(["fetch", "origin", pushTo], repoPath);
+      await this.git(
+        ["worktree", "add", worktreePath, `origin/${pushTo}`],
+        repoPath,
+      );
+      // Create local tracking branch
+      await this.git(
+        ["checkout", "-B", pushTo, `origin/${pushTo}`],
+        worktreePath,
+      );
+    } else {
+      // New work: create the worktree on a new branch
+      await this.git(
+        ["worktree", "add", "-b", branch, worktreePath, baseBranch],
+        repoPath,
+      );
+    }
 
     this._worktreeReady = true;
   }
@@ -315,11 +336,13 @@ export class TruffleAgent extends EventEmitter<TruffleEvents> {
 
   /**
    * Push the current branch to the remote.
+   * If pushTo is set, pushes to that branch instead of the worker's branch.
    */
   async push(): Promise<void> {
     this.requireWorktree();
+    const targetBranch = this.config.pushTo ?? this.config.branch;
     await this.git(
-      ["push", "-u", "origin", this.config.branch],
+      ["push", "-u", "origin", `HEAD:${targetBranch}`],
       this.config.worktreePath,
     );
   }

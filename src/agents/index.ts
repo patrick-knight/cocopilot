@@ -13,6 +13,10 @@ export type {
   ChocolatierEvents,
   EnroberConfig,
   EnroberEvents,
+  ReviewerConfig,
+  ReviewerEvents,
+  ReviewComment,
+  ReviewResult,
   ReviewerStatus,
   ApprovalState,
   SpawnWorkerOptions,
@@ -21,6 +25,8 @@ export type {
   HealthCheckReport,
   AgentToolDefinition,
   ToolParameterSchema,
+  WorkspaceConfig,
+  WorkspaceState,
 } from "./types.js";
 
 export {
@@ -55,3 +61,14 @@ export {
   type CustomAgentStatus,
   type CustomAgentOptions,
 } from "./custom-agent.js";
+
+export {
+  ReviewerAgent,
+  REVIEWER_SYSTEM_PROMPT,
+} from "./reviewer.js";
+
+export {
+  WorkspaceAgent,
+  WORKSPACE_SYSTEM_PROMPT,
+  type WorkspaceEvents,
+} from "./workspace.js";

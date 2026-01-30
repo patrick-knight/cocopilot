@@ -47,6 +47,12 @@ export interface SpawnWorkerOptions {
   model?: string;
   /** Priority level for the task. */
   priority?: "low" | "normal" | "high";
+  /**
+   * Push to an existing branch instead of creating a new one.
+   * Useful for iterating on existing PRs.
+   * When set, the worker will checkout this branch and push changes to it.
+   */
+  pushTo?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -217,4 +223,100 @@ export interface EnroberEvents {
   started: [];
   /** Emitted when the agent stops. */
   stopped: [];
+}
+
+// ---------------------------------------------------------------------------
+// Reviewer types
+// ---------------------------------------------------------------------------
+
+/** Configuration for the Reviewer agent. */
+export interface ReviewerConfig {
+  /** Path to the git repository to review. */
+  repoPath: string;
+  /** Agent name for messaging. Defaults to "reviewer". */
+  agentName?: string;
+  /** Merge queue agent name to notify. Defaults to "temperer". */
+  mergeQueueName?: string;
+  /** Whether to auto-complete after review. Defaults to true. */
+  autoComplete?: boolean;
+}
+
+/** A review comment posted by the Reviewer agent. */
+export interface ReviewComment {
+  /** File path the comment applies to. */
+  file: string;
+  /** Line number (optional). */
+  line?: number;
+  /** Comment body. */
+  body: string;
+  /** Whether this is a blocking issue. */
+  blocking: boolean;
+}
+
+/** Result of a code review. */
+export interface ReviewResult {
+  /** PR number that was reviewed. */
+  prNumber: number;
+  /** Total number of comments posted. */
+  totalComments: number;
+  /** Number of blocking issues. */
+  blockingCount: number;
+  /** Number of non-blocking suggestions. */
+  suggestionCount: number;
+  /** Overall verdict. */
+  verdict: "approve" | "request_changes" | "comment";
+  /** Summary message. */
+  summary: string;
+}
+
+/** Events emitted by the Reviewer agent. */
+export interface ReviewerEvents {
+  /** Emitted when a review starts. */
+  reviewStarted: [prNumber: number];
+  /** Emitted when a comment is posted. */
+  commentPosted: [comment: ReviewComment];
+  /** Emitted when a review completes. */
+  reviewCompleted: [result: ReviewResult];
+  /** Emitted when the agent encounters an error. */
+  error: [error: Error];
+}
+
+// ---------------------------------------------------------------------------
+// Workspace types
+// ---------------------------------------------------------------------------
+
+/** Configuration for a Workspace. */
+export interface WorkspaceConfig {
+  /** Unique name for the workspace. */
+  name: string;
+  /** Repository name this workspace is for. */
+  repoName: string;
+  /** Path to the git repository. */
+  repoPath: string;
+  /** Git branch for the workspace. Defaults to "workspace/<name>". */
+  branch?: string;
+  /** Path where the worktree will be created. */
+  worktreePath: string;
+  /** AI model to use. */
+  model?: string;
+}
+
+/** State of a workspace. */
+export interface WorkspaceState {
+  /** Workspace name. */
+  name: string;
+  /** Repository name. */
+  repoName: string;
+  /** Current status. */
+  status: "active" | "inactive" | "error";
+  /** Git branch. */
+  branch: string;
+  /** Worktree path. */
+  worktreePath: string;
+  /** When the workspace was created. */
+  createdAt: string;
+  /** When the workspace was last accessed. */
+  lastAccessedAt: string;
+  /** Whether there are uncommitted changes. */
+  hasUncommittedChanges?: boolean;
 }

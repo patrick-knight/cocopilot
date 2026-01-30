@@ -29,6 +29,8 @@ export enum MessageType {
   SPAWN_FIXUP = "SPAWN_FIXUP",
   /** System-wide announcement to all agents. */
   BROADCAST = "BROADCAST",
+  /** Reviewer signals completion of a code review. */
+  REVIEW_COMPLETE = "REVIEW_COMPLETE",
 }
 
 /** Message priority levels. */
@@ -104,6 +106,14 @@ export interface BroadcastPayload {
   level?: "info" | "warning" | "error";
 }
 
+export interface ReviewCompletePayload {
+  pr_number: number;
+  blocking_count: number;
+  suggestion_count: number;
+  verdict: "approve" | "request_changes" | "comment";
+  summary: string;
+}
+
 /** Maps each MessageType to its corresponding payload type. */
 export interface MessagePayloadMap {
   [MessageType.TASK_ASSIGNED]: TaskAssignedPayload;
@@ -117,6 +127,7 @@ export interface MessagePayloadMap {
   [MessageType.CI_FAILED]: CIFailedPayload;
   [MessageType.SPAWN_FIXUP]: SpawnFixupPayload;
   [MessageType.BROADCAST]: BroadcastPayload;
+  [MessageType.REVIEW_COMPLETE]: ReviewCompletePayload;
 }
 
 /** The core message structure for all inter-agent communication. */
