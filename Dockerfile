@@ -1,5 +1,5 @@
 # Stage 1: Builder
-FROM node:23-alpine AS builder
+FROM node:23-bookworm-slim AS builder
 
 WORKDIR /app
 
@@ -12,18 +12,21 @@ COPY web/ ./web/
 RUN npm run build
 
 # Stage 2: Runtime
-FROM node:23-alpine
+FROM node:23-bookworm-slim
 
 WORKDIR /app
 
-# Set HOME explicitly for Alpine
+# Set HOME explicitly for container
 ENV HOME=/root
 
-# Install system dependencies: docker-cli, git, github-cli
-RUN apk add --no-cache \
-    docker-cli \
-    git \
-    github-cli
+# Install system dependencies: docker CLI, git, GitHub CLI, and CA certs
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        ca-certificates \
+        docker.io \
+        git \
+        gh \
+    && rm -rf /var/lib/apt/lists/*
 
 # Install GitHub Copilot CLI extension
 # Note: This requires gh auth, so it may need to be done at runtime
@@ -43,8 +46,11 @@ RUN chmod +x /usr/local/bin/setup-gh.sh
 RUN ln -s /app/dist/cli/index.js /usr/local/bin/coco && \
     chmod +x /app/dist/cli/index.js
 
-# Add setup script to shell profile for interactive sessions
-RUN echo '[ -z "$PS1" ] || /usr/local/bin/setup-gh.sh' >> /etc/profile
+# Add setup script to shell profiles for interactive sessions
+RUN printf '%s\n' 'case $- in *i*) /usr/local/bin/setup-gh.sh ;; esac' > /etc/profile.d/cocopilot-setup.sh \
+    && chmod +x /etc/profile.d/cocopilot-setup.sh \
+    && echo 'case $- in *i*) /usr/local/bin/setup-gh.sh ;; esac' >> /etc/profile \
+    && echo 'case $- in *i*) /usr/local/bin/setup-gh.sh ;; esac' >> /etc/bash.bashrc
 
 EXPOSE 3000
 

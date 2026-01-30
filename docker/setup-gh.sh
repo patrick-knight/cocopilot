@@ -43,24 +43,24 @@ else
     echo ""
 fi
 
-# Check if copilot CLI is installed
+# Install GitHub Copilot CLI via npm
 if ! command -v copilot >/dev/null 2>&1; then
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     echo "🤖 GitHub Copilot CLI Setup"
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     echo ""
-    echo "Installing GitHub Copilot CLI..."
+    echo "Installing GitHub Copilot CLI (npm)..."
     echo "This enables AI-powered code assistance for workers."
     echo ""
-    
-    if ! wget -qO- https://gh.io/copilot-install | bash; then
+
+    if ! npm install -g @github/copilot; then
         echo ""
-        echo "⚠️  Failed to install copilot CLI. You can try again with:"
-        echo "    wget -qO- https://gh.io/copilot-install | bash"
+        echo "⚠️  Failed to install GitHub Copilot CLI. You can try again with:"
+        echo "    npm install -g @github/copilot"
         echo ""
         exit 1
     fi
-    
+
     echo ""
     echo "✅ GitHub Copilot CLI installed!"
     echo ""
@@ -82,7 +82,7 @@ echo ""
 echo "Quick commands:"
 echo "  coco status                    - Check daemon status"
 echo "  coco init <repo-url>           - Initialize a repository"
-echo "  gh copilot suggest             - Get AI coding suggestions"
+echo "  copilot                        - Start Copilot CLI"
 echo ""
 echo "Web dashboard: http://localhost:3000"
 echo ""

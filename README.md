@@ -99,12 +99,11 @@ open http://localhost:3000
 
 The first time you open a shell in the container, an interactive setup wizard will run automatically to:
 1. Authenticate with GitHub (`gh auth login`)
-2. Install the GitHub Copilot CLI (via official installer)
 
 ```bash
-# Open a shell in the container
+# Open a shell in the container (use -l for login shell to trigger setup)
 # Note: Windows users must set HOME=/root to ensure proper authentication
-docker exec -e HOME=/root -it cocopilot-cocopilot-app-1 sh
+docker exec -e HOME=/root -it cocopilot-cocopilot-app-1 sh -l
 
 # Follow the prompts to complete authentication
 # After setup, check status
@@ -114,13 +113,11 @@ coco status
 **Manual setup (if needed):**
 ```bash
 # Open shell with proper HOME environment (required for Windows)
-docker exec -e HOME=/root -it cocopilot-cocopilot-app-1 sh
+# Use -l flag to run setup script on login
+docker exec -e HOME=/root -it cocopilot-cocopilot-app-1 sh -l
 
 # If you need to re-authenticate or skip the automatic setup
 gh auth login
-
-# Install Copilot CLI with the official installer
-wget -qO- https://gh.io/copilot-install | bash
 ```
 
 **Managing the containers:**

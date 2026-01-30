@@ -13,6 +13,28 @@ interface Repository {
   workersTotal: number;
 }
 
+function normalizeRepos(data: unknown): Repository[] {
+  const raw = Array.isArray(data)
+    ? data
+    : (data as { repositories?: unknown[] })?.repositories ?? [];
+
+  return (raw as any[]).map((repo) => {
+    const workers = repo?.workers && typeof repo.workers === "object" ? repo.workers : {};
+    const workerList = Object.values(workers);
+    const workersActive = workerList.filter(
+      (worker: any) => worker?.status === "running" || worker?.status === "active",
+    ).length;
+
+    return {
+      name: repo?.name ?? "unknown",
+      url: repo?.url ?? "",
+      branch: repo?.defaultBranch ?? repo?.branch ?? "main",
+      workersActive,
+      workersTotal: workerList.length,
+    };
+  });
+}
+
 export function FactoryFloor() {
   const [repos, setRepos] = useState<Repository[]>([]);
   const [loading, setLoading] = useState(true);
@@ -25,7 +47,7 @@ export function FactoryFloor() {
         return res.json();
       })
       .then((data) => {
-        setRepos(data.repositories || []);
+        setRepos(normalizeRepos(data));
         setLoading(false);
       })
       .catch((err) => {
