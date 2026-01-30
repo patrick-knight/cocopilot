@@ -74,6 +74,14 @@ export class Concher {
     // Clear crash statuses from the previous daemon session
     await this.resetAgentStatusesAfterRestart();
 
+    // Keep agent runtimes in sync with state changes
+    this.state.on("stateChanged", () => {
+      this.ensureRepoAgentsRunning().catch((err) => {
+        const message = err instanceof Error ? err.message : String(err);
+        logger.error(`Failed to sync repo agents: ${message}`);
+      });
+    });
+
     // Register signal handlers for graceful shutdown
     this.registerSignalHandlers();
 
@@ -118,7 +126,7 @@ export class Concher {
     }
 
     // Start agent runtimes for tracked repositories
-    await this.startRepoAgents();
+    await this.ensureRepoAgentsRunning();
 
     logger.info(`Concher daemon started (PID ${process.pid})`);
     return true;
@@ -194,91 +202,110 @@ export class Concher {
     logger.close();
   }
 
-  private async startRepoAgents(): Promise<void> {
+  private async ensureRepoAgentsRunning(): Promise<void> {
     if (!this.broker) {
       logger.warn("Message broker unavailable; skipping agent startup");
       return;
     }
 
     const repos = this.state.getRepos();
+
+    // Stop agents for repos that no longer exist
+    for (const repoName of Array.from(this.repoAgents.keys())) {
+      if (!repos[repoName]) {
+        await this.stopRepoAgentsForRepo(repoName);
+      }
+    }
+
+    for (const [repoName, repo] of Object.entries(repos)) {
+      if (this.repoAgents.has(repoName)) {
+        continue;
+      }
+      await this.startRepoAgentsForRepo(repoName, repo);
+    }
+  }
+
+  private async startRepoAgentsForRepo(repoName: string, repo: { localPath: string; mode: string }): Promise<void> {
+    if (!repo.localPath || !fs.existsSync(repo.localPath)) {
+      logger.warn(`Skipping agent start for ${repoName} — repo path not found`);
+      return;
+    }
+
+    if (!this.broker) return;
+
     const pollIntervalMs = this.parseInterval(this.config.mergeQueuePollInterval);
     const healthIntervalMs = this.parseInterval(this.config.supervisorNudgeInterval);
     const label = this.config.github?.prLabels?.[0] ?? "cocopilot";
 
-    for (const [repoName, repo] of Object.entries(repos)) {
-      if (!repo.localPath || !fs.existsSync(repo.localPath)) {
-        logger.warn(`Skipping agent start for ${repoName} — repo path not found`);
-        continue;
-      }
+    try {
+      const chocolatier = new Chocolatier(
+        this.state,
+        this.agentContainerManager,
+        this.broker,
+        {
+          repoName,
+          agentImage: DEFAULT_AGENT_IMAGE,
+          containerMemoryLimit: this.config.containerMemoryLimit,
+          containerCpuLimit: this.config.containerCpuLimit,
+          healthCheckIntervalMs: healthIntervalMs,
+          stuckThresholdMs: 15 * 60 * 1000,
+        },
+      );
 
-      if (this.repoAgents.has(repoName)) {
-        continue;
-      }
+      await chocolatier.start();
 
-      try {
-        const chocolatier = new Chocolatier(
-          this.state,
-          this.agentContainerManager,
-          this.broker,
-          {
-            repoName,
-            agentImage: DEFAULT_AGENT_IMAGE,
-            containerMemoryLimit: this.config.containerMemoryLimit,
-            containerCpuLimit: this.config.containerCpuLimit,
-            healthCheckIntervalMs: healthIntervalMs,
-            stuckThresholdMs: 15 * 60 * 1000,
-          },
-        );
-
-        await chocolatier.start();
-
-        const mergeAgent = repo.mode === "multiplayer"
-          ? new Enrober({
-            repoPath: repo.localPath,
-            broker: this.broker,
-            pollIntervalMs,
-            label,
-          })
-          : new Temperer({
-            repoPath: repo.localPath,
-            broker: this.broker,
-            pollIntervalMs,
-            label,
-          });
-
-        await mergeAgent.start();
-
-        await this.state.setAgent(repoName, {
-          name: "chocolatier",
-          type: "supervisor",
-          status: "healthy",
+      const mergeAgent = repo.mode === "multiplayer"
+        ? new Enrober({
+          repoPath: repo.localPath,
+          broker: this.broker,
+          pollIntervalMs,
+          label,
+        })
+        : new Temperer({
+          repoPath: repo.localPath,
+          broker: this.broker,
+          pollIntervalMs,
+          label,
         });
 
-        await this.state.setAgent(repoName, {
-          name: repo.mode === "multiplayer" ? "enrober" : "temperer",
-          type: repo.mode === "multiplayer" ? "pr-shepherd" : "merge-queue",
-          status: "healthy",
-        });
+      await mergeAgent.start();
 
-        this.repoAgents.set(repoName, { chocolatier, mergeAgent });
-        logger.info(`Started agents for ${repoName}`);
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        logger.error(`Failed to start agents for ${repoName}: ${message}`);
-        await this.state.updateRepoStatus(repoName, "error").catch(() => {});
-      }
+      await this.state.setAgent(repoName, {
+        name: "chocolatier",
+        type: "supervisor",
+        status: "healthy",
+      });
+
+      await this.state.setAgent(repoName, {
+        name: repo.mode === "multiplayer" ? "enrober" : "temperer",
+        type: repo.mode === "multiplayer" ? "pr-shepherd" : "merge-queue",
+        status: "healthy",
+      });
+
+      this.repoAgents.set(repoName, { chocolatier, mergeAgent });
+      logger.info(`Started agents for ${repoName}`);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      logger.error(`Failed to start agents for ${repoName}: ${message}`);
+      await this.state.updateRepoStatus(repoName, "error").catch(() => {});
     }
   }
 
+  private async stopRepoAgentsForRepo(repoName: string): Promise<void> {
+    const agents = this.repoAgents.get(repoName);
+    if (!agents) return;
+    await agents.chocolatier.stop().catch(() => {});
+    await agents.mergeAgent.stop().catch(() => {});
+    await this.state.updateAgentStatus(repoName, "chocolatier", "stopped").catch(() => {});
+    const mergeName = agents.mergeAgent instanceof Enrober ? "enrober" : "temperer";
+    await this.state.updateAgentStatus(repoName, mergeName, "stopped").catch(() => {});
+    this.repoAgents.delete(repoName);
+  }
+
   private async stopRepoAgents(): Promise<void> {
-    const entries = Array.from(this.repoAgents.entries());
-    for (const [repoName, agents] of entries) {
-      await agents.chocolatier.stop().catch(() => {});
-      await agents.mergeAgent.stop().catch(() => {});
-      await this.state.updateAgentStatus(repoName, "chocolatier", "stopped").catch(() => {});
-      const mergeName = agents.mergeAgent instanceof Enrober ? "enrober" : "temperer";
-      await this.state.updateAgentStatus(repoName, mergeName, "stopped").catch(() => {});
-      this.repoAgents.delete(repoName);
+    const entries = Array.from(this.repoAgents.keys());
+    for (const repoName of entries) {
+      await this.stopRepoAgentsForRepo(repoName);
     }
   }
 
