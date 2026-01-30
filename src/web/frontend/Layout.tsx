@@ -9,6 +9,7 @@
 
 import React from "react";
 import { Link, useLocation } from "react-router-dom";
+import { ThemeToggle } from "../components/ThemeToggle.js";
 
 export interface LayoutProps {
   children: React.ReactNode;
@@ -46,6 +47,7 @@ export function Layout({ children }: LayoutProps): React.ReactElement {
           >
             CoCoPilot
           </Link>
+          <ThemeToggle />
         </div>
       </header>
 

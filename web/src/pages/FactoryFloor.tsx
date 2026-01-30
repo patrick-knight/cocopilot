@@ -4,6 +4,7 @@
 
 import React, { useEffect, useState, useMemo } from "react";
 import { Link } from "react-router-dom";
+import { ThemeToggle } from "../../../src/web/components/ThemeToggle.js";
 
 interface Repository {
   name: string;
@@ -164,6 +165,11 @@ export function FactoryFloor() {
 
   return (
     <div className="min-h-screen bg-background">
+      {/* Top bar with theme toggle */}
+      <div className="absolute top-4 right-4">
+        <ThemeToggle />
+      </div>
+
       <div className="container mx-auto px-4 py-8">
         {/* Header */}
         <header className="mb-12 text-center">
