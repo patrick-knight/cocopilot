@@ -14,24 +14,6 @@ import { registerStopCommand } from "./stop.js";
 
 const CLI_VERSION = "0.1.0";
 
-function registerStub(
-  program: Command,
-  name: string,
-  description: string,
-  message?: string,
-): void {
-  program
-    .command(name)
-    .description(description)
-    .action(() => {
-      console.error(
-        message ??
-          `Command "${name}" is not implemented in CoCoPilot yet.`
-      );
-      process.exitCode = 1;
-    });
-}
-
 function tailLines(filePath: string, lines: number): string[] {
   if (!fs.existsSync(filePath)) return [];
   const content = fs.readFileSync(filePath, "utf-8");
@@ -134,11 +116,9 @@ function filterEvents(events: ActivityEvent[], filters: {
       if (new Date(e.timestamp) < from) return false;
     }
     if (filters.to) {
-      const to = new Date(filters.to);
-      if (filters.to.length === 10) {
-        to.setDate(to.getDate() + 1);
-      }
-      if (new Date(e.timestamp) >= to) return false;
+      const toStr = filters.to.length === 10 ? `${filters.to}T23:59:59.999` : filters.to;
+      const to = new Date(toStr);
+      if (new Date(e.timestamp) > to) return false;
     }
     return true;
   });
@@ -359,7 +339,6 @@ export function registerMulticlaudeCompatCommands(program: Command): void {
   };
 
   registerWorkerCommands(program, "worker", "Manage worker agents");
-  registerWorkerCommands(program, "work", "Manage worker agents");
 
   // version
   program
@@ -637,11 +616,594 @@ export function registerMulticlaudeCompatCommands(program: Command): void {
       await signalDaemonReload();
     });
 
-  // multiclaude-style placeholders
-  registerStub(program, "workspace", "Manage workspaces", "Workspace management is not implemented yet.");
-  registerStub(program, "attach", "Attach to an agent session", "Attach is not implemented yet.");
-  registerStub(program, "bug", "Generate a diagnostic bug report", "Bug report generation is not implemented yet.");
-  registerStub(program, "claude", "Restart Claude in the current agent context", "Claude restart is not implemented yet.");
-  registerStub(program, "agent", "Agent communication commands", "Agent messaging is not implemented yet.");
-  registerStub(program, "review", "Spawn a review agent for a PR", "Review agent is not implemented yet.");
+  // -------------------------------------------------------------------------
+  // workspace - Manage workspaces
+  // -------------------------------------------------------------------------
+  const workspaceCmd = program
+    .command("workspace")
+    .description("Manage workspaces");
+
+  workspaceCmd
+    .command("list")
+    .description("List workspaces")
+    .option("--repo <name>", "Repository name")
+    .option("--json", "Output as JSON")
+    .action(async (options: { repo?: string; json?: boolean }) => {
+      try {
+        const repoName = resolveRepoName(options.repo);
+        const response = await fetch(`http://localhost:3000/api/v1/repositories/${encodeURIComponent(repoName)}/workers`, {
+          headers: { "Content-Type": "application/json" },
+        });
+
+        if (!response.ok) {
+          const text = await response.text();
+          throw new Error(text || `HTTP ${response.status}`);
+        }
+
+        const workers = (await response.json()) as Array<{
+          name: string;
+          type?: string;
+          status?: string;
+          branch?: string;
+        }>;
+
+        // Filter to only workspaces
+        const workspaces = workers.filter((w) => w.type === "workspace");
+
+        if (options.json) {
+          console.log(JSON.stringify(workspaces, null, 2));
+          return;
+        }
+
+        if (workspaces.length === 0) {
+          console.log(`No workspaces in repository '${repoName}'`);
+          console.log("\nCreate a workspace with: coco workspace add <name>");
+          return;
+        }
+
+        console.log(`Workspaces in '${repoName}' (${workspaces.length}):\n`);
+        const nameWidth = Math.max("NAME".length, ...workspaces.map((w) => w.name.length));
+        const branchWidth = Math.max("BRANCH".length, ...workspaces.map((w) => (w.branch ?? "-").length));
+        const statusWidth = Math.max("STATUS".length, ...workspaces.map((w) => (w.status ?? "-").length));
+
+        const header = [
+          "NAME".padEnd(nameWidth),
+          "BRANCH".padEnd(branchWidth),
+          "STATUS".padEnd(statusWidth),
+        ].join("  ");
+        console.log(header);
+        console.log("-".repeat(header.length));
+
+        for (const ws of workspaces) {
+          console.log([
+            ws.name.padEnd(nameWidth),
+            (ws.branch ?? "-").padEnd(branchWidth),
+            (ws.status ?? "-").padEnd(statusWidth),
+          ].join("  "));
+        }
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : String(err);
+        console.error(`Error: Failed to list workspaces — ${message}`);
+        process.exitCode = 1;
+      }
+    });
+
+  workspaceCmd
+    .command("add")
+    .description("Add a new workspace")
+    .argument("<name>", "Workspace name")
+    .option("--repo <name>", "Repository name")
+    .option("--branch <name>", "Start from a specific branch")
+    .action(async (name: string, options: { repo?: string; branch?: string }) => {
+      try {
+        const repoName = resolveRepoName(options.repo);
+        const response = await fetch(`http://localhost:3000/api/v1/repositories/${encodeURIComponent(repoName)}/workspaces`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name,
+            branch: options.branch,
+            type: "workspace",
+          }),
+        });
+
+        if (!response.ok) {
+          const text = await response.text();
+          throw new Error(text || `HTTP ${response.status}`);
+        }
+
+        const workspace = await response.json();
+        console.log(`Workspace "${workspace.name}" created in ${repoName}.`);
+        console.log(`\nConnect to workspace: coco workspace connect ${name}`);
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : String(err);
+        console.error(`Error: Failed to add workspace — ${message}`);
+        process.exitCode = 1;
+      }
+    });
+
+  workspaceCmd
+    .command("rm")
+    .description("Remove a workspace")
+    .argument("<name>", "Workspace name")
+    .option("--repo <name>", "Repository name")
+    .action(async (name: string, options: { repo?: string }) => {
+      try {
+        const repoName = resolveRepoName(options.repo);
+        const response = await fetch(
+          `http://localhost:3000/api/v1/repositories/${encodeURIComponent(repoName)}/workspaces/${encodeURIComponent(name)}`,
+          { method: "DELETE" },
+        );
+
+        if (response.status === 204 || response.ok) {
+          console.log(`Workspace "${name}" removed.`);
+          return;
+        }
+
+        const text = await response.text();
+        throw new Error(text || `HTTP ${response.status}`);
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : String(err);
+        console.error(`Error: Failed to remove workspace — ${message}`);
+        process.exitCode = 1;
+      }
+    });
+
+  workspaceCmd
+    .command("connect")
+    .description("Connect to a workspace (attach to tmux)")
+    .argument("<name>", "Workspace name")
+    .option("--repo <name>", "Repository name")
+    .option("--read-only", "Attach in read-only mode")
+    .action(async (name: string, options: { repo?: string; readOnly?: boolean }) => {
+      try {
+        const repoName = resolveRepoName(options.repo);
+        const { spawn } = await import("node:child_process");
+
+        // Construct tmux session name (mc-<reponame>)
+        const tmuxSession = `mc-${repoName.replace(/[.:/ ]/g, "-")}`;
+        const target = `${tmuxSession}:${name}`;
+
+        const tmuxArgs = ["attach", "-t", target];
+        if (options.readOnly) {
+          tmuxArgs.push("-r");
+        }
+
+        const proc = spawn("tmux", tmuxArgs, {
+          stdio: "inherit",
+        });
+
+        proc.on("error", (err) => {
+          console.error(`Error: Failed to attach to tmux — ${err.message}`);
+          process.exitCode = 1;
+        });
+
+        proc.on("close", (code) => {
+          if (code !== 0) {
+            process.exitCode = code ?? 1;
+          }
+        });
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : String(err);
+        console.error(`Error: Failed to connect to workspace — ${message}`);
+        process.exitCode = 1;
+      }
+    });
+
+  // -------------------------------------------------------------------------
+  // attach - Attach to an agent session
+  // -------------------------------------------------------------------------
+  program
+    .command("attach")
+    .description("Attach to an agent's tmux window")
+    .argument("<agent-name>", "Agent or worker name")
+    .option("--repo <name>", "Repository name")
+    .option("--read-only", "Attach in read-only mode")
+    .action(async (agentName: string, options: { repo?: string; readOnly?: boolean }) => {
+      try {
+        const repoName = resolveRepoName(options.repo);
+        const { spawn } = await import("node:child_process");
+
+        const tmuxSession = `mc-${repoName.replace(/[.:/ ]/g, "-")}`;
+        const target = `${tmuxSession}:${agentName}`;
+
+        const tmuxArgs = ["attach", "-t", target];
+        if (options.readOnly) {
+          tmuxArgs.push("-r");
+        }
+
+        const proc = spawn("tmux", tmuxArgs, {
+          stdio: "inherit",
+        });
+
+        proc.on("error", (err) => {
+          console.error(`Error: Failed to attach — ${err.message}`);
+          process.exitCode = 1;
+        });
+
+        proc.on("close", (code) => {
+          if (code !== 0) {
+            process.exitCode = code ?? 1;
+          }
+        });
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : String(err);
+        console.error(`Error: Failed to attach — ${message}`);
+        process.exitCode = 1;
+      }
+    });
+
+  // -------------------------------------------------------------------------
+  // bug - Generate diagnostic bug report
+  // -------------------------------------------------------------------------
+  program
+    .command("bug")
+    .description("Generate a diagnostic bug report")
+    .option("--output <file>", "Output file path")
+    .option("--verbose", "Include detailed per-repo statistics")
+    .argument("[description]", "Brief description of the issue")
+    .action(async (description: string | undefined, options: { output?: string; verbose?: boolean }) => {
+      try {
+        const { execSync } = await import("node:child_process");
+        const os = await import("node:os");
+
+        const report: string[] = [];
+        report.push("# CoCoPilot Bug Report");
+        report.push(`Generated: ${new Date().toISOString()}`);
+        report.push("");
+
+        if (description) {
+          report.push("## Description");
+          report.push(description);
+          report.push("");
+        }
+
+        // Environment info
+        report.push("## Environment");
+        report.push(`- CoCoPilot Version: ${CLI_VERSION}`);
+        report.push(`- Node.js: ${process.version}`);
+        report.push(`- OS: ${os.platform()} ${os.release()}`);
+        report.push(`- Arch: ${os.arch()}`);
+        report.push("");
+
+        // Tool versions
+        report.push("## Tool Versions");
+        try {
+          const gitVersion = execSync("git --version", { encoding: "utf-8" }).trim();
+          report.push(`- ${gitVersion}`);
+        } catch {
+          report.push("- git: not installed");
+        }
+
+        try {
+          const tmuxVersion = execSync("tmux -V", { encoding: "utf-8" }).trim();
+          report.push(`- ${tmuxVersion}`);
+        } catch {
+          report.push("- tmux: not installed");
+        }
+
+        report.push("");
+
+        // Daemon status
+        report.push("## Daemon Status");
+        const pidPath = path.join(getCocopilotDir(), "daemon.pid");
+        if (fs.existsSync(pidPath)) {
+          const pid = fs.readFileSync(pidPath, "utf-8").trim();
+          report.push(`- PID file exists: ${pid}`);
+          try {
+            process.kill(parseInt(pid, 10), 0);
+            report.push("- Daemon: running");
+          } catch {
+            report.push("- Daemon: not running (stale PID)");
+          }
+        } else {
+          report.push("- Daemon: not running (no PID file)");
+        }
+        report.push("");
+
+        // Statistics
+        report.push("## Statistics");
+        const state = readStateFile();
+        const repos = Object.keys(state?.repositories ?? {});
+        report.push(`- Repositories: ${repos.length}`);
+
+        let totalWorkers = 0;
+        let totalAgents = 0;
+        for (const repoName of repos) {
+          const repo = state?.repositories?.[repoName];
+          const workers = Object.keys(repo?.workers ?? {}).length;
+          const agents = Object.keys(repo?.agents ?? {}).length;
+          totalWorkers += workers;
+          totalAgents += agents;
+
+          if (options.verbose) {
+            report.push(`  - ${repoName}: ${workers} workers, ${agents} agents`);
+          }
+        }
+        report.push(`- Total Workers: ${totalWorkers}`);
+        report.push(`- Total Agents: ${totalAgents}`);
+        report.push("");
+
+        // Daemon log tail
+        report.push("## Recent Daemon Logs");
+        report.push("```");
+        const logPath = path.join(getCocopilotDir(), "daemon.log");
+        const logLines = tailLines(logPath, 50);
+        if (logLines.length > 0) {
+          report.push(...logLines);
+        } else {
+          report.push("(no log file found)");
+        }
+        report.push("```");
+
+        const output = report.join("\n");
+
+        if (options.output) {
+          fs.writeFileSync(options.output, output);
+          console.log(`Bug report written to: ${options.output}`);
+        } else {
+          console.log(output);
+        }
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : String(err);
+        console.error(`Error: Failed to generate bug report — ${message}`);
+        process.exitCode = 1;
+      }
+    });
+
+  // -------------------------------------------------------------------------
+  // claude - Restart Claude in current agent context
+  // -------------------------------------------------------------------------
+  program
+    .command("claude")
+    .description("Restart Claude in the current agent context")
+    .option("--repo <name>", "Repository name")
+    .option("--agent <name>", "Agent name")
+    .action(async (options: { repo?: string; agent?: string }) => {
+      try {
+        // Infer agent context from current directory
+        const cwd = process.cwd();
+        const cocopilotDir = getCocopilotDir();
+        let repoName = options.repo;
+        let agentName = options.agent;
+
+        // Try to infer from cwd if in worktree: ~/.cocopilot/wts/<repo>/<agent>
+        const wtsDir = path.join(cocopilotDir, "wts");
+        if (!repoName && cwd.startsWith(wtsDir)) {
+          const rel = path.relative(wtsDir, cwd);
+          const parts = rel.split(path.sep);
+          if (parts.length >= 2) {
+            repoName = parts[0];
+            agentName = agentName ?? parts[1];
+          }
+        }
+
+        // Try repos dir: ~/.cocopilot/repos/<repo>
+        const reposDir = path.join(cocopilotDir, "repos");
+        if (!repoName && cwd.startsWith(reposDir)) {
+          const rel = path.relative(reposDir, cwd);
+          const parts = rel.split(path.sep);
+          if (parts.length >= 1) {
+            repoName = parts[0];
+          }
+        }
+
+        if (!repoName) {
+          throw new Error("Could not determine repository. Use --repo to specify.");
+        }
+        if (!agentName) {
+          throw new Error("Could not determine agent. Use --agent to specify.");
+        }
+
+        console.log(`Restarting Claude for agent "${agentName}" in repo "${repoName}"...`);
+
+        const response = await fetch(
+          `http://localhost:3000/api/v1/repositories/${encodeURIComponent(repoName)}/workers/${encodeURIComponent(agentName)}/restart`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+          },
+        );
+
+        if (!response.ok) {
+          const text = await response.text();
+          throw new Error(text || `HTTP ${response.status}`);
+        }
+
+        console.log(`Claude restarted for agent "${agentName}".`);
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : String(err);
+        console.error(`Error: Failed to restart Claude — ${message}`);
+        process.exitCode = 1;
+      }
+    });
+
+  // -------------------------------------------------------------------------
+  // agent - Agent communication commands
+  // -------------------------------------------------------------------------
+  const agentCmd = program
+    .command("agent")
+    .description("Agent communication commands");
+
+  agentCmd
+    .command("complete")
+    .description("Signal worker completion")
+    .option("--summary <text>", "Completion summary")
+    .option("--failure <reason>", "Mark as failed with reason")
+    .option("--repo <name>", "Repository name")
+    .option("--agent <name>", "Agent name")
+    .action(async (options: { summary?: string; failure?: string; repo?: string; agent?: string }) => {
+      try {
+        // Infer agent context
+        const cwd = process.cwd();
+        const cocopilotDir = getCocopilotDir();
+        let repoName = options.repo;
+        let agentName = options.agent;
+
+        const wtsDir = path.join(cocopilotDir, "wts");
+        if (!repoName && cwd.startsWith(wtsDir)) {
+          const rel = path.relative(wtsDir, cwd);
+          const parts = rel.split(path.sep);
+          if (parts.length >= 2) {
+            repoName = parts[0];
+            agentName = agentName ?? parts[1];
+          }
+        }
+
+        if (!repoName) {
+          throw new Error("Could not determine repository. Use --repo to specify.");
+        }
+        if (!agentName) {
+          throw new Error("Could not determine agent. Use --agent to specify.");
+        }
+
+        const response = await fetch(
+          `http://localhost:3000/api/v1/repositories/${encodeURIComponent(repoName)}/workers/${encodeURIComponent(agentName)}/complete`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              summary: options.summary,
+              failure: options.failure,
+              status: options.failure ? "failed" : "completed",
+            }),
+          },
+        );
+
+        if (!response.ok) {
+          const text = await response.text();
+          throw new Error(text || `HTTP ${response.status}`);
+        }
+
+        if (options.failure) {
+          console.log(`Agent "${agentName}" marked as failed: ${options.failure}`);
+        } else {
+          console.log(`Agent "${agentName}" marked as complete.`);
+        }
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : String(err);
+        console.error(`Error: Failed to signal completion — ${message}`);
+        process.exitCode = 1;
+      }
+    });
+
+  agentCmd
+    .command("restart")
+    .description("Restart a crashed or exited agent")
+    .argument("<name>", "Agent name")
+    .option("--repo <name>", "Repository name")
+    .option("--force", "Force restart even if running")
+    .action(async (name: string, options: { repo?: string; force?: boolean }) => {
+      try {
+        const repoName = resolveRepoName(options.repo);
+        const response = await fetch(
+          `http://localhost:3000/api/v1/repositories/${encodeURIComponent(repoName)}/workers/${encodeURIComponent(name)}/restart`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ force: options.force }),
+          },
+        );
+
+        if (!response.ok) {
+          const text = await response.text();
+          throw new Error(text || `HTTP ${response.status}`);
+        }
+
+        console.log(`Agent "${name}" restarted.`);
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : String(err);
+        console.error(`Error: Failed to restart agent — ${message}`);
+        process.exitCode = 1;
+      }
+    });
+
+  agentCmd
+    .command("attach")
+    .description("Attach to an agent's tmux window")
+    .argument("<name>", "Agent name")
+    .option("--repo <name>", "Repository name")
+    .option("--read-only", "Attach in read-only mode")
+    .action(async (name: string, options: { repo?: string; readOnly?: boolean }) => {
+      try {
+        const repoName = resolveRepoName(options.repo);
+        const { spawn } = await import("node:child_process");
+
+        const tmuxSession = `mc-${repoName.replace(/[.:/ ]/g, "-")}`;
+        const target = `${tmuxSession}:${name}`;
+
+        const tmuxArgs = ["attach", "-t", target];
+        if (options.readOnly) {
+          tmuxArgs.push("-r");
+        }
+
+        const proc = spawn("tmux", tmuxArgs, {
+          stdio: "inherit",
+        });
+
+        proc.on("error", (err) => {
+          console.error(`Error: Failed to attach — ${err.message}`);
+          process.exitCode = 1;
+        });
+
+        proc.on("close", (code) => {
+          if (code !== 0) {
+            process.exitCode = code ?? 1;
+          }
+        });
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : String(err);
+        console.error(`Error: Failed to attach — ${message}`);
+        process.exitCode = 1;
+      }
+    });
+
+  // -------------------------------------------------------------------------
+  // review - Spawn a review agent for a PR
+  // -------------------------------------------------------------------------
+  program
+    .command("review")
+    .description("Spawn a review agent for a PR")
+    .argument("<pr-url>", "GitHub PR URL")
+    .option("--repo <name>", "Repository name")
+    .option("--name <name>", "Custom reviewer name")
+    .action(async (prUrl: string, options: { repo?: string; name?: string }) => {
+      try {
+        const repoName = resolveRepoName(options.repo);
+
+        // Parse PR URL to extract PR number
+        const prMatch = prUrl.match(/\/pull\/(\d+)/);
+        if (!prMatch) {
+          throw new Error("Invalid PR URL. Expected format: https://github.com/owner/repo/pull/123");
+        }
+        const prNumber = prMatch[1];
+        const reviewerName = options.name ?? `review-pr-${prNumber}`;
+
+        const response = await fetch(
+          `http://localhost:3000/api/v1/repositories/${encodeURIComponent(repoName)}/review`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              prUrl,
+              prNumber: parseInt(prNumber, 10),
+              name: reviewerName,
+            }),
+          },
+        );
+
+        if (!response.ok) {
+          const text = await response.text();
+          throw new Error(text || `HTTP ${response.status}`);
+        }
+
+        const result = await response.json();
+        console.log(`Review agent "${result.name}" spawned for PR #${prNumber}.`);
+        console.log(`\nAttach to reviewer: coco attach ${result.name}`);
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : String(err);
+        console.error(`Error: Failed to spawn review agent — ${message}`);
+        process.exitCode = 1;
+      }
+    });
 }

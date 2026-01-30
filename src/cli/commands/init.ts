@@ -233,6 +233,12 @@ export function registerInitCommand(program: Command): void {
     .option("--force", "Overwrite an existing clone directory")
     .option("--reuse", "Reuse an existing clone directory")
     .action(async (repoUrl: string, options: { name?: string; force?: boolean; reuse?: boolean }) => {
+      if (options.force && options.reuse) {
+        console.error("Error: --force and --reuse are mutually exclusive options.");
+        process.exitCode = 1;
+        return;
+      }
+
       if (!isValidGitHubUrl(repoUrl)) {
         console.error(
           `Error: "${repoUrl}" is not a valid GitHub repository URL.`,
