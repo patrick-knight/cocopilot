@@ -275,23 +275,23 @@ export function SpawnWorkerModal({
     >
       {/* Modal panel */}
       <div
-        className="relative w-full max-w-lg rounded-xl border border-[#C68B3C]/30 bg-[#FFF8E7] shadow-2xl"
+        className="relative w-full max-w-lg rounded-xl border border-border bg-card shadow-2xl"
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"
         aria-labelledby="spawn-modal-title"
       >
         {/* Header */}
-        <div className="flex items-center justify-between rounded-t-xl bg-[#3B1F0B] px-6 py-4">
+        <div className="flex items-center justify-between rounded-t-xl bg-primary px-6 py-4">
           <h2
             id="spawn-modal-title"
-            className="text-lg font-semibold text-[#FFF8E7]"
+            className="text-lg font-semibold text-primary-foreground"
           >
             Spawn Worker
           </h2>
           <button
             type="button"
-            className="text-[#FFF8E7]/70 transition-colors hover:text-[#FFF8E7] disabled:opacity-40"
+            className="text-primary-foreground/70 transition-colors hover:text-primary-foreground disabled:opacity-40"
             onClick={onClose}
             disabled={isSpawning}
             aria-label="Close modal"
@@ -317,16 +317,16 @@ export function SpawnWorkerModal({
           <div>
             <label
               htmlFor="spawn-task"
-              className="mb-1 block text-sm font-medium text-[#3B1F0B]"
+              className="mb-1 block text-sm font-medium text-foreground"
             >
-              Task Description <span className="text-red-600">*</span>
+              Task Description <span className="text-destructive">*</span>
             </label>
             <textarea
               id="spawn-task"
-              className={`w-full rounded-lg border bg-white px-3 py-2 text-sm text-[#3B1F0B] placeholder-[#3B1F0B]/40 focus:outline-none focus:ring-2 ${
+              className={`w-full rounded-lg border bg-background px-3 py-2 text-sm text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 ${
                 taskError
-                  ? "border-red-500 focus:ring-red-400"
-                  : "border-[#C68B3C]/40 focus:ring-[#C68B3C]"
+                  ? "border-destructive focus:ring-destructive"
+                  : "border-input focus:ring-ring"
               }`}
               rows={4}
               placeholder="Describe the task for the worker (min 10 characters)..."
@@ -338,11 +338,11 @@ export function SpawnWorkerModal({
               minLength={MIN_TASK_LENGTH}
             />
             {taskError && (
-              <p className="mt-1 text-xs text-red-600" role="alert">
+              <p className="mt-1 text-xs text-destructive" role="alert">
                 {taskError}
               </p>
             )}
-            <p className="mt-1 text-xs text-[#3B1F0B]/50">
+            <p className="mt-1 text-xs text-muted-foreground">
               {task.trim().length}/{MIN_TASK_LENGTH} min characters
             </p>
           </div>
@@ -351,13 +351,13 @@ export function SpawnWorkerModal({
           <div>
             <label
               htmlFor="spawn-branch"
-              className="mb-1 block text-sm font-medium text-[#3B1F0B]"
+              className="mb-1 block text-sm font-medium text-foreground"
             >
               Branch
             </label>
             <select
               id="spawn-branch"
-              className="w-full rounded-lg border border-[#C68B3C]/40 bg-white px-3 py-2 text-sm text-[#3B1F0B] focus:outline-none focus:ring-2 focus:ring-[#C68B3C]"
+              className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
               value={branch}
               onChange={(e) => setBranch(e.target.value)}
               disabled={isSpawning || isDone}
@@ -374,13 +374,13 @@ export function SpawnWorkerModal({
           <div>
             <label
               htmlFor="spawn-model"
-              className="mb-1 block text-sm font-medium text-[#3B1F0B]"
+              className="mb-1 block text-sm font-medium text-foreground"
             >
               Model
             </label>
             <select
               id="spawn-model"
-              className="w-full rounded-lg border border-[#C68B3C]/40 bg-white px-3 py-2 text-sm text-[#3B1F0B] focus:outline-none focus:ring-2 focus:ring-[#C68B3C]"
+              className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
               value={model}
               onChange={(e) => setModel(e.target.value)}
               disabled={isSpawning || isDone}
@@ -395,7 +395,7 @@ export function SpawnWorkerModal({
 
           {/* Priority */}
           <div>
-            <label className="mb-1 block text-sm font-medium text-[#3B1F0B]">
+            <label className="mb-1 block text-sm font-medium text-foreground">
               Priority
             </label>
             <div className="flex gap-3">
@@ -404,8 +404,8 @@ export function SpawnWorkerModal({
                   key={p.value}
                   className={`flex cursor-pointer items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm transition-colors ${
                     priority === p.value
-                      ? "border-[#C68B3C] bg-[#C68B3C]/10 font-medium text-[#3B1F0B]"
-                      : "border-[#C68B3C]/20 text-[#3B1F0B]/60 hover:border-[#C68B3C]/50"
+                      ? "border-primary bg-primary/10 font-medium text-foreground"
+                      : "border-input text-muted-foreground hover:border-primary/50"
                   } ${isSpawning || isDone ? "pointer-events-none opacity-50" : ""}`}
                 >
                   <input
@@ -428,17 +428,17 @@ export function SpawnWorkerModal({
             <div
               className={`flex items-center gap-2 rounded-lg px-4 py-3 text-sm ${
                 phase === "error"
-                  ? "bg-red-100 text-red-800"
+                  ? "bg-destructive/10 text-destructive"
                   : isDone
-                    ? "bg-green-100 text-green-800"
-                    : "bg-[#C68B3C]/10 text-[#3B1F0B]"
+                    ? "bg-chart-2/10 text-chart-2"
+                    : "bg-primary/10 text-foreground"
               }`}
               role="status"
               aria-live="polite"
             >
               {isSpawning && (
                 <svg
-                  className="h-4 w-4 animate-spin text-[#C68B3C]"
+                  className="h-4 w-4 animate-spin text-primary"
                   xmlns="http://www.w3.org/2000/svg"
                   fill="none"
                   viewBox="0 0 24 24"
@@ -460,7 +460,7 @@ export function SpawnWorkerModal({
               )}
               {isDone && (
                 <svg
-                  className="h-4 w-4 text-green-600"
+                  className="h-4 w-4 text-chart-2"
                   xmlns="http://www.w3.org/2000/svg"
                   viewBox="0 0 20 20"
                   fill="currentColor"
@@ -474,7 +474,7 @@ export function SpawnWorkerModal({
               )}
               {phase === "error" && (
                 <svg
-                  className="h-4 w-4 text-red-600"
+                  className="h-4 w-4 text-destructive"
                   xmlns="http://www.w3.org/2000/svg"
                   viewBox="0 0 20 20"
                   fill="currentColor"
@@ -492,7 +492,7 @@ export function SpawnWorkerModal({
                   <>
                     {" "}
                     <strong>{spawnedWorker.name}</strong> is starting on branch{" "}
-                    <code className="rounded bg-green-200 px-1 py-0.5 text-xs">
+                    <code className="rounded bg-chart-2/20 px-1 py-0.5 text-xs">
                       {spawnedWorker.branch}
                     </code>
                   </>
@@ -505,11 +505,11 @@ export function SpawnWorkerModal({
           )}
 
           {/* Actions */}
-          <div className="flex items-center justify-end gap-3 border-t border-[#C68B3C]/20 pt-4">
+          <div className="flex items-center justify-end gap-3 border-t border-border pt-4">
             {isDone ? (
               <button
                 type="button"
-                className="rounded-lg bg-[#3B1F0B] px-5 py-2 text-sm font-medium text-[#FFF8E7] transition-colors hover:bg-[#3B1F0B]/80"
+                className="rounded-lg bg-primary px-5 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/80"
                 onClick={onClose}
               >
                 Done
@@ -518,7 +518,7 @@ export function SpawnWorkerModal({
               <>
                 <button
                   type="button"
-                  className="rounded-lg border border-[#C68B3C]/30 px-4 py-2 text-sm text-[#3B1F0B]/70 transition-colors hover:bg-[#3B1F0B]/5 disabled:opacity-40"
+                  className="rounded-lg border border-border px-4 py-2 text-sm text-muted-foreground transition-colors hover:bg-accent disabled:opacity-40"
                   onClick={onClose}
                   disabled={isSpawning}
                 >
@@ -526,7 +526,7 @@ export function SpawnWorkerModal({
                 </button>
                 <button
                   type="submit"
-                  className="rounded-lg bg-[#C68B3C] px-5 py-2 text-sm font-medium text-[#FFF8E7] transition-colors hover:bg-[#C68B3C]/80 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="rounded-lg bg-primary px-5 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/80 disabled:cursor-not-allowed disabled:opacity-50"
                   disabled={isSpawning || (touched && !isValid)}
                 >
                   {isSpawning ? "Spawning\u2026" : "Spawn Worker"}

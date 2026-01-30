@@ -6,6 +6,7 @@ import React, { useState } from "react";
 import { Routes, Route, useNavigate, useParams } from "react-router-dom";
 import { TemperingStation } from "../../src/web/pages/TemperingStation.js";
 import { TruffleInspector } from "../../src/web/frontend/pages/TruffleInspector.js";
+import { SpawnWorkerModal } from "../../src/web/frontend/components/SpawnWorkerModal.js";
 import { useSocket } from "../../src/web/hooks/useSocket.js";
 import { FactoryFloor } from "./pages/FactoryFloor.js";
 
@@ -22,6 +23,8 @@ export default function App() {
 function TemperingStationPage() {
   const { repoName } = useParams<{ repoName: string }>();
   const navigate = useNavigate();
+  const { socket } = useSocket();
+  const [showSpawnModal, setShowSpawnModal] = useState(false);
 
   if (!repoName) {
     navigate("/");
@@ -29,11 +32,24 @@ function TemperingStationPage() {
   }
 
   return (
-    <TemperingStation
-      repoName={repoName}
-      onNavigateHome={() => navigate("/")}
-      onNavigateWorker={(workerName) => navigate(`/repos/${repoName}/workers/${workerName}`)}
-    />
+    <>
+      <TemperingStation
+        repoName={repoName}
+        onNavigateHome={() => navigate("/")}
+        onNavigateWorker={(workerName) => navigate(`/repos/${repoName}/workers/${workerName}`)}
+        onSpawnWorker={() => setShowSpawnModal(true)}
+      />
+      <SpawnWorkerModal
+        isOpen={showSpawnModal}
+        onClose={() => setShowSpawnModal(false)}
+        repositoryId={repoName}
+        repositoryName={repoName}
+        socket={socket}
+        onWorkerSpawned={(worker) => {
+          console.log("Worker spawned:", worker.name);
+        }}
+      />
+    </>
   );
 }
 
