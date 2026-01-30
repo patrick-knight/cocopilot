@@ -42,7 +42,7 @@ jobs:
           node-version: '22'
           cache: 'npm'
       - run: npm ci
-      - run: npm test -- --coverage
+      - run: npm test -- --coverage --forceExit
         env:
           REDIS_URL: redis://localhost:6379
       - name: Upload coverage
