@@ -16,7 +16,7 @@ import { registerListCommand } from "./commands/list.js";
 import { registerAgentsCommand } from "./commands/agents.js";
 import { registerConfigCommand } from "./commands/config-keys.js";
 import { registerRemoveCommand } from "./commands/remove.js";
-import { registerMulticlaudeCompatCommands } from "./commands/multiclaude.js";
+import { registerCommands } from "./commands/commands.js";
 
 export function createProgram(): Command {
   const program = new Command();
@@ -36,7 +36,7 @@ export function createProgram(): Command {
   registerRemoveCommand(program);
   registerAgentsCommand(program);
   registerConfigCommand(program);
-  registerMulticlaudeCompatCommands(program);
+  registerCommands(program);
 
   return program;
 }

@@ -173,7 +173,7 @@ async function signalDaemonReload(): Promise<void> {
   }
 }
 
-export function registerMulticlaudeCompatCommands(program: Command): void {
+export function registerCommands(program: Command): void {
   // daemon
   const daemon = program
     .command("daemon")
@@ -952,11 +952,11 @@ export function registerMulticlaudeCompatCommands(program: Command): void {
     });
 
   // -------------------------------------------------------------------------
-  // claude - Restart Claude in current agent context
+  // copilot - Restart Copilot in current agent context
   // -------------------------------------------------------------------------
   program
-    .command("claude")
-    .description("Restart Claude in the current agent context")
+    .command("copilot")
+    .description("Restart Copilot in the current agent context")
     .option("--repo <name>", "Repository name")
     .option("--agent <name>", "Agent name")
     .action(async (options: { repo?: string; agent?: string }) => {
@@ -995,7 +995,7 @@ export function registerMulticlaudeCompatCommands(program: Command): void {
           throw new Error("Could not determine agent. Use --agent to specify.");
         }
 
-        console.log(`Restarting Claude for agent "${agentName}" in repo "${repoName}"...`);
+        console.log(`Restarting Copilot for agent "${agentName}" in repo "${repoName}"...`);
 
         const response = await fetch(
           `http://localhost:3000/api/v1/repositories/${encodeURIComponent(repoName)}/workers/${encodeURIComponent(agentName)}/restart`,
@@ -1010,10 +1010,10 @@ export function registerMulticlaudeCompatCommands(program: Command): void {
           throw new Error(text || `HTTP ${response.status}`);
         }
 
-        console.log(`Claude restarted for agent "${agentName}".`);
+        console.log(`Copilot restarted for agent "${agentName}".`);
       } catch (err: unknown) {
         const message = err instanceof Error ? err.message : String(err);
-        console.error(`Error: Failed to restart Claude — ${message}`);
+        console.error(`Error: Failed to restart Copilot — ${message}`);
         process.exitCode = 1;
       }
     });
