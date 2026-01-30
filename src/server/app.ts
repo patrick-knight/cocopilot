@@ -8,7 +8,6 @@
 
 import { createServer as createHttpServer, type Server as HttpServer } from "node:http";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 import express from "express";
 import cors from "cors";
 import { Server as SocketIOServer } from "socket.io";
@@ -58,9 +57,7 @@ export function createServer(deps: ServerDeps): CocoServer {
   app.use(express.json());
 
   // Serve static frontend files (in production)
-  const __filename = fileURLToPath(import.meta.url);
-  const __dirname = path.dirname(__filename);
-  const distWebPath = path.resolve(__dirname, "../../dist-web");
+  const distWebPath = path.resolve("dist-web");
   app.use(express.static(distWebPath));
 
   // REST API routes under /api/v1

@@ -34,12 +34,10 @@ function checksJson(checks: Array<Partial<RawGHCheck>>): string {
 /** CICheck helper for categorizeFailure tests (uses CICheck interface). */
 function makeCheck(overrides: Partial<CICheck> = {}): CICheck {
   return {
-    name: "build",
-    status: "COMPLETED",
-    conclusion: "SUCCESS",
-    url: "https://github.com/org/repo/actions/runs/1",
-    detailsUrl: "https://github.com/org/repo/actions/runs/1",
-    ...overrides,
+    name: overrides.name ?? "build",
+    state: overrides.state ?? "COMPLETED",
+    conclusion: overrides.conclusion ?? "SUCCESS",
+    detailsUrl: overrides.detailsUrl ?? "https://github.com/org/repo/actions/runs/1",
   };
 }
 

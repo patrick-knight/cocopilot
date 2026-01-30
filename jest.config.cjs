@@ -9,11 +9,15 @@ module.exports = {
     '^(\\.{1,2}/.*)\\.js$': '$1',
     '^@github/copilot-sdk$': '<rootDir>/node_modules/@github/copilot-sdk/dist/index.js',
   },
+  transformIgnorePatterns: [
+    'node_modules/(?!uuid/)',
+  ],
   transform: {
-    '^.+\\.tsx?$': ['ts-jest', {
+    '^.+\\.[tj]sx?$': ['ts-jest', {
       diagnostics: { ignoreCodes: [151002] },
       tsconfig: {
         jsx: 'react-jsx',
+        allowJs: true,
       },
     }],
   },

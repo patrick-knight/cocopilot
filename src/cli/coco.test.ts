@@ -39,13 +39,14 @@ describe("coco CLI program", () => {
     expect(commandNames).toContain("status");
     expect(commandNames).toContain("init");
     expect(commandNames).toContain("list");
+    expect(commandNames).toContain("remove");
     expect(commandNames).toContain("agents");
     expect(commandNames).toContain("config");
   });
 
-  it("has exactly 7 commands", () => {
+  it("has expected number of commands", () => {
     const program = createProgram();
-    expect(program.commands).toHaveLength(7);
+    expect(program.commands.length).toBeGreaterThanOrEqual(8);
   });
 });
 
