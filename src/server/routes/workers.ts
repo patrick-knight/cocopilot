@@ -4,6 +4,7 @@
  * POST   /api/v1/repositories/:repoName/workers              -- Spawn worker
  * GET    /api/v1/repositories/:repoName/workers              -- List workers
  * GET    /api/v1/repositories/:repoName/workers/:workerName  -- Get worker
+ * GET    /api/v1/repositories/:repoName/workers/:workerName/messages -- Get messages
  * DELETE /api/v1/repositories/:repoName/workers/:workerName  -- Terminate worker
  * POST   /api/v1/repositories/:repoName/workers/:workerName/nudge -- Nudge worker
  */
@@ -150,6 +151,19 @@ export function workerRoutes(
     } catch (err) {
       // Return empty on git errors (e.g., no commits yet)
       res.json({ commits: [], message: "No commits available" });
+    }
+  });
+
+  // GET /repositories/:repoName/workers/:workerName/messages -- Get message history
+  router.get("/:workerName/messages", async (req, res, next) => {
+    const { workerName } = req.params as unknown as WorkerParams;
+
+    try {
+      const messages = await broker.getHistory(workerName);
+      res.json({ messages });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      next(createApiError(500, `Failed to retrieve messages: ${message}`));
     }
   });
 
