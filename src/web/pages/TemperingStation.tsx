@@ -111,6 +111,27 @@ export function TemperingStation({
     [],
   );
 
+  const handleRestartWorker = useCallback(
+    async (name: string) => {
+      if (!confirm(`Restart worker "${name}"?`)) {
+        return;
+      }
+      try {
+        const response = await fetch(
+          `/api/v1/repositories/${encodeURIComponent(repoName)}/workers/${encodeURIComponent(name)}/restart`,
+          { method: "POST" }
+        );
+        if (!response.ok) {
+          const data = await response.json().catch(() => ({}));
+          alert(`Failed to restart worker: ${data.error || data.message || response.statusText}`);
+        }
+      } catch (err) {
+        alert(`Failed to restart worker: ${err instanceof Error ? err.message : String(err)}`);
+      }
+    },
+    [repoName],
+  );
+
   // ---------------------------------------------------------------------------
   // Loading / Error states
   // ---------------------------------------------------------------------------
@@ -297,6 +318,7 @@ export function TemperingStation({
                         onView={handleViewWorker}
                         onStop={handleStopWorker}
                         onDelete={handleDeleteWorker}
+                        onRestart={handleRestartWorker}
                       />
                     ))}
                   </div>
@@ -316,6 +338,7 @@ export function TemperingStation({
               workers={completedWorkers}
               onView={handleViewWorker}
               onDelete={handleDeleteWorker}
+              onRestart={handleRestartWorker}
             />
           )}
 
@@ -397,12 +420,14 @@ interface CompletedWorkersSectionProps {
   workers: import("../types.js").WorkerState[];
   onView: (name: string) => void;
   onDelete: (name: string) => void;
+  onRestart?: (name: string) => void;
 }
 
 function CompletedWorkersSection({
   workers,
   onView,
   onDelete,
+  onRestart,
 }: CompletedWorkersSectionProps): React.ReactElement {
   const [show, setShow] = useState(false);
 
@@ -424,7 +449,7 @@ function CompletedWorkersSection({
       {show && (
         <div className="p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
           {workers.map((worker) => (
-            <WorkerCard key={worker.name} worker={worker} onView={onView} onDelete={onDelete} />
+            <WorkerCard key={worker.name} worker={worker} onView={onView} onDelete={onDelete} onRestart={onRestart} />
           ))}
         </div>
       )}

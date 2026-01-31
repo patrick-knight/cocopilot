@@ -216,5 +216,43 @@ export function workerRoutes(
     }
   });
 
+  // POST /repositories/:repoName/workers/:workerName/restart -- Restart worker
+  router.post("/:workerName/restart", async (req, res, next) => {
+    const { repoName, workerName } = req.params as unknown as WorkerParams;
+
+    const worker = stateManager.getWorker(repoName, workerName);
+    if (!worker) {
+      next(createApiError(404, `Worker "${workerName}" not found in "${repoName}"`));
+      return;
+    }
+
+    try {
+      // Send SPAWN_WORKER message to Chocolatier with same task
+      await broker.send({
+        type: MessageType.SPAWN_WORKER,
+        from: "api",
+        to: "chocolatier",
+        payload: {
+          task: worker.task,
+          repoName,
+          branch: worker.branch,
+          name: workerName, // Reuse the same name
+          model: worker.model,
+        },
+      });
+
+      // Update worker status to indicate restart requested
+      await stateManager.updateWorkerStatus(repoName, workerName, "starting", undefined);
+
+      res.json({
+        status: "accepted",
+        message: `Restart request sent for worker "${workerName}"`,
+      });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      next(createApiError(500, `Failed to restart worker: ${message}`));
+    }
+  });
+
   return router;
 }

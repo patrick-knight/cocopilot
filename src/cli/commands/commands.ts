@@ -305,27 +305,6 @@ async function fetchEventsFromApi(params: URLSearchParams): Promise<ActivityEven
   }
 }
 
-async function signalDaemonReload(): Promise<void> {
-  try {
-    const response = await fetch("http://localhost:3000/api/v1/system/reload-state", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-    });
-
-    if (response.ok) {
-      console.log("Daemon state reloaded.");
-    } else {
-      const text = await response.text();
-      console.error(text || `Error: HTTP ${response.status}`);
-      process.exitCode = 1;
-    }
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    console.error(`Error: Failed to reach daemon — ${message}`);
-    process.exitCode = 1;
-  }
-}
-
 export function registerCommands(program: Command): void {
   // daemon
   const daemon = program
@@ -774,14 +753,6 @@ export function registerCommands(program: Command): void {
         console.error(`Error: Cleanup failed — ${message}`);
         process.exitCode = 1;
       }
-    });
-
-  // repair
-  program
-    .command("repair")
-    .description("Repair state after a crash")
-    .action(async () => {
-      await signalDaemonReload();
     });
 
   // -------------------------------------------------------------------------

@@ -117,14 +117,17 @@ export interface WorkerCardProps {
   onStop?: (workerName: string) => void;
   /** Called when user clicks "Delete" to remove a completed/failed worker. */
   onDelete?: (workerName: string) => void;
+  /** Called when user clicks "Restart" to restart a stuck/crashed worker. */
+  onRestart?: (workerName: string) => void;
 }
 
-export function WorkerCard({ worker, onView, onStop, onDelete }: WorkerCardProps): React.ReactElement {
+export function WorkerCard({ worker, onView, onStop, onDelete, onRestart }: WorkerCardProps): React.ReactElement {
   const display = AGENT_DISPLAY.worker;
   const statusColor = STATUS_COLORS[worker.status] ?? "bg-gray-400";
   const lastActivity = formatTimestamp(worker.updatedAt);
   const isActive = worker.status === "starting" || worker.status === "working";
   const canDelete = worker.status === "completed" || worker.status === "failed" || worker.status === "stuck" || worker.status === "terminated";
+  const canRestart = worker.error?.includes("Daemon restarted") || worker.status === "stuck" || worker.status === "failed";
 
   return (
     <div className="rounded-lg border border-border bg-card p-4 shadow-sm hover:shadow-md transition-shadow">
@@ -176,6 +179,15 @@ export function WorkerCard({ worker, onView, onStop, onDelete }: WorkerCardProps
             onClick={() => onStop?.(worker.name)}
           >
             Stop
+          </button>
+        )}
+        {canRestart && onRestart && (
+          <button
+            type="button"
+            className="rounded bg-amber-500 px-3 py-1 text-xs text-white hover:bg-amber-600 transition-colors"
+            onClick={() => onRestart(worker.name)}
+          >
+            Restart
           </button>
         )}
         {canDelete && onDelete && (
