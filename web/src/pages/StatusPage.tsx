@@ -269,11 +269,11 @@ export function StatusPage(): React.ReactElement {
                 </div>
               </div>
 
-              {/* Copilot CLI Status */}
+              {/* CoCo CLI Status */}
               <div className="bg-card border border-border rounded-lg overflow-hidden shadow-sm">
                 <div className="bg-muted/50 px-4 py-3 border-b border-border">
                   <h3 className="text-lg font-semibold text-foreground flex items-center gap-2">
-                    <span>🤖</span> Copilot CLI
+                    <span>🍫</span> CoCo CLI
                   </h3>
                 </div>
                 <div className="p-4 space-y-3">
@@ -292,7 +292,7 @@ export function StatusPage(): React.ReactElement {
                   )}
                   {!status.copilot?.installed && (
                     <p className="text-sm text-amber-500">
-                      Run <code className="bg-muted px-1 rounded">gh extension install github/gh-copilot</code> to install
+                      Run <code className="bg-muted px-1 rounded">npm install -g cocopilot</code> to install
                     </p>
                   )}
                 </div>

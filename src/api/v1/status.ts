@@ -54,11 +54,11 @@ async function checkGitHubAuth(): Promise<{ authenticated: boolean; user?: strin
 }
 
 /**
- * Check if GitHub Copilot CLI is installed
+ * Check if CoCoPilot CLI (coco) is installed
  */
 async function checkCopilotCli(): Promise<{ installed: boolean; version?: string; error?: string }> {
   return new Promise((resolve) => {
-    const child = spawn("gh", ["copilot", "--version"], {
+    const child = spawn("coco", ["--version"], {
       shell: true,
       stdio: ["ignore", "pipe", "pipe"],
     });
@@ -70,7 +70,7 @@ async function checkCopilotCli(): Promise<{ installed: boolean; version?: string
     child.stderr?.on("data", (data) => { stderr += data.toString(); });
 
     child.on("error", () => {
-      resolve({ installed: false, error: "GitHub CLI not installed" });
+      resolve({ installed: false, error: "coco CLI not installed" });
     });
 
     child.on("close", (code) => {
@@ -78,13 +78,13 @@ async function checkCopilotCli(): Promise<{ installed: boolean; version?: string
         const version = (stdout + stderr).trim().split("\n")[0] || "installed";
         resolve({ installed: true, version });
       } else {
-        resolve({ installed: false, error: "Copilot CLI extension not installed" });
+        resolve({ installed: false, error: "coco CLI not installed" });
       }
     });
 
     setTimeout(() => {
       child.kill();
-      resolve({ installed: false, error: "Copilot CLI check timed out" });
+      resolve({ installed: false, error: "coco CLI check timed out" });
     }, 5000);
   });
 }
