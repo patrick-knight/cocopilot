@@ -41,6 +41,9 @@ export class LocalTruffleRuntime {
 
     const tools = this.buildTools();
 
+    // Check if Redis bus is available (optional but improves streaming)
+    const redisBus = this.broker.isReady ? this.broker.redisBus : undefined;
+
     this.client = new CopilotClientWrapper(
       {
         agentName: this.truffle.name,
@@ -51,21 +54,34 @@ export class LocalTruffleRuntime {
         },
         defaultTools: tools,
       },
-      this.broker.redisBus,
+      redisBus,
     );
 
-    await this.client.start();
+    try {
+      await this.client.start();
+    } catch (err) {
+      this.running = false;
+      throw new Error(`Failed to start Copilot client: ${err instanceof Error ? err.message : String(err)}`);
+    }
 
     let sessionOptions: CopilotSessionOptions = {};
     if (this.mcpServers.length > 0) {
       sessionOptions = injectServers(sessionOptions, this.mcpServers);
     }
 
-    const session = await this.client.createSession(sessionOptions);
-    this.session = session;
+    try {
+      const session = await this.client.createSession(sessionOptions);
+      this.session = session;
 
-    const kickoff = `Begin the task now.\n\nTask: ${this.truffle.task}\n\nWhen finished, call mark_complete with a concise summary. If you get stuck, call request_help with details.`;
-    await session.send(kickoff as any);
+      const kickoff = `Begin the task now.\n\nTask: ${this.truffle.task}\n\nWhen finished, call mark_complete with a concise summary. If you get stuck, call request_help with details.`;
+      await session.send(kickoff as any);
+    } catch (err) {
+      // Clean up client if session creation fails
+      this.running = false;
+      await this.client.stop().catch(() => {});
+      this.client = null;
+      throw new Error(`Failed to create Copilot session: ${err instanceof Error ? err.message : String(err)}`);
+    }
   }
 
   async stop(): Promise<void> {
