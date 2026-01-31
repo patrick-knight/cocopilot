@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
+import { createPortal } from "react-dom";
 import type { Socket } from "socket.io-client";
 
 // ---------------------------------------------------------------------------
@@ -265,9 +266,10 @@ export function SpawnWorkerModal({
   const isSpawning = phase === "submitting" || phase === "container_starting";
   const isDone = phase === "worker_spawned";
 
-  return (
+  const modalContent = (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+      style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 9999 }}
       onClick={() => {
         if (!isSpawning) onClose();
       }}
@@ -275,23 +277,24 @@ export function SpawnWorkerModal({
     >
       {/* Modal panel */}
       <div
-        className="relative w-full max-w-lg rounded-xl border border-border bg-card shadow-2xl"
+        className="relative w-full max-w-md rounded-xl border border-border bg-card shadow-2xl mx-4"
+        style={{ maxHeight: '90vh', overflowY: 'auto' }}
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"
         aria-labelledby="spawn-modal-title"
       >
         {/* Header */}
-        <div className="flex items-center justify-between rounded-t-xl bg-primary px-6 py-4">
+        <div className="flex items-center justify-between rounded-t-xl bg-gradient-to-r from-amber-600 to-orange-500 px-6 py-4">
           <h2
             id="spawn-modal-title"
-            className="text-lg font-semibold text-primary-foreground"
+            className="text-lg font-semibold text-white flex items-center gap-2"
           >
-            Spawn Worker
+            <span>🍬</span> Spawn Truffle
           </h2>
           <button
             type="button"
-            className="text-primary-foreground/70 transition-colors hover:text-primary-foreground disabled:opacity-40"
+            className="text-white/70 transition-colors hover:text-white disabled:opacity-40"
             onClick={onClose}
             disabled={isSpawning}
             aria-label="Close modal"
@@ -509,7 +512,7 @@ export function SpawnWorkerModal({
             {isDone ? (
               <button
                 type="button"
-                className="rounded-lg bg-primary px-5 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/80"
+                className="rounded-lg bg-gradient-to-r from-amber-600 to-orange-500 hover:from-amber-500 hover:to-orange-400 px-5 py-2 text-sm font-medium text-white transition-all"
                 onClick={onClose}
               >
                 Done
@@ -526,10 +529,10 @@ export function SpawnWorkerModal({
                 </button>
                 <button
                   type="submit"
-                  className="rounded-lg bg-primary px-5 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/80 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="rounded-lg bg-gradient-to-r from-amber-600 to-orange-500 hover:from-amber-500 hover:to-orange-400 px-5 py-2 text-sm font-medium text-white transition-all disabled:cursor-not-allowed disabled:opacity-50"
                   disabled={isSpawning || (touched && !isValid)}
                 >
-                  {isSpawning ? "Spawning\u2026" : "Spawn Worker"}
+                  {isSpawning ? "Spawning…" : "🍬 Spawn Truffle"}
                 </button>
               </>
             )}
@@ -538,6 +541,8 @@ export function SpawnWorkerModal({
       </div>
     </div>
   );
+
+  return createPortal(modalContent, document.body);
 }
 
 export default SpawnWorkerModal;
