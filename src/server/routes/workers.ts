@@ -118,7 +118,8 @@ export function workerRoutes(
 
     const worktreePath = getWorktreePath(repoName, workerName);
     if (!fs.existsSync(worktreePath)) {
-      next(createApiError(404, `Worktree not found for worker "${workerName}"`));
+      // Return empty commits if worktree doesn't exist yet
+      res.json({ commits: [], message: "Worktree not yet created" });
       return;
     }
 
@@ -140,7 +141,8 @@ export function workerRoutes(
 
       res.json({ commits });
     } catch (err) {
-      next(err);
+      // Return empty on git errors (e.g., no commits yet)
+      res.json({ commits: [], message: "No commits available" });
     }
   });
 

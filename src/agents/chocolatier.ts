@@ -26,6 +26,7 @@ import type { ContainerConfig, ContainerInfo } from "../docker/index.js";
 import { MessageBroker, MessageType } from "../messaging/index.js";
 import type { CocoMessage } from "../messaging/index.js";
 import { loadMCPConfig } from "../mcp/index.js";
+import { getWorktreePath } from "../git/index.js";
 import { TruffleAgent } from "./truffle.js";
 import { LocalTruffleRuntime } from "./truffle-runtime.js";
 
@@ -257,9 +258,8 @@ export class Chocolatier extends EventEmitter {
 
     // Build container config
     const repo = this.stateManager.getRepo(repoName);
-    const worktreePath = repo
-      ? `${repo.localPath}/worktrees/${worker.name}`
-      : `/workspace`;
+    // Use the standard worktree path: ~/.cocopilot/repos/<repoName>/worktrees/<workerName>
+    const worktreePath = getWorktreePath(repoName, worker.name);
     const messagesPath = repo
       ? `${this.stateManager.getBaseDir()}/repos/${repoName}/messages`
       : `/messages`;
