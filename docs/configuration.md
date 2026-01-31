@@ -331,6 +331,15 @@ Containers managed by CoCoPilot use these defaults:
 | Agent image | `cocopilot-agent:latest` |
 | Redis image | `redis:7.4.6-alpine` |
 
+By default, workers run inside the main daemon container. To enable
+per-worker containers (multi-container mode), set:
+
+```json
+{
+  "workerRuntime": "container"
+}
+```
+
 Containers are labeled for identification:
 
 | Label | Description |

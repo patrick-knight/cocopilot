@@ -36,6 +36,7 @@ const DEFAULT_CONFIG: CocoConfig = {
   mergeQueuePollInterval: "2m",
   containerMemoryLimit: "4g",
   containerCpuLimit: "2",
+  workerRuntime: "local",
   autoMerge: true,
   theme: "dark-chocolate",
   github: {

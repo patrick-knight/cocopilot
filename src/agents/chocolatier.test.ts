@@ -68,6 +68,10 @@ function createMockBroker(): jest.Mocked<MessageBroker> {
     deleteMessage: jest.fn().mockResolvedValue(true),
     close: jest.fn().mockResolvedValue(undefined),
     isReady: true,
+    redisBus: {
+      isReady: true,
+      publishRaw: jest.fn().mockResolvedValue(undefined),
+    } as any,
   } as unknown as jest.Mocked<MessageBroker>;
 }
 
@@ -79,6 +83,7 @@ function createConfig(
     agentImage: "cocopilot-agent:latest",
     containerMemoryLimit: "4g",
     containerCpuLimit: "2",
+    workerRuntime: "container",
     healthCheckIntervalMs: 60_000, // 1 minute for tests
     stuckThresholdMs: 15 * 60_000,
     ...overrides,

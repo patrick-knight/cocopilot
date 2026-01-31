@@ -22,6 +22,8 @@ export interface AgentConfig {
   containerMemoryLimit: string;
   /** CPU limit for worker containers (e.g., "2"). */
   containerCpuLimit: string;
+  /** Worker runtime mode: spawn Docker containers or run locally. */
+  workerRuntime: "container" | "local";
 }
 
 /** Configuration specific to the Chocolatier (supervisor) agent. */

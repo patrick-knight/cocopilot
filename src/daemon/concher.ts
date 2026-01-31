@@ -257,6 +257,7 @@ export class Concher {
           agentImage: DEFAULT_AGENT_IMAGE,
           containerMemoryLimit: this.config.containerMemoryLimit,
           containerCpuLimit: this.config.containerCpuLimit,
+          workerRuntime: this.config.workerRuntime,
           healthCheckIntervalMs: healthIntervalMs,
           stuckThresholdMs: 15 * 60 * 1000,
         },

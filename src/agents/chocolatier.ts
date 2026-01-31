@@ -25,7 +25,9 @@ import {
 import type { ContainerConfig, ContainerInfo } from "../docker/index.js";
 import { MessageBroker, MessageType } from "../messaging/index.js";
 import type { CocoMessage } from "../messaging/index.js";
-import { loadMCPConfig, injectServers } from "../mcp/index.js";
+import { loadMCPConfig } from "../mcp/index.js";
+import { TruffleAgent } from "./truffle.js";
+import { LocalTruffleRuntime } from "./truffle-runtime.js";
 
 import type {
   ChocolatierConfig,
@@ -87,6 +89,7 @@ export class Chocolatier extends EventEmitter {
   private readonly containerManager: ContainerManager;
   private readonly broker: MessageBroker;
   private readonly config: ChocolatierConfig;
+  private readonly localWorkers = new Map<string, LocalTruffleRuntime>();
 
   private healthCheckTimer: ReturnType<typeof setInterval> | null = null;
   private running = false;
@@ -108,6 +111,11 @@ export class Chocolatier extends EventEmitter {
       stuckThresholdMs:
         config.stuckThresholdMs ?? DEFAULT_STUCK_THRESHOLD_MS,
     };
+
+    this.stateManager.on("workerRemoved", (repoName, workerName) => {
+      if (repoName !== this.config.repoName) return;
+      this.stopLocalWorker(workerName).catch(() => {});
+    });
   }
 
   // -----------------------------------------------------------------------
@@ -157,6 +165,12 @@ export class Chocolatier extends EventEmitter {
 
     // Unsubscribe from messages
     await this.broker.unsubscribe(AGENT_NAME);
+
+    // Stop any local worker runtimes
+    for (const [workerName, runtime] of this.localWorkers.entries()) {
+      await runtime.stop().catch(() => {});
+      this.localWorkers.delete(workerName);
+    }
 
     // Update agent status
     await this.stateManager.updateAgentStatus(
@@ -257,6 +271,16 @@ export class Chocolatier extends EventEmitter {
       : "";
     const mcpServers = mcpConfigPath ? loadMCPConfig(mcpConfigPath) : [];
 
+    if (this.config.workerRuntime === "local") {
+      return this.spawnLocalWorker({
+        worker,
+        options,
+        repoName,
+        worktreePath,
+        mcpServers,
+      });
+    }
+
     const containerConfig: ContainerConfig = {
       type: ContainerType.TRUFFLE,
       image: this.config.agentImage,
@@ -323,6 +347,99 @@ export class Chocolatier extends EventEmitter {
       );
       throw err;
     }
+  }
+
+  private async spawnLocalWorker(params: {
+    worker: WorkerState;
+    options: SpawnWorkerOptions;
+    repoName: string;
+    worktreePath: string;
+    mcpServers: ReturnType<typeof loadMCPConfig>;
+  }): Promise<WorkerState> {
+    const { worker, options, repoName, worktreePath, mcpServers } = params;
+    const repo = this.stateManager.getRepo(repoName);
+    if (!repo) {
+      await this.stateManager.updateWorkerStatus(repoName, worker.name, "failed", {
+        error: "Repository not found for local worker runtime",
+      });
+      throw new Error(`Repository "${repoName}" not found`);
+    }
+
+    const customPrompt =
+      "\n\nAdditional tools available:\n" +
+      "- send_message(to, message, level?)\n" +
+      "- request_help(message)\n" +
+      "- commit_changes(message)\n" +
+      "- create_pr(title, body)\n" +
+      "- mark_complete(summary, prUrl?)";
+
+    const truffle = new TruffleAgent(
+      {
+        name: worker.name,
+        task: options.task,
+        branch: worker.branch,
+        repoPath: repo.localPath,
+        repoName,
+        worktreePath,
+        model: options.model,
+        baseBranch: repo.defaultBranch ?? "main",
+        prLabels: this.stateManager.getConfig().github?.prLabels ?? ["cocopilot"],
+        customPrompt,
+        pushTo: options.pushTo,
+      },
+      this.broker,
+    );
+
+    const runtime = new LocalTruffleRuntime({
+      truffle,
+      broker: this.broker,
+      model: options.model,
+      mcpServers,
+    });
+
+    truffle.on("nudged", (hint, context) => {
+      runtime.sendNudge(hint, context).catch(() => {});
+    });
+
+    truffle.on("prCreated", (pr) => {
+      this.stateManager
+        .updateWorkerStatus(repoName, worker.name, "working", {
+          prNumber: pr.number,
+          prUrl: pr.url,
+        })
+        .catch(() => {});
+    });
+
+    truffle.on("done", () => {
+      runtime.stop().catch(() => {});
+      this.localWorkers.delete(worker.name);
+    });
+
+    try {
+      await truffle.init();
+      await this.stateManager.updateWorkerStatus(repoName, worker.name, "working", {
+        containerId: `local:${worker.name}`,
+      });
+
+      await runtime.start();
+      this.localWorkers.set(worker.name, runtime);
+      this.emit("workerSpawned", repoName, worker);
+      return worker;
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : String(err);
+      await this.stateManager.updateWorkerStatus(repoName, worker.name, "failed", {
+        error: `Local worker failed to start: ${errorMsg}`,
+      });
+      await runtime.stop().catch(() => {});
+      throw err;
+    }
+  }
+
+  private async stopLocalWorker(workerName: string): Promise<void> {
+    const runtime = this.localWorkers.get(workerName);
+    if (!runtime) return;
+    await runtime.stop();
+    this.localWorkers.delete(workerName);
   }
 
   // -----------------------------------------------------------------------

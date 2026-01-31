@@ -64,6 +64,7 @@ export interface GlobalConfig {
   mergeQueuePollInterval: string;
   containerMemoryLimit: string;
   containerCpuLimit: string;
+  workerRuntime: "container" | "local";
   autoMerge: boolean;
   theme: string;
   github: GitHubConfig;
@@ -182,6 +183,7 @@ export const DEFAULT_GLOBAL_CONFIG: GlobalConfig = {
   mergeQueuePollInterval: "2m",
   containerMemoryLimit: "4g",
   containerCpuLimit: "2",
+  workerRuntime: "local",
   autoMerge: true,
   theme: "dark-chocolate",
   github: {

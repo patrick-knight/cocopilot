@@ -71,6 +71,10 @@ function createMockBroker(): jest.Mocked<MessageBroker> {
     deleteMessage: jest.fn().mockResolvedValue(true),
     close: jest.fn().mockResolvedValue(undefined),
     isReady: true,
+    redisBus: {
+      isReady: true,
+      publishRaw: jest.fn().mockResolvedValue(undefined),
+    } as any,
   } as unknown as jest.Mocked<MessageBroker>;
 }
 

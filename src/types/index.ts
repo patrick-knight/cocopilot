@@ -120,6 +120,7 @@ export interface CocoConfig {
   mergeQueuePollInterval: string;
   containerMemoryLimit: string;
   containerCpuLimit: string;
+  workerRuntime: "container" | "local";
   autoMerge: boolean;
   theme: string;
   github: GitHubConfig;

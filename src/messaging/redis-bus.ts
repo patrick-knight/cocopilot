@@ -194,6 +194,12 @@ export class RedisMessageBus {
     );
   }
 
+  /** Publish raw payload to an arbitrary Redis channel. */
+  async publishRaw(channel: string, payload: string): Promise<void> {
+    if (this.closed) throw new Error("Bus is closed");
+    await this.pub.publish(channel, payload);
+  }
+
   private addHandler(channel: string, handler: MessageHandler): void {
     let set = this.handlers.get(channel);
     if (!set) {

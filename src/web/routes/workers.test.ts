@@ -45,6 +45,10 @@ function createMockBroker(): jest.Mocked<MessageBroker> {
   return {
     send: jest.fn().mockResolvedValue({ id: "msg-1" }),
     getHistory: jest.fn().mockResolvedValue([]),
+    redisBus: {
+      isReady: true,
+      publishRaw: jest.fn().mockResolvedValue(undefined),
+    } as any,
   } as unknown as jest.Mocked<MessageBroker>;
 }
 

@@ -354,10 +354,12 @@ export class CopilotClientWrapper {
         // Swallow Redis errors — streaming is best-effort
       });
 
-    // Also publish directly to the stream channel via the underlying
-    // Redis pub client. We use the bus's publish method on a CocoMessage
-    // because we don't have direct access to the raw Redis client.
-    // The dashboard subscribes to the stream channel to receive these.
+    // Publish directly to the stream channel for live worker output.
+    this.redisBus
+      .publishRaw(channel, raw)
+      .catch(() => {
+        // Swallow Redis errors — streaming is best-effort
+      });
   }
 
   /**
