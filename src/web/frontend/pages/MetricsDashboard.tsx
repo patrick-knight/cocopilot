@@ -19,6 +19,7 @@
 
 import React, { useState, useEffect, useCallback } from "react";
 import { Link } from "react-router-dom";
+import { ThemeToggle } from "../../components/ThemeToggle.js";
 import {
   BarChart,
   Bar,
@@ -289,29 +290,37 @@ export function MetricsDashboard(): React.ReactElement {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center p-12">
-        <span className="text-sm text-gray-400">Loading metrics...</span>
+      <div className="flex min-h-screen items-center justify-center bg-background">
+        <div className="text-center">
+          <div className="text-6xl mb-4 animate-bounce">📊</div>
+          <p className="text-muted-foreground text-lg">Loading metrics...</p>
+        </div>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="p-6">
-        <div className="rounded-lg border border-red-200 bg-red-50 p-4">
-          <p className="text-sm text-red-700">
-            Failed to load metrics: {error}
-          </p>
-          <button
-            type="button"
-            onClick={() => {
-              setLoading(true);
-              fetchMetrics();
-            }}
-            className="mt-2 rounded bg-red-600 px-3 py-1.5 text-sm text-white hover:bg-red-700"
-          >
-            Retry
-          </button>
+      <div className="min-h-screen bg-background">
+        <div className="absolute top-4 right-4 z-10">
+          <ThemeToggle />
+        </div>
+        <div className="container mx-auto px-4 py-8">
+          <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-6 text-center">
+            <div className="text-4xl mb-4">⚠️</div>
+            <h2 className="text-xl font-bold text-destructive mb-2">Failed to Load Metrics</h2>
+            <p className="text-muted-foreground mb-4">{error}</p>
+            <button
+              type="button"
+              onClick={() => {
+                setLoading(true);
+                fetchMetrics();
+              }}
+              className="inline-flex items-center gap-2 bg-destructive text-destructive-foreground px-4 py-2 rounded-lg font-medium hover:bg-destructive/90 transition-colors"
+            >
+              🔄 Retry
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -320,39 +329,69 @@ export function MetricsDashboard(): React.ReactElement {
   if (!data) return <div />;
 
   return (
-    <div className="p-6">
-      <div className="mb-6">
-        <Link
-          to="/"
-          className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground mb-4"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M19 12H5M12 19l-7-7 7-7"/>
-          </svg>
-          Back to Factory Floor
-        </Link>
-        <h1 className="text-2xl font-bold text-foreground">Metrics Dashboard</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          System performance and analytics
-        </p>
+    <div className="min-h-screen bg-background">
+      {/* Top bar with theme toggle */}
+      <div className="absolute top-4 right-4 z-10">
+        <ThemeToggle />
       </div>
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        <ChartPanel title="Worker Throughput (last 24h)">
-          <WorkerThroughputChart data={data.workerThroughput} />
-        </ChartPanel>
+      <div className="container mx-auto px-4 py-8">
+        {/* Header */}
+        <header className="mb-8">
+          {/* Breadcrumb */}
+          <div className="flex items-center gap-2 text-sm text-muted-foreground mb-4">
+            <Link to="/" className="hover:text-primary transition-colors flex items-center gap-1">
+              <span>🍫</span>
+              <span>Cocoa Board</span>
+            </Link>
+            <span>/</span>
+            <span className="text-foreground font-medium">Metrics</span>
+          </div>
 
-        <ChartPanel title="PR Cycle Time">
-          <PRCycleTimeChart data={data.prCycleTime} />
-        </ChartPanel>
+          {/* Title */}
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div className="flex items-center gap-4">
+              <div className="text-4xl">📊</div>
+              <div>
+                <h1 className="text-3xl font-bold text-foreground">Metrics Dashboard</h1>
+                <p className="text-muted-foreground">System performance and analytics</p>
+              </div>
+            </div>
+            <button
+              onClick={() => {
+                setLoading(true);
+                fetchMetrics();
+              }}
+              className="inline-flex items-center gap-2 border border-border hover:border-primary text-foreground px-4 py-2 rounded-lg font-medium transition-colors"
+            >
+              🔄 Refresh
+            </button>
+          </div>
 
-        <ChartPanel title="CI Success Rate">
-          <CISuccessRateChart data={data.ciSuccessRate} />
-        </ChartPanel>
+          {/* Auto-refresh note */}
+          <p className="mt-4 text-sm text-muted-foreground">
+            Auto-refreshes every 30 seconds
+          </p>
+        </header>
 
-        <ChartPanel title="Token Usage by Model">
-          <TokenUsageChart data={data.tokenUsage} />
-        </ChartPanel>
+        {/* Charts Grid */}
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+          <ChartPanel title="Worker Throughput (last 24h)">
+            <WorkerThroughputChart data={data.workerThroughput} />
+          </ChartPanel>
+
+          <ChartPanel title="PR Cycle Time">
+            <PRCycleTimeChart data={data.prCycleTime} />
+          </ChartPanel>
+
+          <ChartPanel title="CI Success Rate">
+            <CISuccessRateChart data={data.ciSuccessRate} />
+          </ChartPanel>
+
+          <ChartPanel title="Token Usage by Model">
+            <TokenUsageChart data={data.tokenUsage} />
+          </ChartPanel>
+        </div>
       </div>
     </div>
   );
