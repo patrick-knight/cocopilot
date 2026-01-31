@@ -4,7 +4,7 @@
 
 import React, { useEffect, useState, useMemo } from "react";
 import { createPortal } from "react-dom";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { ThemeToggle } from "../../../src/web/components/ThemeToggle.js";
 
 interface Repository {
@@ -43,6 +43,7 @@ function normalizeRepos(data: unknown): Repository[] {
 const ITEMS_PER_PAGE = 20;
 
 export function FactoryFloor() {
+  const navigate = useNavigate();
   const [repos, setRepos] = useState<Repository[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -190,6 +191,46 @@ export function FactoryFloor() {
     } else {
       setSortField(field);
       setSortDirection("asc");
+    }
+  };
+
+  const handleDeleteRepo = async (repoName: string, e: React.MouseEvent) => {
+    e.stopPropagation(); // Prevent row click navigation
+    if (!confirm(`Are you sure you want to remove "${repoName}" from CoCoPilot?`)) {
+      return;
+    }
+    try {
+      const res = await fetch(`/api/v1/repositories/${encodeURIComponent(repoName)}`, {
+        method: "DELETE",
+      });
+      if (!res.ok && res.status !== 204) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || `HTTP ${res.status}`);
+      }
+      fetchRepos();
+    } catch (err) {
+      alert(`Failed to delete repository: ${err instanceof Error ? err.message : err}`);
+    }
+  };
+
+  const handleRepairRepo = async (repoName: string, e: React.MouseEvent) => {
+    e.stopPropagation(); // Prevent row click navigation
+    if (!confirm(`Clean up orphaned workers for "${repoName}"?`)) {
+      return;
+    }
+    try {
+      const res = await fetch(`/api/v1/repositories/${encodeURIComponent(repoName)}/repair`, {
+        method: "POST",
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || `HTTP ${res.status}`);
+      }
+      const data = await res.json();
+      alert(data.message || "Repair completed");
+      fetchRepos();
+    } catch (err) {
+      alert(`Failed to repair repository: ${err instanceof Error ? err.message : err}`);
     }
   };
 
@@ -473,7 +514,8 @@ export function FactoryFloor() {
                       paginatedRepos.map((repo) => (
                         <tr
                           key={repo.name}
-                          className="hover:bg-accent transition-colors"
+                          className="hover:bg-accent transition-colors cursor-pointer"
+                          onClick={() => navigate(`/repos/${repo.name}`)}
                         >
                           <td className="px-6 py-4">
                             <div className="flex items-center gap-3">
@@ -517,13 +559,30 @@ export function FactoryFloor() {
                             )}
                           </td>
                           <td className="px-6 py-4 text-right">
-                            <Link
-                              to={`/repos/${repo.name}`}
-                              className="inline-flex items-center gap-1 bg-primary hover:bg-primary/90 text-primary-foreground px-4 py-2 rounded-lg text-sm font-semibold transition-colors"
-                            >
-                              View
-                              <span>→</span>
-                            </Link>
+                            <div className="inline-flex items-center gap-2">
+                              <button
+                                onClick={(e) => handleRepairRepo(repo.name, e)}
+                                className="p-1.5 rounded hover:bg-amber-500/10 text-amber-500 transition-colors"
+                                title="Repair - clean up orphaned workers"
+                              >
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                  <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>
+                                </svg>
+                              </button>
+                              <button
+                                onClick={(e) => handleDeleteRepo(repo.name, e)}
+                                className="p-1.5 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
+                                title="Remove repository"
+                              >
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                  <path d="M3 6h18"/>
+                                  <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/>
+                                  <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/>
+                                  <line x1="10" y1="11" x2="10" y2="17"/>
+                                  <line x1="14" y1="11" x2="14" y2="17"/>
+                                </svg>
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       ))

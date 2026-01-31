@@ -122,6 +122,39 @@ export function repositoryRoutes(stateManager: StateManager): Router {
     }
   });
 
+  // POST /repositories/:repoName/repair -- Clean up orphaned workers
+  router.post("/:repoName/repair", async (req, res, next) => {
+    const { repoName } = req.params;
+    const repo = stateManager.getRepo(repoName);
+    if (!repo) {
+      next(createApiError(404, `Repository "${repoName}" not found`));
+      return;
+    }
+
+    try {
+      const workers = repo.workers || {};
+      const orphanedStatuses = ["failed", "stuck", "terminated", "completed"];
+      let cleaned = 0;
+
+      for (const [workerName, worker] of Object.entries(workers)) {
+        if (orphanedStatuses.includes(worker.status)) {
+          await stateManager.removeWorker(repoName, workerName);
+          cleaned++;
+        }
+      }
+
+      res.json({
+        message: cleaned > 0 
+          ? `Cleaned up ${cleaned} orphaned worker(s)` 
+          : "No orphaned workers found",
+        cleaned,
+      });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      next(createApiError(500, `Failed to repair repository: ${message}`));
+    }
+  });
+
   return router;
 }
 

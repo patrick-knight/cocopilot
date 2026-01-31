@@ -288,6 +288,16 @@ export const TruffleInspector: React.FC<TruffleInspectorProps> = ({
                 </div>
               </div>
             )}
+            {/* Worktree path */}
+            <div className="bg-card border border-border rounded-lg px-4 py-2 flex items-center gap-2">
+              <span className="text-2xl">📁</span>
+              <div>
+                <div className="text-sm text-muted-foreground">Worktree</div>
+                <div className="font-semibold text-foreground font-mono text-sm truncate max-w-xs" title={`~/.cocopilot/repos/${repoName}/worktrees/${worker.name}`}>
+                  ~/.cocopilot/repos/{repoName}/worktrees/{worker.name}
+                </div>
+              </div>
+            </div>
             {worker.prUrl && (
               <a
                 href={worker.prUrl}
