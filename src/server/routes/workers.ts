@@ -51,6 +51,11 @@ export function workerRoutes(
       return;
     }
 
+    // Don't pass branch if it's the default branch (let worker auto-generate work/<name>)
+    // The `branch` field from the UI typically means "base branch to start from"
+    // but the worker needs its own unique branch, not the main branch
+    const workerBranch = branch === repo.defaultBranch ? undefined : branch;
+
     try {
       // Send SPAWN_WORKER message to Chocolatier
       await broker.send({
@@ -59,7 +64,7 @@ export function workerRoutes(
         to: "chocolatier",
         payload: {
           task,
-          branch,
+          branch: workerBranch,
           name,
           model,
           pushTo,
