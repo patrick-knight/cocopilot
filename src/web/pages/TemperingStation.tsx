@@ -60,6 +60,10 @@ export function TemperingStation({
   const [selectedAgent, setSelectedAgent] = useState<string | null>(null);
   const { lines, clear: clearOutput } = useAgentStream(selectedAgent);
 
+  // Collapsible section state
+  const [showAgents, setShowAgents] = useState(true);
+  const [showActiveWorkers, setShowActiveWorkers] = useState(true);
+
   // Handlers
   const handleViewAgent = useCallback(
     (name: string) => {
@@ -85,6 +89,26 @@ export function TemperingStation({
       socket?.emit("worker:stop", name);
     },
     [socket],
+  );
+
+  const handleDeleteWorker = useCallback(
+    async (name: string) => {
+      if (!confirm(`Delete worker "${name}"? This cannot be undone.`)) {
+        return;
+      }
+      try {
+        const response = await fetch(`/api/v1/workers/${encodeURIComponent(name)}`, {
+          method: "DELETE",
+        });
+        if (!response.ok) {
+          const text = await response.text();
+          alert(`Failed to delete worker: ${text || response.statusText}`);
+        }
+      } catch (err) {
+        alert(`Failed to delete worker: ${err instanceof Error ? err.message : String(err)}`);
+      }
+    },
+    [],
   );
 
   // ---------------------------------------------------------------------------
@@ -170,85 +194,128 @@ export function TemperingStation({
             </div>
             <button
               type="button"
-              className="inline-flex items-center gap-2 bg-primary hover:bg-primary/90 text-primary-foreground px-5 py-2.5 rounded-lg font-semibold transition-colors shadow-md"
+              className="inline-flex items-center gap-2 bg-gradient-to-r from-amber-600 to-orange-500 hover:from-amber-500 hover:to-orange-400 text-white px-5 py-2.5 rounded-lg font-semibold transition-all shadow-lg hover:shadow-xl hover:scale-105"
               onClick={onSpawnWorker}
             >
-              <span>+</span>
-              <span>New Worker</span>
+              <span>🍬</span>
+              <span>Spawn Truffle</span>
             </button>
           </div>
 
           {/* Stats bar */}
           <div className="mt-6 flex flex-wrap items-center gap-4">
-            <div className="bg-card border border-border rounded-lg px-4 py-2 flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => document.getElementById('section-agents')?.scrollIntoView({ behavior: 'smooth' })}
+              className="bg-card border border-border rounded-lg px-4 py-2 flex items-center gap-2 hover:border-primary hover:shadow-md transition-all cursor-pointer"
+            >
               <span className="text-2xl">👥</span>
-              <div>
+              <div className="text-left">
                 <div className="text-sm text-muted-foreground">Agents</div>
                 <div className="font-semibold text-foreground">{systemAgents.length}</div>
               </div>
-            </div>
-            <div className="bg-card border border-border rounded-lg px-4 py-2 flex items-center gap-2">
+            </button>
+            <button
+              type="button"
+              onClick={() => document.getElementById('section-active-workers')?.scrollIntoView({ behavior: 'smooth' })}
+              className="bg-card border border-border rounded-lg px-4 py-2 flex items-center gap-2 hover:border-primary hover:shadow-md transition-all cursor-pointer"
+            >
               <span className="text-2xl">⚡</span>
-              <div>
+              <div className="text-left">
                 <div className="text-sm text-muted-foreground">Active Workers</div>
                 <div className="font-semibold text-chart-2">{activeWorkers.length}</div>
               </div>
-            </div>
-            <div className="bg-card border border-border rounded-lg px-4 py-2 flex items-center gap-2">
+            </button>
+            <button
+              type="button"
+              onClick={() => document.getElementById('section-completed')?.scrollIntoView({ behavior: 'smooth' })}
+              className="bg-card border border-border rounded-lg px-4 py-2 flex items-center gap-2 hover:border-primary hover:shadow-md transition-all cursor-pointer"
+            >
               <span className="text-2xl">✅</span>
-              <div>
+              <div className="text-left">
                 <div className="text-sm text-muted-foreground">Completed</div>
                 <div className="font-semibold text-foreground">{completedWorkers.length}</div>
               </div>
-            </div>
+            </button>
           </div>
         </header>
 
         {/* Main content */}
         <main className="space-y-8">
           {/* Agent Cards Section */}
-          <section aria-label="Agents">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-bold text-foreground flex items-center gap-2">
+          <section id="section-agents" aria-label="Agents" className="bg-card border border-border rounded-lg overflow-hidden shadow-sm">
+            <button
+              type="button"
+              className="w-full flex items-center justify-between px-4 py-3 bg-muted/50 hover:bg-muted transition-colors"
+              onClick={() => setShowAgents(!showAgents)}
+            >
+              <h2 className="text-lg font-semibold text-foreground flex items-center gap-2">
                 <span>🤖</span> System Agents
+                <span className="bg-primary/20 text-primary text-sm px-2 py-0.5 rounded-full">
+                  {systemAgents.length}
+                </span>
               </h2>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-              {systemAgents.map((agent) => (
-                <AgentCard key={agent.name} agent={agent} onView={handleViewAgent} />
-              ))}
-            </div>
+              <span className="text-muted-foreground text-xl">{showAgents ? "▾" : "▸"}</span>
+            </button>
+            {showAgents && (
+              <div className="p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                {systemAgents.map((agent) => (
+                  <AgentCard key={agent.name} agent={agent} onView={handleViewAgent} />
+                ))}
+                {systemAgents.length === 0 && (
+                  <div className="col-span-full text-center py-4 text-muted-foreground">
+                    No agents configured.
+                  </div>
+                )}
+              </div>
+            )}
           </section>
 
           {/* Active Workers Section */}
-          {activeWorkers.length > 0 && (
-            <section aria-label="Active Workers">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-xl font-bold text-foreground flex items-center gap-2">
-                  <span>⚡</span> Active Workers
-                  <span className="bg-chart-2/20 text-chart-2 text-sm px-2 py-0.5 rounded-full">
-                    {activeWorkers.length}
-                  </span>
-                </h2>
+          <section id="section-active-workers" aria-label="Active Workers" className="bg-card border border-border rounded-lg overflow-hidden shadow-sm">
+            <button
+              type="button"
+              className="w-full flex items-center justify-between px-4 py-3 bg-muted/50 hover:bg-muted transition-colors"
+              onClick={() => setShowActiveWorkers(!showActiveWorkers)}
+            >
+              <h2 className="text-lg font-semibold text-foreground flex items-center gap-2">
+                <span>⚡</span> Active Workers
+                <span className="bg-chart-2/20 text-chart-2 text-sm px-2 py-0.5 rounded-full">
+                  {activeWorkers.length}
+                </span>
+              </h2>
+              <span className="text-muted-foreground text-xl">{showActiveWorkers ? "▾" : "▸"}</span>
+            </button>
+            {showActiveWorkers && (
+              <div className="p-4">
+                {activeWorkers.length > 0 ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                    {activeWorkers.map((worker) => (
+                      <WorkerCard
+                        key={worker.name}
+                        worker={worker}
+                        onView={handleViewWorker}
+                        onStop={handleStopWorker}
+                        onDelete={handleDeleteWorker}
+                      />
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-4 text-muted-foreground">
+                    <span className="text-3xl block mb-2">😴</span>
+                    No active workers. Click "Spawn Truffle" to start one!
+                  </div>
+                )}
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                {activeWorkers.map((worker) => (
-                  <WorkerCard
-                    key={worker.name}
-                    worker={worker}
-                    onView={handleViewWorker}
-                    onStop={handleStopWorker}
-                  />
-                ))}
-              </div>
-            </section>
-          )}
+            )}
+          </section>
 
           {/* Completed workers (collapsible) */}
           {completedWorkers.length > 0 && (
             <CompletedWorkersSection
               workers={completedWorkers}
               onView={handleViewWorker}
+              onDelete={handleDeleteWorker}
             />
           )}
 
@@ -329,16 +396,18 @@ function StatusIndicator({ status }: { status: string }): React.ReactElement {
 interface CompletedWorkersSectionProps {
   workers: import("../types.js").WorkerState[];
   onView: (name: string) => void;
+  onDelete: (name: string) => void;
 }
 
 function CompletedWorkersSection({
   workers,
   onView,
+  onDelete,
 }: CompletedWorkersSectionProps): React.ReactElement {
   const [show, setShow] = useState(false);
 
   return (
-    <section aria-label="Completed Workers" className="bg-card border border-border rounded-lg overflow-hidden shadow-sm">
+    <section id="section-completed" aria-label="Completed Workers" className="bg-card border border-border rounded-lg overflow-hidden shadow-sm">
       <button
         type="button"
         className="w-full flex items-center justify-between px-4 py-3 bg-muted/50 hover:bg-muted transition-colors"
@@ -355,7 +424,7 @@ function CompletedWorkersSection({
       {show && (
         <div className="p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
           {workers.map((worker) => (
-            <WorkerCard key={worker.name} worker={worker} onView={onView} />
+            <WorkerCard key={worker.name} worker={worker} onView={onView} onDelete={onDelete} />
           ))}
         </div>
       )}
