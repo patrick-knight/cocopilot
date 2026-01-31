@@ -1,6 +1,7 @@
 import { fork } from "node:child_process";
 import * as path from "node:path";
 import * as fs from "node:fs";
+import { fileURLToPath } from "node:url";
 import { isDaemonRunning, readPid } from "../daemon/pid.js";
 import { getCocopilotDir, ensureCocopilotDir } from "../daemon/config.js";
 
@@ -32,8 +33,9 @@ export async function startDaemon(foreground: boolean = false): Promise<void> {
   }
 
   // Fork a detached child process running the daemon entry point
+  const __filename = fileURLToPath(import.meta.url);
   const entryPoint = path.join(
-    path.dirname(new URL(import.meta.url).pathname),
+    path.dirname(__filename),
     "daemon-entry.js"
   );
 

@@ -115,6 +115,7 @@ export class Concher {
       this.server = createServer({
         stateManager: this.state,
         broker: this.broker,
+        redisBus: this.broker.redisBus,
         eventStore,
       });
       await startServer(this.server, this.config.webPort);

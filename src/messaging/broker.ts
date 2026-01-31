@@ -148,6 +148,11 @@ export class MessageBroker {
     return this.bus.isReady;
   }
 
+  /** Get the underlying Redis bus (for status checks, stream bridges, etc.) */
+  get redisBus(): RedisMessageBus {
+    return this.bus;
+  }
+
   /** Gracefully shut down the broker. */
   async close(): Promise<void> {
     this.agentHandlers.clear();
