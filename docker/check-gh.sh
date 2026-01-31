@@ -33,3 +33,18 @@ if [ "$NEEDS_SETUP" = "1" ]; then
     # Run the setup script
     /usr/local/bin/setup-gh.sh
 fi
+
+# Check if coco daemon is running
+if ! curl -s http://localhost:3000/api/v1/status >/dev/null 2>&1; then
+    echo ""
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo "⚠️  CoCoPilot daemon is not running!"
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo ""
+    echo "Start the daemon with:"
+    echo "  coco start"
+    echo ""
+    echo "Or run in foreground:"
+    echo "  coco start --foreground"
+    echo ""
+fi

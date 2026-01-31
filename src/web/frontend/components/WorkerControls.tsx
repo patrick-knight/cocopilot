@@ -67,7 +67,7 @@ export const WorkerControls: React.FC<WorkerControlsProps> = ({
 
   const handleNudge = useCallback(async () => {
     if (!nudgeText.trim()) return;
-    await doAction("nudge", { message: nudgeText.trim() });
+    await doAction("nudge", { hint: nudgeText.trim() });
     setNudgeText("");
     setShowNudge(false);
   }, [doAction, nudgeText]);
