@@ -59,6 +59,11 @@ export function FactoryFloor() {
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
 
+  // Init repo state
+  const [initRepoUrl, setInitRepoUrl] = useState("");
+  const [initLoading, setInitLoading] = useState(false);
+  const [initError, setInitError] = useState<string | null>(null);
+
   // Onboard modal state
   const [showOnboardModal, setShowOnboardModal] = useState(false);
 
@@ -134,6 +139,35 @@ export function FactoryFloor() {
     setCurrentPage(1);
   }, [searchQuery, branchFilter, statusFilter]);
 
+  const handleInitRepo = async () => {
+    if (!initRepoUrl.trim() || initLoading) return;
+    
+    setInitLoading(true);
+    setInitError(null);
+    
+    try {
+      const res = await fetch("/api/v1/repositories", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: initRepoUrl.trim() }),
+      });
+      
+      const data = await res.json();
+      
+      if (!res.ok) {
+        throw new Error(data.error || data.message || `HTTP ${res.status}`);
+      }
+      
+      // Success - refresh repos and clear input
+      setInitRepoUrl("");
+      fetchRepos();
+    } catch (err) {
+      setInitError(err instanceof Error ? err.message : "Failed to initialize repository");
+    } finally {
+      setInitLoading(false);
+    }
+  };
+
   const handleSort = (field: SortField) => {
     if (sortField === field) {
       setSortDirection((d) => (d === "asc" ? "desc" : "asc"));
@@ -204,11 +238,50 @@ export function FactoryFloor() {
             <div className="text-4xl mb-4">📦</div>
             <h3 className="text-2xl font-bold text-foreground mb-2">No Repositories</h3>
             <p className="text-muted-foreground mb-6">
-              Initialize a repository to get started:
+              Enter a repository URL to get started:
             </p>
-            <code className="bg-primary text-primary-foreground px-6 py-3 rounded-lg inline-block font-mono text-sm">
-              coco init https://github.com/your-org/your-repo
-            </code>
+            <div className="max-w-lg mx-auto">
+              <div className="flex gap-2 items-center">
+                <input
+                  type="text"
+                  placeholder="https://github.com/your-org/your-repo"
+                  value={initRepoUrl}
+                  onChange={(e) => {
+                    setInitRepoUrl(e.target.value);
+                    setInitError(null);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && initRepoUrl.trim() && !initLoading) {
+                      handleInitRepo();
+                    }
+                  }}
+                  disabled={initLoading}
+                  className="flex-1 px-4 py-3 rounded-lg border border-border bg-card text-foreground font-mono text-sm focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-50"
+                />
+                {initRepoUrl.trim() && (
+                  <button
+                    onClick={handleInitRepo}
+                    disabled={initLoading}
+                    className="p-3 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    title="Initialize repository"
+                  >
+                    {initLoading ? (
+                      <svg className="w-5 h-5 animate-spin" viewBox="0 0 24 24" fill="none">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                      </svg>
+                    ) : (
+                      <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M8 5v14l11-7z" />
+                      </svg>
+                    )}
+                  </button>
+                )}
+              </div>
+              {initError && (
+                <p className="mt-3 text-sm text-red-500">{initError}</p>
+              )}
+            </div>
           </div>
         ) : (
           <>
