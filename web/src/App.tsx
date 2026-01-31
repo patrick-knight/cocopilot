@@ -7,6 +7,7 @@ import { Routes, Route, useNavigate, useParams } from "react-router-dom";
 import { TemperingStation } from "../../src/web/pages/TemperingStation.js";
 import { TruffleInspector } from "../../src/web/frontend/pages/TruffleInspector.js";
 import { SpawnWorkerModal } from "../../src/web/frontend/components/SpawnWorkerModal.js";
+import { MetricsDashboard } from "../../src/web/frontend/pages/MetricsDashboard.js";
 import { useSocket } from "../../src/web/hooks/useSocket.js";
 import { FactoryFloor } from "./pages/FactoryFloor.js";
 import { StatusPage } from "./pages/StatusPage.js";
@@ -16,6 +17,7 @@ export default function App() {
     <Routes>
       <Route path="/" element={<FactoryFloor />} />
       <Route path="/status" element={<StatusPage />} />
+      <Route path="/metrics" element={<MetricsDashboard />} />
       <Route path="/repos/:repoName" element={<TemperingStationPage />} />
       <Route path="/repos/:repoName/workers/:workerName" element={<TruffleInspectorPage />} />
     </Routes>

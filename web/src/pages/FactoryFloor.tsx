@@ -610,6 +610,10 @@ export function FactoryFloor() {
               Documentation
             </a>
             {" · "}
+            <Link to="/metrics" className="hover:text-primary underline">
+              Metrics
+            </Link>
+            {" · "}
             <Link to="/status" className="hover:text-primary underline">
               System Status
             </Link>
