@@ -10,6 +10,7 @@
 import { Router } from "express";
 import { spawn } from "child_process";
 import type { StateManager } from "../../state/index.js";
+import { cleanupWorktree } from "../../git/index.js";
 import { createApiError } from "../middleware/error-handler.js";
 
 export function repositoryRoutes(stateManager: StateManager): Router {
@@ -122,7 +123,7 @@ export function repositoryRoutes(stateManager: StateManager): Router {
     }
   });
 
-  // POST /repositories/:repoName/repair -- Clean up orphaned workers
+  // POST /repositories/:repoName/repair -- Clean up orphaned workers and stale worktrees
   router.post("/:repoName/repair", async (req, res, next) => {
     const { repoName } = req.params;
     const repo = stateManager.getRepo(repoName);
@@ -135,9 +136,19 @@ export function repositoryRoutes(stateManager: StateManager): Router {
       const workers = repo.workers || {};
       const orphanedStatuses = ["failed", "stuck", "terminated", "completed"];
       let cleaned = 0;
+      const errors: string[] = [];
 
       for (const [workerName, worker] of Object.entries(workers)) {
         if (orphanedStatuses.includes(worker.status)) {
+          // Clean up worktree first (if repo has localPath)
+          if (repo.localPath) {
+            try {
+              await cleanupWorktree(repo.localPath, workerName);
+            } catch (wtErr) {
+              errors.push(`Worktree cleanup for ${workerName}: ${wtErr instanceof Error ? wtErr.message : String(wtErr)}`);
+            }
+          }
+          // Remove from state
           await stateManager.removeWorker(repoName, workerName);
           cleaned++;
         }
@@ -148,6 +159,7 @@ export function repositoryRoutes(stateManager: StateManager): Router {
           ? `Cleaned up ${cleaned} orphaned worker(s)` 
           : "No orphaned workers found",
         cleaned,
+        errors: errors.length > 0 ? errors : undefined,
       });
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);

@@ -7,11 +7,24 @@
  */
 
 import { execFile } from "node:child_process";
+import * as fs from "node:fs";
 import * as path from "node:path";
 import { promisify } from "node:util";
 import type { WorktreeInfo } from "./types.js";
 
 const execFileAsync = promisify(execFile);
+
+/**
+ * Check if a path exists (works correctly unlike promisify(fs.exists))
+ */
+async function pathExists(p: string): Promise<boolean> {
+  try {
+    await fs.promises.access(p);
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -46,6 +59,9 @@ export function getWorktreePath(repoName: string, workerName: string): string {
  * CoCoPilot path on a new branch named `work/<workerName>`, branching
  * from `baseBranch`.
  *
+ * If the worktree directory already exists (from a previous failed attempt),
+ * it will be cleaned up and recreated.
+ *
  * @param repoPath   - Absolute path to the main repository clone.
  * @param workerName - Name of the worker (e.g., "Snickers").
  * @param baseBranch - Branch to base the new worktree branch on (e.g., "main").
@@ -61,6 +77,9 @@ export async function createWorktree(
   const worktreePath = getWorktreePath(repoName, workerName);
   const branchName = `work/${workerName}`;
 
+  // Always clean up first to ensure a fresh state
+  await cleanupWorktree(repoPath, workerName);
+
   // git worktree add -b <new-branch> <path> <start-point>
   await execFileAsync(
     "git",
@@ -69,6 +88,47 @@ export async function createWorktree(
   );
 
   return worktreePath;
+}
+
+/**
+ * Clean up a worker's worktree and branch, handling all edge cases.
+ * Safe to call even if the worktree doesn't exist.
+ */
+export async function cleanupWorktree(
+  repoPath: string,
+  workerName: string,
+): Promise<void> {
+  const repoName = path.basename(repoPath);
+  const worktreePath = getWorktreePath(repoName, workerName);
+  const branchName = `work/${workerName}`;
+
+  // Step 1: Try git worktree remove (handles properly registered worktrees)
+  try {
+    await execFileAsync("git", ["worktree", "remove", "--force", worktreePath], {
+      cwd: repoPath,
+    });
+  } catch {
+    // Worktree may not be registered with git
+  }
+
+  // Step 2: Manually remove directory if it still exists
+  if (await pathExists(worktreePath)) {
+    await fs.promises.rm(worktreePath, { recursive: true, force: true });
+  }
+
+  // Step 3: Prune worktrees to clean up git's internal state
+  try {
+    await execFileAsync("git", ["worktree", "prune"], { cwd: repoPath });
+  } catch {
+    // Prune failure is not critical
+  }
+
+  // Step 4: Delete the branch if it exists
+  try {
+    await execFileAsync("git", ["branch", "-D", branchName], { cwd: repoPath });
+  } catch {
+    // Branch doesn't exist, that's fine
+  }
 }
 
 // ---------------------------------------------------------------------------

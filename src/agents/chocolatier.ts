@@ -26,7 +26,7 @@ import type { ContainerConfig, ContainerInfo } from "../docker/index.js";
 import { MessageBroker, MessageType } from "../messaging/index.js";
 import type { CocoMessage } from "../messaging/index.js";
 import { loadMCPConfig } from "../mcp/index.js";
-import { getWorktreePath } from "../git/index.js";
+import { getWorktreePath, cleanupWorktree } from "../git/index.js";
 import { TruffleAgent } from "./truffle.js";
 import { LocalTruffleRuntime } from "./truffle-runtime.js";
 
@@ -431,6 +431,8 @@ export class Chocolatier extends EventEmitter {
         error: `Local worker failed to start: ${errorMsg}`,
       });
       await runtime.stop().catch(() => {});
+      // Clean up the worktree on failure
+      await cleanupWorktree(repo.localPath, worker.name).catch(() => {});
       throw err;
     }
   }
