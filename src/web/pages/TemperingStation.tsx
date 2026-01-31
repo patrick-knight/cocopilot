@@ -12,10 +12,12 @@
  */
 
 import React, { useCallback, useState } from "react";
+import { Link } from "react-router-dom";
 import { AgentCard, WorkerCard } from "../components/AgentCard.js";
 import { LiveOutputPanel } from "../components/LiveOutputPanel.js";
 import { MessageQueueInspector } from "../components/MessageQueueInspector.js";
 import { PRPipeline } from "../components/PRPipeline.js";
+import { ThemeToggle } from "../components/ThemeToggle.js";
 import {
   useAgentStream,
   useMessageQueue,
@@ -93,8 +95,8 @@ export function TemperingStation({
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
         <div className="text-center">
-          <div className="text-4xl mb-2">🍫</div>
-          <p className="text-muted-foreground">Loading {repoName}...</p>
+          <div className="text-6xl mb-4 animate-bounce">🍫</div>
+          <p className="text-muted-foreground text-lg">Loading {repoName}...</p>
         </div>
       </div>
     );
@@ -103,14 +105,16 @@ export function TemperingStation({
   if (error) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
-        <div className="text-center">
-          <p className="text-destructive">{error}</p>
+        <div className="text-center bg-card p-8 rounded-lg shadow-lg border border-border">
+          <div className="text-4xl mb-4">⚠️</div>
+          <h2 className="text-xl font-bold text-destructive mb-2">Connection Error</h2>
+          <p className="text-muted-foreground mb-4">{error}</p>
           <button
             type="button"
-            className="mt-2 text-sm text-primary hover:underline"
+            className="text-sm text-primary hover:underline"
             onClick={onNavigateHome}
           >
-            Back to Factory Floor
+            ← Back to Factory Floor
           </button>
         </div>
       </div>
@@ -132,55 +136,113 @@ export function TemperingStation({
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Header */}
-      <header className="bg-primary text-primary-foreground px-6 py-4 shadow-md">
-        <div className="flex items-center justify-between max-w-7xl mx-auto">
-          <div className="flex items-center gap-3">
+      {/* Top bar with theme toggle */}
+      <div className="absolute top-4 right-4 z-10">
+        <ThemeToggle />
+      </div>
+
+      <div className="container mx-auto px-4 py-8">
+        {/* Header */}
+        <header className="mb-8">
+          {/* Breadcrumb */}
+          <div className="flex items-center gap-2 text-sm text-muted-foreground mb-4">
             <button
               type="button"
-              className="text-primary-foreground/70 hover:text-primary-foreground transition-colors text-sm"
               onClick={onNavigateHome}
+              className="hover:text-primary transition-colors flex items-center gap-1"
             >
-              🍫 CoCoPilot
+              <span>🍫</span>
+              <span>Cocoa Board</span>
             </button>
-            <span className="text-primary-foreground/50">&gt;</span>
-            <h1 className="text-lg font-semibold">{repoName}</h1>
-            {repo && (
-              <StatusIndicator status={repo.status} />
-            )}
+            <span>/</span>
+            <span className="text-foreground font-medium">{repoName}</span>
           </div>
-          <div className="flex items-center gap-3">
+
+          {/* Title and actions */}
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div className="flex items-center gap-4">
+              <div className="text-4xl">🏭</div>
+              <div>
+                <h1 className="text-3xl font-bold text-foreground">{repoName}</h1>
+                <p className="text-muted-foreground">Repository Dashboard</p>
+              </div>
+              {repo && <StatusIndicator status={repo.status} />}
+            </div>
             <button
               type="button"
-              className="rounded bg-secondary text-secondary-foreground px-4 py-1.5 text-sm font-medium hover:bg-secondary/80 transition-colors"
+              className="inline-flex items-center gap-2 bg-primary hover:bg-primary/90 text-primary-foreground px-5 py-2.5 rounded-lg font-semibold transition-colors shadow-md"
               onClick={onSpawnWorker}
             >
-              + New Truffle
+              <span>+</span>
+              <span>New Worker</span>
             </button>
           </div>
-        </div>
-      </header>
 
-      {/* Main content */}
-      <main className="max-w-7xl mx-auto px-6 py-6 space-y-8">
-        {/* Agent Cards Section */}
-        <section aria-label="Agents">
-          <h2 className="text-lg font-semibold text-foreground mb-3">Agents</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-            {/* System agents */}
-            {systemAgents.map((agent) => (
-              <AgentCard key={agent.name} agent={agent} onView={handleViewAgent} />
-            ))}
-            {/* Active workers */}
-            {activeWorkers.map((worker) => (
-              <WorkerCard
-                key={worker.name}
-                worker={worker}
-                onView={handleViewWorker}
-                onStop={handleStopWorker}
-              />
-            ))}
+          {/* Stats bar */}
+          <div className="mt-6 flex flex-wrap items-center gap-4">
+            <div className="bg-card border border-border rounded-lg px-4 py-2 flex items-center gap-2">
+              <span className="text-2xl">👥</span>
+              <div>
+                <div className="text-sm text-muted-foreground">Agents</div>
+                <div className="font-semibold text-foreground">{systemAgents.length}</div>
+              </div>
+            </div>
+            <div className="bg-card border border-border rounded-lg px-4 py-2 flex items-center gap-2">
+              <span className="text-2xl">⚡</span>
+              <div>
+                <div className="text-sm text-muted-foreground">Active Workers</div>
+                <div className="font-semibold text-chart-2">{activeWorkers.length}</div>
+              </div>
+            </div>
+            <div className="bg-card border border-border rounded-lg px-4 py-2 flex items-center gap-2">
+              <span className="text-2xl">✅</span>
+              <div>
+                <div className="text-sm text-muted-foreground">Completed</div>
+                <div className="font-semibold text-foreground">{completedWorkers.length}</div>
+              </div>
+            </div>
           </div>
+        </header>
+
+        {/* Main content */}
+        <main className="space-y-8">
+          {/* Agent Cards Section */}
+          <section aria-label="Agents">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-bold text-foreground flex items-center gap-2">
+                <span>🤖</span> System Agents
+              </h2>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+              {systemAgents.map((agent) => (
+                <AgentCard key={agent.name} agent={agent} onView={handleViewAgent} />
+              ))}
+            </div>
+          </section>
+
+          {/* Active Workers Section */}
+          {activeWorkers.length > 0 && (
+            <section aria-label="Active Workers">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-xl font-bold text-foreground flex items-center gap-2">
+                  <span>⚡</span> Active Workers
+                  <span className="bg-chart-2/20 text-chart-2 text-sm px-2 py-0.5 rounded-full">
+                    {activeWorkers.length}
+                  </span>
+                </h2>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                {activeWorkers.map((worker) => (
+                  <WorkerCard
+                    key={worker.name}
+                    worker={worker}
+                    onView={handleViewWorker}
+                    onStop={handleStopWorker}
+                  />
+                ))}
+              </div>
+            </section>
+          )}
 
           {/* Completed workers (collapsible) */}
           {completedWorkers.length > 0 && (
@@ -189,24 +251,56 @@ export function TemperingStation({
               onView={handleViewWorker}
             />
           )}
-        </section>
 
-        {/* Live Output Panel */}
-        <LiveOutputPanel
-          agents={agents}
-          workers={workers}
-          selectedAgent={selectedAgent}
-          onSelectAgent={setSelectedAgent}
-          lines={lines}
-          onClear={clearOutput}
-        />
+          {/* Live Output Panel */}
+          <section className="bg-card border border-border rounded-lg overflow-hidden shadow-sm">
+            <div className="bg-muted/50 px-4 py-3 border-b border-border">
+              <h2 className="text-lg font-semibold text-foreground flex items-center gap-2">
+                <span>📺</span> Live Output
+              </h2>
+            </div>
+            <div className="p-4">
+              <LiveOutputPanel
+                agents={agents}
+                workers={workers}
+                selectedAgent={selectedAgent}
+                onSelectAgent={setSelectedAgent}
+                lines={lines}
+                onClear={clearOutput}
+              />
+            </div>
+          </section>
 
-        {/* PR Pipeline */}
-        <PRPipeline prs={prs} />
+          {/* PR Pipeline */}
+          <section className="bg-card border border-border rounded-lg overflow-hidden shadow-sm">
+            <div className="bg-muted/50 px-4 py-3 border-b border-border">
+              <h2 className="text-lg font-semibold text-foreground flex items-center gap-2">
+                <span>🔀</span> PR Pipeline
+              </h2>
+            </div>
+            <div className="p-4">
+              <PRPipeline prs={prs} />
+            </div>
+          </section>
 
-        {/* Message Queue Inspector */}
-        <MessageQueueInspector messages={messages} />
-      </main>
+          {/* Message Queue Inspector */}
+          <section className="bg-card border border-border rounded-lg overflow-hidden shadow-sm">
+            <div className="bg-muted/50 px-4 py-3 border-b border-border">
+              <h2 className="text-lg font-semibold text-foreground flex items-center gap-2">
+                <span>💬</span> Message Queue
+              </h2>
+            </div>
+            <div className="p-4">
+              <MessageQueueInspector messages={messages} />
+            </div>
+          </section>
+        </main>
+
+        {/* Footer */}
+        <footer className="mt-16 text-center text-muted-foreground text-sm">
+          <p>CoCoPilot v0.1.0 · Collaborative Copilot Orchestration Platform</p>
+        </footer>
+      </div>
     </div>
   );
 }
@@ -216,18 +310,18 @@ export function TemperingStation({
 // ---------------------------------------------------------------------------
 
 function StatusIndicator({ status }: { status: string }): React.ReactElement {
-  const colors: Record<string, string> = {
-    active: "bg-chart-2",
-    initializing: "bg-chart-1",
-    paused: "bg-chart-4",
-    error: "bg-destructive",
+  const statusConfig: Record<string, { color: string; bgColor: string; label: string }> = {
+    active: { color: "text-chart-2", bgColor: "bg-chart-2/20", label: "Active" },
+    initializing: { color: "text-chart-1", bgColor: "bg-chart-1/20", label: "Initializing" },
+    paused: { color: "text-chart-4", bgColor: "bg-chart-4/20", label: "Paused" },
+    error: { color: "text-destructive", bgColor: "bg-destructive/20", label: "Error" },
   };
-  const color = colors[status] ?? "bg-muted-foreground";
+  const config = statusConfig[status] ?? { color: "text-muted-foreground", bgColor: "bg-muted", label: status };
 
   return (
-    <span className="inline-flex items-center gap-1 rounded-full bg-secondary px-2 py-0.5 text-xs">
-      <span className={`inline-block h-2 w-2 rounded-full ${color}`} aria-hidden="true" />
-      {status}
+    <span className={`inline-flex items-center gap-1.5 rounded-full ${config.bgColor} px-3 py-1 text-sm font-medium ${config.color}`}>
+      <span className={`inline-block h-2 w-2 rounded-full ${config.color.replace('text-', 'bg-')}`} />
+      {config.label}
     </span>
   );
 }
@@ -244,22 +338,28 @@ function CompletedWorkersSection({
   const [show, setShow] = useState(false);
 
   return (
-    <div className="mt-4">
+    <section aria-label="Completed Workers" className="bg-card border border-border rounded-lg overflow-hidden shadow-sm">
       <button
         type="button"
-        className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+        className="w-full flex items-center justify-between px-4 py-3 bg-muted/50 hover:bg-muted transition-colors"
         onClick={() => setShow(!show)}
       >
-        {show ? "▾" : "▸"} {workers.length} completed/stopped worker{workers.length !== 1 ? "s" : ""}
+        <h2 className="text-lg font-semibold text-foreground flex items-center gap-2">
+          <span>📋</span> Completed Workers
+          <span className="bg-muted text-muted-foreground text-sm px-2 py-0.5 rounded-full">
+            {workers.length}
+          </span>
+        </h2>
+        <span className="text-muted-foreground text-xl">{show ? "▾" : "▸"}</span>
       </button>
       {show && (
-        <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+        <div className="p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
           {workers.map((worker) => (
             <WorkerCard key={worker.name} worker={worker} onView={onView} />
           ))}
         </div>
       )}
-    </div>
+    </section>
   );
 }
 

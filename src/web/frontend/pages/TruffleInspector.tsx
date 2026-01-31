@@ -45,6 +45,29 @@ export interface TruffleInspectorProps {
 }
 
 // ---------------------------------------------------------------------------
+// Helper: Status Badge
+// ---------------------------------------------------------------------------
+
+function StatusBadge({ status }: { status: string }): React.ReactElement {
+  const statusConfig: Record<string, { color: string; bgColor: string; icon: string }> = {
+    working: { color: "text-chart-2", bgColor: "bg-chart-2/20", icon: "⚡" },
+    starting: { color: "text-chart-1", bgColor: "bg-chart-1/20", icon: "🚀" },
+    completed: { color: "text-chart-2", bgColor: "bg-chart-2/20", icon: "✅" },
+    failed: { color: "text-destructive", bgColor: "bg-destructive/20", icon: "❌" },
+    stuck: { color: "text-chart-4", bgColor: "bg-chart-4/20", icon: "⚠️" },
+    terminated: { color: "text-muted-foreground", bgColor: "bg-muted", icon: "🛑" },
+  };
+  const config = statusConfig[status] ?? { color: "text-muted-foreground", bgColor: "bg-muted", icon: "❓" };
+
+  return (
+    <span className={`inline-flex items-center gap-1.5 rounded-full ${config.bgColor} px-3 py-1 text-sm font-medium ${config.color}`}>
+      <span>{config.icon}</span>
+      {status}
+    </span>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Page Component
 // ---------------------------------------------------------------------------
 
@@ -156,30 +179,32 @@ export const TruffleInspector: React.FC<TruffleInspectorProps> = ({
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <p className="text-muted-foreground">Loading worker details...</p>
+      <div className="flex min-h-screen items-center justify-center bg-background">
+        <div className="text-center">
+          <div className="text-6xl mb-4 animate-bounce">🍫</div>
+          <p className="text-muted-foreground text-lg">Loading worker details...</p>
+        </div>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="min-h-screen bg-background p-6">
-        <div className="max-w-4xl mx-auto">
-          <button
-            onClick={onBack}
-            className="text-sm text-muted-foreground hover:text-foreground mb-4"
-          >
-            &larr; Back to repository
-          </button>
-          <div className="p-6 bg-destructive/10 border border-destructive/20 rounded-lg">
-            <h1 className="text-lg font-bold text-destructive mb-2">
-              Error Loading Worker
-            </h1>
-            <p className="text-destructive/90">{error}</p>
+      <div className="flex min-h-screen items-center justify-center bg-background">
+        <div className="text-center bg-card p-8 rounded-lg shadow-lg border border-border max-w-md">
+          <div className="text-4xl mb-4">⚠️</div>
+          <h2 className="text-xl font-bold text-destructive mb-2">Error Loading Worker</h2>
+          <p className="text-muted-foreground mb-4">{error}</p>
+          <div className="flex gap-3 justify-center">
+            <button
+              onClick={onBack}
+              className="px-4 py-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
+            >
+              ← Back
+            </button>
             <button
               onClick={fetchWorker}
-              className="mt-4 px-4 py-2 bg-destructive/20 hover:bg-destructive/30 text-destructive rounded-md text-sm font-medium"
+              className="px-4 py-2 bg-primary hover:bg-primary/90 text-primary-foreground rounded-lg text-sm font-medium transition-colors"
             >
               Retry
             </button>
@@ -191,15 +216,17 @@ export const TruffleInspector: React.FC<TruffleInspectorProps> = ({
 
   if (!worker) {
     return (
-      <div className="min-h-screen bg-background p-6">
-        <div className="max-w-4xl mx-auto">
+      <div className="flex min-h-screen items-center justify-center bg-background">
+        <div className="text-center bg-card p-8 rounded-lg shadow-lg border border-border">
+          <div className="text-4xl mb-4">🔍</div>
+          <h2 className="text-xl font-bold text-foreground mb-2">Worker Not Found</h2>
+          <p className="text-muted-foreground mb-4">The worker "{workerName}" could not be found.</p>
           <button
             onClick={onBack}
-            className="text-sm text-muted-foreground hover:text-foreground mb-4"
+            className="text-sm text-primary hover:underline"
           >
-            &larr; Back to repository
+            ← Back to repository
           </button>
-          <p className="text-muted-foreground">Worker not found.</p>
         </div>
       </div>
     );
@@ -207,67 +234,181 @@ export const TruffleInspector: React.FC<TruffleInspectorProps> = ({
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Navigation breadcrumb */}
-      <div className="bg-primary text-primary-foreground/80 px-6 py-3">
-        <div className="max-w-6xl mx-auto flex items-center gap-2 text-sm">
-          <button
-            onClick={onBack}
-            className="hover:text-primary-foreground"
-          >
-            CoCoPilot
-          </button>
-          <span className="text-primary-foreground/50">/</span>
-          <button
-            onClick={onBack}
-            className="hover:text-primary-foreground"
-          >
-            {repoName}
-          </button>
-          <span className="text-primary-foreground/50">/</span>
-          <span className="text-chart-4 font-medium">{worker.name}</span>
-        </div>
-      </div>
+      <div className="container mx-auto px-4 py-8">
+        {/* Header */}
+        <header className="mb-8">
+          {/* Breadcrumb */}
+          <div className="flex items-center gap-2 text-sm text-muted-foreground mb-4">
+            <button
+              type="button"
+              onClick={onBack}
+              className="hover:text-primary transition-colors flex items-center gap-1"
+            >
+              <span>🍫</span>
+              <span>Cocoa Board</span>
+            </button>
+            <span>/</span>
+            <button
+              type="button"
+              onClick={onBack}
+              className="hover:text-primary transition-colors"
+            >
+              {repoName}
+            </button>
+            <span>/</span>
+            <span className="text-foreground font-medium">{worker.name}</span>
+          </div>
 
-      {/* Page content */}
-      <div className="max-w-6xl mx-auto p-6 space-y-6">
-        {/* Worker header */}
-        <WorkerHeader worker={worker} />
+          {/* Title and status */}
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div className="flex items-center gap-4">
+              <div className="text-4xl">🔧</div>
+              <div>
+                <h1 className="text-3xl font-bold text-foreground">{worker.name}</h1>
+                <p className="text-muted-foreground">{worker.task || "Worker Details"}</p>
+              </div>
+              <StatusBadge status={worker.status} />
+            </div>
+            <button
+              onClick={onBack}
+              className="inline-flex items-center gap-2 border border-border hover:border-primary text-foreground px-4 py-2 rounded-lg font-medium transition-colors"
+            >
+              ← Back to Repository
+            </button>
+          </div>
+
+          {/* Stats bar */}
+          <div className="mt-6 flex flex-wrap items-center gap-4">
+            {worker.branch && (
+              <div className="bg-card border border-border rounded-lg px-4 py-2 flex items-center gap-2">
+                <span className="text-2xl">🌿</span>
+                <div>
+                  <div className="text-sm text-muted-foreground">Branch</div>
+                  <div className="font-semibold text-foreground font-mono text-sm">{worker.branch}</div>
+                </div>
+              </div>
+            )}
+            {worker.prUrl && (
+              <a
+                href={worker.prUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="bg-card border border-border rounded-lg px-4 py-2 flex items-center gap-2 hover:border-primary transition-colors"
+              >
+                <span className="text-2xl">🔗</span>
+                <div>
+                  <div className="text-sm text-muted-foreground">Pull Request</div>
+                  <div className="font-semibold text-primary">View PR →</div>
+                </div>
+              </a>
+            )}
+            {worker.createdAt && (
+              <div className="bg-card border border-border rounded-lg px-4 py-2 flex items-center gap-2">
+                <span className="text-2xl">🕐</span>
+                <div>
+                  <div className="text-sm text-muted-foreground">Created</div>
+                  <div className="font-semibold text-foreground text-sm">
+                    {new Date(worker.createdAt).toLocaleString()}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </header>
 
         {/* Main content grid: output + sidebar */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Left column: Live output (2/3 width on large screens) */}
           <div className="lg:col-span-2 space-y-6">
-            <LiveOutput
-              workerName={worker.name}
-              socket={socket}
-            />
-            <GitLog
-              repoName={repoName}
-              workerName={worker.name}
-              apiBase={apiBase}
-            />
+            {/* Live Output */}
+            <section className="bg-card border border-border rounded-lg overflow-hidden shadow-sm">
+              <div className="bg-muted/50 px-4 py-3 border-b border-border">
+                <h2 className="text-lg font-semibold text-foreground flex items-center gap-2">
+                  <span>📺</span> Live Output
+                </h2>
+              </div>
+              <div className="p-4">
+                <LiveOutput
+                  workerName={worker.name}
+                  socket={socket}
+                />
+              </div>
+            </section>
+
+            {/* Git Log */}
+            <section className="bg-card border border-border rounded-lg overflow-hidden shadow-sm">
+              <div className="bg-muted/50 px-4 py-3 border-b border-border">
+                <h2 className="text-lg font-semibold text-foreground flex items-center gap-2">
+                  <span>📝</span> Git Activity
+                </h2>
+              </div>
+              <div className="p-4">
+                <GitLog
+                  repoName={repoName}
+                  workerName={worker.name}
+                  apiBase={apiBase}
+                />
+              </div>
+            </section>
           </div>
 
           {/* Right column: Controls, resources, messages (1/3 width) */}
           <div className="space-y-6">
-            <WorkerControls
-              workerName={worker.name}
-              status={worker.status}
-              repoName={repoName}
-              apiBase={apiBase}
-              onAction={handleAction}
-            />
-            <ResourceUsage
-              resources={worker.resources ?? null}
-              containerStatus={worker.containerStatus}
-            />
-            <MessageInspector
-              workerName={worker.name}
-              repoName={repoName}
-              apiBase={apiBase}
-            />
+            {/* Worker Controls */}
+            <section className="bg-card border border-border rounded-lg overflow-hidden shadow-sm">
+              <div className="bg-muted/50 px-4 py-3 border-b border-border">
+                <h2 className="text-lg font-semibold text-foreground flex items-center gap-2">
+                  <span>🎮</span> Controls
+                </h2>
+              </div>
+              <div className="p-4">
+                <WorkerControls
+                  workerName={worker.name}
+                  status={worker.status}
+                  repoName={repoName}
+                  apiBase={apiBase}
+                  onAction={handleAction}
+                />
+              </div>
+            </section>
+
+            {/* Resource Usage */}
+            <section className="bg-card border border-border rounded-lg overflow-hidden shadow-sm">
+              <div className="bg-muted/50 px-4 py-3 border-b border-border">
+                <h2 className="text-lg font-semibold text-foreground flex items-center gap-2">
+                  <span>📊</span> Resources
+                </h2>
+              </div>
+              <div className="p-4">
+                <ResourceUsage
+                  resources={worker.resources ?? null}
+                  containerStatus={worker.containerStatus}
+                />
+              </div>
+            </section>
+
+            {/* Message Inspector */}
+            <section className="bg-card border border-border rounded-lg overflow-hidden shadow-sm">
+              <div className="bg-muted/50 px-4 py-3 border-b border-border">
+                <h2 className="text-lg font-semibold text-foreground flex items-center gap-2">
+                  <span>💬</span> Messages
+                </h2>
+              </div>
+              <div className="p-4">
+                <MessageInspector
+                  workerName={worker.name}
+                  repoName={repoName}
+                  apiBase={apiBase}
+                />
+              </div>
+            </section>
           </div>
         </div>
+
+        {/* Footer */}
+        <footer className="mt-16 text-center text-muted-foreground text-sm">
+          <p>CoCoPilot v0.1.0 · Collaborative Copilot Orchestration Platform</p>
+        </footer>
       </div>
     </div>
   );

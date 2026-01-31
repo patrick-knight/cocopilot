@@ -389,6 +389,9 @@ export class Chocolatier extends EventEmitter {
       case MessageType.SPAWN_FIXUP:
         await this.handleSpawnFixup(message);
         break;
+      case MessageType.SPAWN_WORKER:
+        await this.handleSpawnWorker(message);
+        break;
       default:
         // Acknowledge any message we receive but don't handle
         break;
@@ -543,6 +546,57 @@ export class Chocolatier extends EventEmitter {
         `Failed to spawn fixup worker for PR #${payload.pr_number}: ${errorMsg}`,
         "error",
       );
+    }
+  }
+
+  /**
+   * Handle a SPAWN_WORKER message from the API or other agents.
+   * This allows external systems to request worker spawns via messaging.
+   */
+  private async handleSpawnWorker(message: CocoMessage): Promise<void> {
+    const payload = message.payload as {
+      task: string;
+      branch?: string;
+      name?: string;
+      model?: string;
+      priority?: "low" | "normal" | "high";
+      pushTo?: string;
+    };
+
+    try {
+      const worker = await this.spawnWorker({
+        task: payload.task,
+        branch: payload.branch,
+        name: payload.name,
+        model: payload.model,
+        priority: payload.priority,
+        pushTo: payload.pushTo,
+      });
+
+      // Send confirmation back to requester
+      await this.broker.send({
+        type: MessageType.STATUS_RESPONSE,
+        from: AGENT_NAME,
+        to: message.from,
+        payload: {
+          request_id: message.id,
+          status: "spawned",
+          current_action: `Worker ${worker.name} spawned`,
+          progress: 100,
+        },
+      });
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : String(err);
+      await this.broker.send({
+        type: MessageType.TASK_FAILED,
+        from: AGENT_NAME,
+        to: message.from,
+        payload: {
+          task: payload.task,
+          error: `Failed to spawn worker: ${errorMsg}`,
+          recoverable: false,
+        },
+      });
     }
   }
 

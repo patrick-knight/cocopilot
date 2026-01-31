@@ -35,30 +35,48 @@ export function workerRoutes(
   const execFileAsync = promisify(execFile);
 
   // POST /repositories/:repoName/workers -- Spawn worker
+  // Sends SPAWN_WORKER message to Chocolatier which actually spawns the container
   router.post("/", async (req, res, next) => {
     const { repoName } = req.params as unknown as RepoParams;
-    const { task, branch, name, model } = req.body ?? {};
+    const { task, branch, name, model, pushTo } = req.body ?? {};
     if (!task) {
       next(createApiError(400, "Missing required field: task"));
       return;
     }
+
+    // Verify repository exists
+    const repo = stateManager.getRepo(repoName);
+    if (!repo) {
+      next(createApiError(404, `Repository "${repoName}" not tracked`));
+      return;
+    }
+
     try {
-      const worker = await stateManager.addWorker(repoName, {
-        task,
-        branch,
-        name,
-        model,
+      // Send SPAWN_WORKER message to Chocolatier
+      await broker.send({
+        type: MessageType.SPAWN_WORKER,
+        from: "api",
+        to: "chocolatier",
+        payload: {
+          task,
+          branch,
+          name,
+          model,
+          pushTo,
+        },
       });
-      res.status(201).json(worker);
+
+      // Return accepted response - actual worker will be created by Chocolatier
+      // Client should poll /workers endpoint or listen to socket for updates
+      res.status(202).json({
+        status: "accepted",
+        message: "Worker spawn request sent to Chocolatier",
+        task,
+        repoName,
+      });
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      if (message.includes("not tracked")) {
-        next(createApiError(404, message));
-      } else if (message.includes("already exists") || message.includes("Maximum workers")) {
-        next(createApiError(409, message));
-      } else {
-        next(err);
-      }
+      next(createApiError(500, `Failed to send spawn request: ${message}`));
     }
   });
 

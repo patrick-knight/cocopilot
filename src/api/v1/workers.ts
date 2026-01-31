@@ -13,6 +13,7 @@
 import { Router } from "express";
 import type { StateManager } from "../../state/index.js";
 import type { MessageBroker } from "../../messaging/index.js";
+import { MessageType } from "../../messaging/index.js";
 import { createApiError } from "../../server/middleware/error-handler.js";
 
 export function extWorkerRoutes(
@@ -22,8 +23,9 @@ export function extWorkerRoutes(
   const router = Router();
 
   // POST / -- Spawn a worker in a specific repository
+  // Sends SPAWN_WORKER message to Chocolatier which actually spawns the container
   router.post("/", async (req, res, next) => {
-    const { task, repoName, branch, name, model } = req.body ?? {};
+    const { task, repoName, branch, name, model, pushTo } = req.body ?? {};
 
     if (!task) {
       next(createApiError(400, "Missing required field: task"));
@@ -34,26 +36,38 @@ export function extWorkerRoutes(
       return;
     }
 
+    // Verify repository exists
+    const repo = stateManager.getRepo(repoName);
+    if (!repo) {
+      next(createApiError(404, `Repository "${repoName}" not tracked`));
+      return;
+    }
+
     try {
-      const worker = await stateManager.addWorker(repoName, {
-        task,
-        branch,
-        name,
-        model,
+      // Send SPAWN_WORKER message to Chocolatier
+      await broker.send({
+        type: MessageType.SPAWN_WORKER,
+        from: "api",
+        to: "chocolatier",
+        payload: {
+          task,
+          branch,
+          name,
+          model,
+          pushTo,
+        },
       });
-      res.status(201).json(worker);
+
+      // Return accepted response - actual worker will be created by Chocolatier
+      res.status(202).json({
+        status: "accepted",
+        message: "Worker spawn request sent to Chocolatier",
+        task,
+        repoName,
+      });
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      if (message.includes("not tracked")) {
-        next(createApiError(404, message));
-      } else if (
-        message.includes("already exists") ||
-        message.includes("Maximum workers")
-      ) {
-        next(createApiError(409, message));
-      } else {
-        next(err);
-      }
+      next(createApiError(500, `Failed to send spawn request: ${message}`));
     }
   });
 

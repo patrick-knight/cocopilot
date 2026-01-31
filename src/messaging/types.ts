@@ -31,6 +31,8 @@ export enum MessageType {
   BROADCAST = "BROADCAST",
   /** Reviewer signals completion of a code review. */
   REVIEW_COMPLETE = "REVIEW_COMPLETE",
+  /** API requests Chocolatier to spawn a new worker. */
+  SPAWN_WORKER = "SPAWN_WORKER",
 }
 
 /** Message priority levels. */
@@ -114,6 +116,15 @@ export interface ReviewCompletePayload {
   summary: string;
 }
 
+export interface SpawnWorkerPayload {
+  task: string;
+  branch?: string;
+  name?: string;
+  model?: string;
+  priority?: "low" | "normal" | "high";
+  pushTo?: string;
+}
+
 /** Maps each MessageType to its corresponding payload type. */
 export interface MessagePayloadMap {
   [MessageType.TASK_ASSIGNED]: TaskAssignedPayload;
@@ -128,6 +139,7 @@ export interface MessagePayloadMap {
   [MessageType.SPAWN_FIXUP]: SpawnFixupPayload;
   [MessageType.BROADCAST]: BroadcastPayload;
   [MessageType.REVIEW_COMPLETE]: ReviewCompletePayload;
+  [MessageType.SPAWN_WORKER]: SpawnWorkerPayload;
 }
 
 /** The core message structure for all inter-agent communication. */
