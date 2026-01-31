@@ -33,6 +33,12 @@ export enum MessageType {
   REVIEW_COMPLETE = "REVIEW_COMPLETE",
   /** API requests Chocolatier to spawn a new worker. */
   SPAWN_WORKER = "SPAWN_WORKER",
+  /** Truffle/Temperer requests security review from Security Reviewer. */
+  SECURITY_REVIEW_REQUEST = "SECURITY_REVIEW_REQUEST",
+  /** Security Reviewer approves PR (may include warnings). */
+  SECURITY_REVIEW_PASSED = "SECURITY_REVIEW_PASSED",
+  /** Security Reviewer blocks PR due to security issues. */
+  SECURITY_REVIEW_FAILED = "SECURITY_REVIEW_FAILED",
 }
 
 /** Message priority levels. */
@@ -126,6 +132,31 @@ export interface SpawnWorkerPayload {
   pushTo?: string;
 }
 
+export interface SecurityReviewRequestPayload {
+  prNumber: number;
+  prUrl: string;
+  branch: string;
+  workerName: string;
+}
+
+export interface SecurityIssue {
+  severity: "critical" | "high" | "medium" | "low";
+  file: string;
+  line?: number;
+  description: string;
+  cwe?: string;
+}
+
+export interface SecurityReviewPassedPayload {
+  prNumber: number;
+  warnings: string[];
+}
+
+export interface SecurityReviewFailedPayload {
+  prNumber: number;
+  issues: SecurityIssue[];
+}
+
 /** Maps each MessageType to its corresponding payload type. */
 export interface MessagePayloadMap {
   [MessageType.TASK_ASSIGNED]: TaskAssignedPayload;
@@ -141,6 +172,9 @@ export interface MessagePayloadMap {
   [MessageType.BROADCAST]: BroadcastPayload;
   [MessageType.REVIEW_COMPLETE]: ReviewCompletePayload;
   [MessageType.SPAWN_WORKER]: SpawnWorkerPayload;
+  [MessageType.SECURITY_REVIEW_REQUEST]: SecurityReviewRequestPayload;
+  [MessageType.SECURITY_REVIEW_PASSED]: SecurityReviewPassedPayload;
+  [MessageType.SECURITY_REVIEW_FAILED]: SecurityReviewFailedPayload;
 }
 
 /** The core message structure for all inter-agent communication. */

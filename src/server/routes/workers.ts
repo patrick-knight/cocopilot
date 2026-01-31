@@ -17,6 +17,7 @@ import type { StateManager } from "../../state/index.js";
 import type { MessageBroker } from "../../messaging/index.js";
 import { MessageType } from "../../messaging/index.js";
 import { getWorktreePath } from "../../git/worktree.js";
+import { chocolatierAgentName } from "../../agents/chocolatier.js";
 import { createApiError } from "../middleware/error-handler.js";
 
 interface RepoParams {
@@ -63,7 +64,7 @@ export function workerRoutes(
       await broker.send({
         type: MessageType.SPAWN_WORKER,
         from: "api",
-        to: "chocolatier",
+        to: chocolatierAgentName(repoName),
         payload: {
           task,
           repoName,
@@ -231,7 +232,7 @@ export function workerRoutes(
       await broker.send({
         type: MessageType.SPAWN_WORKER,
         from: "api",
-        to: "chocolatier",
+        to: chocolatierAgentName(repoName),
         payload: {
           task: worker.task,
           repoName,

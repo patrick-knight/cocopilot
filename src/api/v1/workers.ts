@@ -14,6 +14,7 @@ import { Router } from "express";
 import type { StateManager } from "../../state/index.js";
 import type { MessageBroker } from "../../messaging/index.js";
 import { MessageType } from "../../messaging/index.js";
+import { chocolatierAgentName } from "../../agents/chocolatier.js";
 import { createApiError } from "../../server/middleware/error-handler.js";
 
 export function extWorkerRoutes(

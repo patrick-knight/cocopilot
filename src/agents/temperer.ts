@@ -71,9 +71,11 @@ export type CIStatus = "passing" | "failing" | "pending" | "no_checks";
 /** Internal tracking state for a PR the Temperer is monitoring. */
 export type TrackedPRState =
   | "watching"
+  | "awaiting_security_review"
   | "merging"
   | "merged"
-  | "fixup_requested";
+  | "fixup_requested"
+  | "security_blocked";
 
 export interface TrackedPR {
   number: number;
@@ -83,6 +85,8 @@ export interface TrackedPR {
   state: TrackedPRState;
   originalWorker?: string;
   fixupRequestedAt?: number;
+  securityReviewPassed?: boolean;
+  securityWarnings?: string[];
 }
 
 /** Function signature used to execute gh CLI commands. Exposed for testing. */
@@ -162,7 +166,7 @@ export class Temperer {
    * Execute a single poll cycle:
    * 1. List open PRs with the cocopilot label
    * 2. For each PR, check CI status
-   * 3. Merge if passing, request fixup if failing, skip if pending
+   * 3. Merge if passing AND security review passed, request fixup if failing, skip if pending
    */
   async pollOnce(): Promise<void> {
     const prs = await this.listOpenPRs();
@@ -175,6 +179,11 @@ export class Temperer {
         continue;
       }
 
+      // Skip PRs awaiting security review or blocked by security issues
+      if (tracked?.state === "awaiting_security_review" || tracked?.state === "security_blocked") {
+        continue;
+      }
+
       // Ensure we're tracking this PR
       if (!tracked) {
         this.trackedPRs.set(pr.number, {
@@ -182,8 +191,12 @@ export class Temperer {
           url: pr.url,
           title: pr.title,
           branch: pr.headRefName,
-          state: "watching",
+          state: "awaiting_security_review",
+          securityReviewPassed: false,
         });
+        // Request security review for new PRs we discover
+        await this.requestSecurityReview(pr.number, pr.url, pr.headRefName, "unknown");
+        continue;
       }
 
       const { status, failureSummary, workflowUrl } = await this.checkCI(
@@ -192,7 +205,10 @@ export class Temperer {
 
       switch (status) {
         case "passing":
-          await this.mergePR(pr);
+          // Only merge if security review has passed
+          if (tracked.securityReviewPassed) {
+            await this.mergePR(pr);
+          }
           break;
         case "failing": {
           const current = this.trackedPRs.get(pr.number)!;
@@ -233,10 +249,109 @@ export class Temperer {
         url: payload.pr_url,
         title: payload.title,
         branch: payload.branch,
-        state: "watching",
+        state: "awaiting_security_review",
         originalWorker: message.from,
+        securityReviewPassed: false,
       });
+      // Request security review
+      await this.requestSecurityReview(payload.pr_number, payload.pr_url, payload.branch, message.from);
     }
+
+    if (message.type === MessageType.SECURITY_REVIEW_PASSED) {
+      const payload = message.payload as { prNumber: number; warnings: string[] };
+      const tracked = this.trackedPRs.get(payload.prNumber);
+      if (tracked) {
+        tracked.securityReviewPassed = true;
+        tracked.securityWarnings = payload.warnings;
+        tracked.state = "watching";
+      }
+    }
+
+    if (message.type === MessageType.SECURITY_REVIEW_FAILED) {
+      const payload = message.payload as { prNumber: number; issues: Array<{ severity: string; file: string; line?: number; description: string; cwe?: string }> };
+      const tracked = this.trackedPRs.get(payload.prNumber);
+      if (tracked) {
+        tracked.securityReviewPassed = false;
+        tracked.state = "security_blocked";
+        // Post comment with security issues
+        await this.postSecurityComment(payload.prNumber, payload.issues);
+        // Request fixup from original worker
+        if (tracked.originalWorker) {
+          await this.requestSecurityFixup(tracked, payload.issues);
+        }
+      }
+    }
+  }
+
+  /** Request security review for a PR. */
+  private async requestSecurityReview(
+    prNumber: number,
+    prUrl: string,
+    branch: string,
+    workerName: string,
+  ): Promise<void> {
+    await this.config.broker.send({
+      type: MessageType.SECURITY_REVIEW_REQUEST,
+      from: this.config.agentName,
+      to: "security-reviewer",
+      payload: { prNumber, prUrl, branch, workerName },
+      priority: "high",
+      ack_required: false,
+    });
+  }
+
+  /** Post a comment on a PR with security issues. */
+  private async postSecurityComment(
+    prNumber: number,
+    issues: Array<{ severity: string; file: string; line?: number; description: string; cwe?: string }>,
+  ): Promise<void> {
+    const body = [
+      "## 🔒 Security Review Failed\n",
+      "The following security issues must be addressed before this PR can be merged:\n",
+      ...issues.map((i) => {
+        const location = i.line ? `${i.file}:${i.line}` : i.file;
+        const cwe = i.cwe ? ` (${i.cwe})` : "";
+        return `- **[${i.severity.toUpperCase()}]** ${location}: ${i.description}${cwe}`;
+      }),
+      "\nPlease fix these issues and push new commits to this PR.",
+    ].join("\n");
+
+    try {
+      await this.execFn(
+        "gh",
+        ["pr", "comment", String(prNumber), "--body", body],
+        { cwd: this.config.repoPath },
+      );
+    } catch {
+      // Ignore comment failures
+    }
+  }
+
+  /** Request security fixup from the original worker. */
+  private async requestSecurityFixup(
+    tracked: TrackedPR,
+    issues: Array<{ severity: string; file: string; line?: number; description: string; cwe?: string }>,
+  ): Promise<void> {
+    const issuesSummary = issues
+      .map((i) => `[${i.severity.toUpperCase()}] ${i.file}: ${i.description}`)
+      .join("\n");
+
+    await this.config.broker.send({
+      type: MessageType.SPAWN_FIXUP,
+      from: this.config.agentName,
+      to: this.config.chocolatierName,
+      payload: {
+        pr_number: tracked.number,
+        pr_url: tracked.url,
+        failure_summary: `Security review failed:\n${issuesSummary}`,
+        original_worker: tracked.originalWorker ?? "unknown",
+      },
+      priority: "high",
+      ack_required: false,
+    });
+
+    tracked.state = "fixup_requested";
+    tracked.fixupRequestedAt = Date.now();
   }
 
   /** List open PRs with the cocopilot label using `gh pr list`. */

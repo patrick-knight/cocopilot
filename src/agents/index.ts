@@ -72,3 +72,9 @@ export {
   WORKSPACE_SYSTEM_PROMPT,
   type WorkspaceEvents,
 } from "./workspace.js";
+
+export {
+  SecurityReviewerAgent,
+  type SecurityReviewerConfig,
+  type SecurityReviewerEvents,
+} from "./security-reviewer.js";

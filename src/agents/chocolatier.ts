@@ -44,7 +44,15 @@ import type {
 // Constants
 // ---------------------------------------------------------------------------
 
-const AGENT_NAME = "chocolatier";
+const AGENT_TYPE = "chocolatier";
+
+/**
+ * Build the unique agent name for a repo-specific Chocolatier.
+ * Used both internally and by API routes that address this agent.
+ */
+export function chocolatierAgentName(repoName: string): string {
+  return `${AGENT_TYPE}:${repoName}`;
+}
 const DEFAULT_HEALTH_CHECK_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
 const DEFAULT_STUCK_THRESHOLD_MS = 15 * 60 * 1000; // 15 minutes
 
@@ -91,6 +99,7 @@ export class Chocolatier extends EventEmitter {
   private readonly broker: MessageBroker;
   private readonly config: ChocolatierConfig;
   private readonly localWorkers = new Map<string, LocalTruffleRuntime>();
+  private readonly agentName: string;
 
   private healthCheckTimer: ReturnType<typeof setInterval> | null = null;
   private running = false;
@@ -105,6 +114,7 @@ export class Chocolatier extends EventEmitter {
     this.stateManager = stateManager;
     this.containerManager = containerManager;
     this.broker = broker;
+    this.agentName = chocolatierAgentName(config.repoName);
     this.config = {
       ...config,
       healthCheckIntervalMs:
@@ -133,16 +143,16 @@ export class Chocolatier extends EventEmitter {
 
     // Register agent in state
     await this.stateManager.setAgent(this.config.repoName, {
-      name: AGENT_NAME,
+      name: this.agentName,
       type: "supervisor",
       status: "healthy",
     });
 
     // Subscribe to incoming messages
-    await this.broker.subscribe(AGENT_NAME, (msg) => this.handleMessage(msg));
+    await this.broker.subscribe(this.agentName, (msg) => this.handleMessage(msg));
 
     // Replay any messages that arrived before we started
-    await this.broker.replay(AGENT_NAME);
+    await this.broker.replay(this.agentName);
 
     // Start periodic health checks
     this.startHealthCheckLoop();
@@ -165,7 +175,7 @@ export class Chocolatier extends EventEmitter {
     }
 
     // Unsubscribe from messages
-    await this.broker.unsubscribe(AGENT_NAME);
+    await this.broker.unsubscribe(this.agentName);
 
     // Stop any local worker runtimes
     for (const [workerName, runtime] of this.localWorkers.entries()) {
@@ -176,7 +186,7 @@ export class Chocolatier extends EventEmitter {
     // Update agent status
     await this.stateManager.updateAgentStatus(
       this.config.repoName,
-      AGENT_NAME,
+      this.agentName,
       "stopped",
     );
 
@@ -296,6 +306,7 @@ export class Chocolatier extends EventEmitter {
       env: {
         COCOPILOT_AGENT_NAME: worker.name,
         COCOPILOT_REPO: repoName,
+        COCOPILOT_SUPERVISOR: this.agentName,
         COCOPILOT_TASK: options.task,
         COCOPILOT_BRANCH: worker.branch,
         ...(options.model ? { COCOPILOT_MODEL: options.model } : {}),
@@ -323,7 +334,7 @@ export class Chocolatier extends EventEmitter {
       // Send TASK_ASSIGNED message to the worker
       await this.broker.send({
         type: MessageType.TASK_ASSIGNED,
-        from: AGENT_NAME,
+        from: this.agentName,
         to: worker.name,
         payload: {
           task: options.task,
@@ -386,6 +397,7 @@ export class Chocolatier extends EventEmitter {
         prLabels: this.stateManager.getConfig().github?.prLabels ?? ["cocopilot"],
         customPrompt,
         pushTo: options.pushTo,
+        supervisorName: this.agentName,
       },
       this.broker,
     );
@@ -458,7 +470,7 @@ export class Chocolatier extends EventEmitter {
   ): Promise<void> {
     await this.broker.send({
       type: MessageType.NUDGE,
-      from: AGENT_NAME,
+      from: this.agentName,
       to: workerName,
       payload: { hint, context },
       priority: "high",
@@ -478,7 +490,7 @@ export class Chocolatier extends EventEmitter {
   ): Promise<void> {
     await this.broker.send({
       type: MessageType.BROADCAST,
-      from: AGENT_NAME,
+      from: this.agentName,
       to: "*",
       payload: { message, level },
     });
@@ -518,7 +530,7 @@ export class Chocolatier extends EventEmitter {
 
     // Acknowledge receipt
     if (message.ack_required) {
-      await this.broker.acknowledge(AGENT_NAME, message.id);
+      await this.broker.acknowledge(this.agentName, message.id);
     }
   }
 
@@ -536,7 +548,7 @@ export class Chocolatier extends EventEmitter {
 
     await this.broker.send({
       type: MessageType.STATUS_RESPONSE,
-      from: AGENT_NAME,
+      from: this.agentName,
       to: message.from,
       payload: {
         request_id: payload.request_id,
@@ -702,7 +714,7 @@ export class Chocolatier extends EventEmitter {
       // Send confirmation back to requester
       await this.broker.send({
         type: MessageType.STATUS_RESPONSE,
-        from: AGENT_NAME,
+        from: this.agentName,
         to: message.from,
         payload: {
           request_id: message.id,
@@ -715,7 +727,7 @@ export class Chocolatier extends EventEmitter {
       const errorMsg = err instanceof Error ? err.message : String(err);
       await this.broker.send({
         type: MessageType.TASK_FAILED,
-        from: AGENT_NAME,
+        from: this.agentName,
         to: message.from,
         payload: {
           task: payload.task,
@@ -868,7 +880,7 @@ export class Chocolatier extends EventEmitter {
 
     // Update agent last activity
     await this.stateManager
-      .updateAgentStatus(repoName, AGENT_NAME, "healthy")
+      .updateAgentStatus(repoName, this.agentName, "healthy")
       .catch(() => {});
 
     this.emit("healthCheck", report);
