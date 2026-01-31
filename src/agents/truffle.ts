@@ -252,11 +252,16 @@ export class TruffleAgent extends EventEmitter<TruffleEvents> {
         worktreePath,
       );
     } else {
-      // New work: create the worktree on a new branch
-      await this.git(
-        ["worktree", "add", "-b", branch, worktreePath, baseBranch],
-        repoPath,
-      );
+      // New work: create the worktree on a new branch (or reuse if it exists)
+      const branchExists = await this.localBranchExists(repoPath, branch);
+      if (branch === baseBranch || branchExists) {
+        await this.git(["worktree", "add", worktreePath, branch], repoPath);
+      } else {
+        await this.git(
+          ["worktree", "add", "-b", branch, worktreePath, baseBranch],
+          repoPath,
+        );
+      }
     }
 
     this._worktreeReady = true;
@@ -578,5 +583,15 @@ export class TruffleAgent extends EventEmitter<TruffleEvents> {
       maxBuffer: 10 * 1024 * 1024, // 10MB
       timeout: 120_000, // 2 minutes
     });
+  }
+
+  /** Check if a local branch exists. */
+  private async localBranchExists(cwd: string, branch: string): Promise<boolean> {
+    try {
+      await this.git(["show-ref", "--verify", "--quiet", `refs/heads/${branch}`], cwd);
+      return true;
+    } catch {
+      return false;
+    }
   }
 }

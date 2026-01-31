@@ -18,6 +18,8 @@ WORKDIR /app
 
 # Set HOME explicitly for container
 ENV HOME=/root
+ENV NPM_CONFIG_PREFIX=/root/.npm-global
+ENV PATH=/root/.npm-global/bin:$PATH
 
 # Install system dependencies: Docker CLI, git, GitHub CLI, tmux, and CA certs
 RUN rm -rf /var/lib/apt/lists/* \

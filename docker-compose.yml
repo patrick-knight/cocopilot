@@ -9,6 +9,9 @@ services:
       - ./tsconfig.json:/app/tsconfig.json
       - /var/run/docker.sock:/var/run/docker.sock
       - cocopilot-data:/root/.cocopilot
+      - gh-auth:/root/.config/gh
+      - copilot-config:/root/.config/github-copilot
+      - npm-global:/root/.npm-global
     depends_on:
       - redis
     environment:
@@ -23,3 +26,6 @@ services:
 
 volumes:
   cocopilot-data:
+  gh-auth:
+  copilot-config:
+  npm-global:
