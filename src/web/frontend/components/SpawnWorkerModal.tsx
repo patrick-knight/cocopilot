@@ -441,7 +441,8 @@ export function SpawnWorkerModal({
             >
               {isSpawning && (
                 <svg
-                  className="h-4 w-4 animate-spin text-primary"
+                  className="animate-spin text-primary"
+                  style={{ width: '16px', height: '16px', flexShrink: 0 }}
                   xmlns="http://www.w3.org/2000/svg"
                   fill="none"
                   viewBox="0 0 24 24"
@@ -463,7 +464,8 @@ export function SpawnWorkerModal({
               )}
               {isDone && (
                 <svg
-                  className="h-4 w-4 text-chart-2"
+                  className="text-chart-2"
+                  style={{ width: '16px', height: '16px', flexShrink: 0 }}
                   xmlns="http://www.w3.org/2000/svg"
                   viewBox="0 0 20 20"
                   fill="currentColor"
@@ -477,7 +479,8 @@ export function SpawnWorkerModal({
               )}
               {phase === "error" && (
                 <svg
-                  className="h-4 w-4 text-destructive"
+                  className="text-destructive"
+                  style={{ width: '16px', height: '16px', flexShrink: 0 }}
                   xmlns="http://www.w3.org/2000/svg"
                   viewBox="0 0 20 20"
                   fill="currentColor"

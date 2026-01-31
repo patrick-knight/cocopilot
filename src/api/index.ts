@@ -2,15 +2,17 @@
  * External integration API router.
  *
  * Mounts all v1 routes for external tool integration:
- *   /api/v1/workers   — flat worker management across repos
- *   /api/v1/webhooks  — callback URL registration
- *   /api/v1/status    — system health & uptime
+ *   /api/v1/repositories — repository listing and onboarding
+ *   /api/v1/workers      — flat worker management across repos
+ *   /api/v1/webhooks     — callback URL registration
+ *   /api/v1/status       — system health & uptime
  */
 
 import { Router } from "express";
 import type { StateManager } from "../state/index.js";
 import type { MessageBroker } from "../messaging/index.js";
 
+import { extRepositoriesRoutes } from "./v1/repositories.js";
 import { extWorkerRoutes } from "./v1/workers.js";
 import { extWebhookRoutes } from "./v1/webhooks.js";
 import { extStatusRoutes, type StatusDeps } from "./v1/status.js";
@@ -31,6 +33,7 @@ export function createExtApiRouter(deps: ExtApiDeps): Router {
 
   const router = Router();
 
+  router.use("/repositories", extRepositoriesRoutes({ stateManager }));
   router.use("/workers", extWorkerRoutes(stateManager, broker));
   router.use("/webhooks", extWebhookRoutes());
   router.use(
@@ -46,6 +49,7 @@ export function createExtApiRouter(deps: ExtApiDeps): Router {
   return router;
 }
 
+export { extRepositoriesRoutes } from "./v1/repositories.js";
 export { extWorkerRoutes } from "./v1/workers.js";
 export { extWebhookRoutes } from "./v1/webhooks.js";
 export type { Webhook, WebhookStore } from "./v1/webhooks.js";

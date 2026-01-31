@@ -9,11 +9,13 @@ import { TruffleInspector } from "../../src/web/frontend/pages/TruffleInspector.
 import { SpawnWorkerModal } from "../../src/web/frontend/components/SpawnWorkerModal.js";
 import { useSocket } from "../../src/web/hooks/useSocket.js";
 import { FactoryFloor } from "./pages/FactoryFloor.js";
+import { StatusPage } from "./pages/StatusPage.js";
 
 export default function App() {
   return (
     <Routes>
       <Route path="/" element={<FactoryFloor />} />
+      <Route path="/status" element={<StatusPage />} />
       <Route path="/repos/:repoName" element={<TemperingStationPage />} />
       <Route path="/repos/:repoName/workers/:workerName" element={<TruffleInspectorPage />} />
     </Routes>

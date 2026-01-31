@@ -3,6 +3,7 @@
  */
 
 import React, { useEffect, useState, useMemo } from "react";
+import { createPortal } from "react-dom";
 import { Link } from "react-router-dom";
 import { ThemeToggle } from "../../../src/web/components/ThemeToggle.js";
 
@@ -58,7 +59,10 @@ export function FactoryFloor() {
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
 
-  useEffect(() => {
+  // Onboard modal state
+  const [showOnboardModal, setShowOnboardModal] = useState(false);
+
+  const fetchRepos = () => {
     fetch("/api/v1/repositories")
       .then((res) => {
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -72,6 +76,10 @@ export function FactoryFloor() {
         setError(err.message);
         setLoading(false);
       });
+  };
+
+  useEffect(() => {
+    fetchRepos();
   }, []);
 
   // Get unique branches for filter dropdown
@@ -278,12 +286,23 @@ export function FactoryFloor() {
                   <thead className="bg-muted border-b border-border">
                     <tr>
                       <th
-                        className="px-6 py-4 text-left text-sm font-semibold text-foreground cursor-pointer hover:bg-accent transition-colors"
-                        onClick={() => handleSort("name")}
+                        className="px-6 py-4 text-left text-sm font-semibold text-foreground"
                       >
-                        <div className="flex items-center">
-                          Repository
-                          <SortIcon field="name" />
+                        <div className="flex items-center gap-3">
+                          <button
+                            className="flex items-center cursor-pointer hover:text-primary transition-colors"
+                            onClick={() => handleSort("name")}
+                          >
+                            Repository
+                            <SortIcon field="name" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setShowOnboardModal(true)}
+                            className="inline-flex items-center gap-1 bg-gradient-to-r from-amber-600 to-orange-500 hover:from-amber-500 hover:to-orange-400 text-white px-2 py-1 rounded text-xs font-medium transition-all"
+                          >
+                            <span>+</span> Onboard
+                          </button>
                         </div>
                       </th>
                       <th
@@ -470,12 +489,181 @@ export function FactoryFloor() {
               Documentation
             </a>
             {" · "}
-            <a href="/api/v1/status" className="hover:text-primary underline">
-              API Status
-            </a>
+            <Link to="/status" className="hover:text-primary underline">
+              System Status
+            </Link>
           </p>
         </footer>
       </div>
+
+      {/* Onboard Repository Modal */}
+      {showOnboardModal && (
+        <OnboardRepoModal
+          onClose={() => setShowOnboardModal(false)}
+          onSuccess={() => {
+            setShowOnboardModal(false);
+            fetchRepos();
+          }}
+        />
+      )}
     </div>
   );
+}
+
+// ---------------------------------------------------------------------------
+// Onboard Repository Modal
+// ---------------------------------------------------------------------------
+
+interface OnboardRepoModalProps {
+  onClose: () => void;
+  onSuccess: () => void;
+}
+
+function OnboardRepoModal({ onClose, onSuccess }: OnboardRepoModalProps) {
+  const [repoUrl, setRepoUrl] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!repoUrl.trim()) {
+      setError("Please enter a repository URL");
+      return;
+    }
+
+    setIsSubmitting(true);
+    setError(null);
+
+    try {
+      const res = await fetch("/api/v1/repositories", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: repoUrl.trim() }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.message || data.error || `HTTP ${res.status}`);
+      }
+
+      setSuccess(true);
+      setTimeout(() => {
+        onSuccess();
+      }, 1500);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to onboard repository");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const modalContent = (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+      style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 9999 }}
+      onClick={() => !isSubmitting && onClose()}
+      role="presentation"
+    >
+      <div
+        className="relative w-full max-w-md rounded-xl border border-border bg-card shadow-2xl mx-4"
+        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between rounded-t-xl bg-gradient-to-r from-amber-600 to-orange-500 px-6 py-4">
+          <h2 className="text-lg font-semibold text-white flex items-center gap-2">
+            <span>📦</span> Onboard Repository
+          </h2>
+          <button
+            type="button"
+            className="text-white/70 hover:text-white transition-colors disabled:opacity-40"
+            onClick={onClose}
+            disabled={isSubmitting}
+          >
+            <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+            </svg>
+          </button>
+        </div>
+
+        {/* Body */}
+        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+          <div>
+            <label htmlFor="repo-url" className="block text-sm font-medium text-foreground mb-1">
+              Repository URL
+            </label>
+            <input
+              id="repo-url"
+              type="text"
+              placeholder="https://github.com/org/repo"
+              value={repoUrl}
+              onChange={(e) => setRepoUrl(e.target.value)}
+              disabled={isSubmitting || success}
+              className="w-full px-3 py-2 border border-input rounded-lg bg-background text-foreground placeholder-muted-foreground focus:ring-2 focus:ring-ring focus:border-ring outline-none disabled:opacity-50"
+            />
+            <p className="mt-1 text-xs text-muted-foreground">
+              Enter the full URL to a GitHub repository
+            </p>
+          </div>
+
+          {/* Status messages */}
+          {error && (
+            <div className="flex items-center gap-2 rounded-lg px-4 py-3 text-sm bg-destructive/10 text-destructive">
+              <span>❌</span>
+              <span>{error}</span>
+            </div>
+          )}
+
+          {success && (
+            <div className="flex items-center gap-2 rounded-lg px-4 py-3 text-sm bg-chart-2/10 text-chart-2">
+              <span>✅</span>
+              <span>Repository onboarded successfully!</span>
+            </div>
+          )}
+
+          {/* Actions */}
+          <div className="flex items-center justify-end gap-3 pt-2">
+            {success ? (
+              <button
+                type="button"
+                className="rounded-lg bg-gradient-to-r from-amber-600 to-orange-500 hover:from-amber-500 hover:to-orange-400 px-5 py-2 text-sm font-medium text-white transition-all"
+                onClick={onSuccess}
+              >
+                Done
+              </button>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  className="rounded-lg border border-border px-4 py-2 text-sm text-muted-foreground hover:bg-accent transition-colors disabled:opacity-40"
+                  onClick={onClose}
+                  disabled={isSubmitting}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="rounded-lg bg-gradient-to-r from-amber-600 to-orange-500 hover:from-amber-500 hover:to-orange-400 px-5 py-2 text-sm font-medium text-white transition-all disabled:opacity-50 flex items-center gap-2"
+                  disabled={isSubmitting || !repoUrl.trim()}
+                >
+                  {isSubmitting && (
+                    <svg className="animate-spin" style={{ width: '16px', height: '16px' }} viewBox="0 0 24 24" fill="none">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                    </svg>
+                  )}
+                  {isSubmitting ? "Onboarding..." : "🚀 Onboard"}
+                </button>
+              </>
+            )}
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+
+  return createPortal(modalContent, document.body);
 }
