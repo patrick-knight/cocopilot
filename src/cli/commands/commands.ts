@@ -377,11 +377,20 @@ export function registerCommands(program: Command): void {
             throw new Error(text || `HTTP ${response.status}`);
           }
 
-          const worker = await response.json();
-          if (options.pushTo) {
-            console.log(`Worker "${worker.name}" spawned in ${repoName} (iterating on ${options.pushTo}).`);
-          } else {
-            console.log(`Worker "${worker.name}" spawned in ${repoName}.`);
+          const result = await response.json();
+          // API returns 202 Accepted with status and message
+          if (result.status === "accepted") {
+            console.log(`Worker spawn requested for "${task}" in ${repoName}.`);
+            if (options.pushTo) {
+              console.log(`  Will iterate on branch: ${options.pushTo}`);
+            }
+          } else if (result.name) {
+            // Legacy response with worker name
+            if (options.pushTo) {
+              console.log(`Worker "${result.name}" spawned in ${repoName} (iterating on ${options.pushTo}).`);
+            } else {
+              console.log(`Worker "${result.name}" spawned in ${repoName}.`);
+            }
           }
         } catch (err: unknown) {
           const message = err instanceof Error ? err.message : String(err);

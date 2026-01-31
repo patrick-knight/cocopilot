@@ -51,6 +51,7 @@ export function extWorkerRoutes(
         to: "chocolatier",
         payload: {
           task,
+          repoName,
           branch,
           name,
           model,

@@ -118,6 +118,7 @@ export interface ReviewCompletePayload {
 
 export interface SpawnWorkerPayload {
   task: string;
+  repoName?: string;
   branch?: string;
   name?: string;
   model?: string;

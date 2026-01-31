@@ -556,12 +556,19 @@ export class Chocolatier extends EventEmitter {
   private async handleSpawnWorker(message: CocoMessage): Promise<void> {
     const payload = message.payload as {
       task: string;
+      repoName?: string;
       branch?: string;
       name?: string;
       model?: string;
       priority?: "low" | "normal" | "high";
       pushTo?: string;
     };
+
+    // Only handle if repoName matches this Chocolatier's repo (or not specified)
+    if (payload.repoName && payload.repoName !== this.config.repoName) {
+      // Not for this Chocolatier - ignore
+      return;
+    }
 
     try {
       const worker = await this.spawnWorker({

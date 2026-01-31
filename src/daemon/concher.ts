@@ -225,6 +225,9 @@ export class Concher {
     }
   }
 
+  // Track repos that are currently being started to prevent re-entry
+  private startingRepos = new Set<string>();
+
   private async startRepoAgentsForRepo(repoName: string, repo: { localPath: string; mode: string }): Promise<void> {
     if (!repo.localPath || !fs.existsSync(repo.localPath)) {
       logger.warn(`Skipping agent start for ${repoName} — repo path not found`);
@@ -232,6 +235,12 @@ export class Concher {
     }
 
     if (!this.broker) return;
+
+    // Prevent re-entry while already starting this repo
+    if (this.startingRepos.has(repoName)) {
+      return;
+    }
+    this.startingRepos.add(repoName);
 
     const pollIntervalMs = this.parseInterval(this.config.mergeQueuePollInterval);
     const healthIntervalMs = this.parseInterval(this.config.supervisorNudgeInterval);
@@ -270,6 +279,9 @@ export class Concher {
 
       await mergeAgent.start();
 
+      // Set the map entry BEFORE state updates to prevent re-entry from stateChanged events
+      this.repoAgents.set(repoName, { chocolatier, mergeAgent });
+
       await this.state.setAgent(repoName, {
         name: "chocolatier",
         type: "supervisor",
@@ -282,12 +294,13 @@ export class Concher {
         status: "healthy",
       });
 
-      this.repoAgents.set(repoName, { chocolatier, mergeAgent });
       logger.info(`Started agents for ${repoName}`);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       logger.error(`Failed to start agents for ${repoName}: ${message}`);
       await this.state.updateRepoStatus(repoName, "error").catch(() => {});
+    } finally {
+      this.startingRepos.delete(repoName);
     }
   }
 
