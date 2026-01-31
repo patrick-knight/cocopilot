@@ -17,6 +17,16 @@ interface StatusData {
   redis: {
     connected: boolean;
   };
+  github: {
+    authenticated: boolean;
+    user: string | null;
+    error: string | null;
+  };
+  copilot: {
+    installed: boolean;
+    version: string | null;
+    error: string | null;
+  };
   workers: {
     total: number;
     byStatus: Record<string, number>;
@@ -134,21 +144,46 @@ export function StatusPage(): React.ReactElement {
         ) : status ? (
           <div className="space-y-6">
             {/* Overall Health Banner */}
-            <div className={`rounded-lg p-6 ${status.daemon.up && status.redis.connected ? "bg-chart-2/10 border border-chart-2/20" : "bg-destructive/10 border border-destructive/20"}`}>
-              <div className="flex items-center gap-4">
-                <div className="text-5xl">
-                  {status.daemon.up && status.redis.connected ? "✅" : "❌"}
+            {(() => {
+              const allGood = status.daemon.up && status.redis.connected && status.github?.authenticated && status.copilot?.installed;
+              const hasWarnings = !status.github?.authenticated || !status.copilot?.installed;
+              const hasCritical = !status.daemon.up || !status.redis.connected;
+              
+              return (
+                <div className={`rounded-lg p-6 ${
+                  allGood 
+                    ? "bg-chart-2/10 border border-chart-2/20" 
+                    : hasCritical 
+                      ? "bg-destructive/10 border border-destructive/20"
+                      : "bg-amber-500/10 border border-amber-500/20"
+                }`}>
+                  <div className="flex items-center gap-4">
+                    <div className="text-5xl">
+                      {allGood ? "✅" : hasCritical ? "❌" : "⚠️"}
+                    </div>
+                    <div>
+                      <h2 className={`text-2xl font-bold ${
+                        allGood 
+                          ? "text-chart-2" 
+                          : hasCritical 
+                            ? "text-destructive"
+                            : "text-amber-500"
+                      }`}>
+                        {allGood 
+                          ? "All Systems Operational" 
+                          : hasCritical 
+                            ? "System Issues Detected"
+                            : "Setup Incomplete"}
+                      </h2>
+                      <p className="text-muted-foreground">
+                        CoCoPilot v{status.version || "0.1.0"}
+                        {hasWarnings && !hasCritical && " · Some optional components need setup"}
+                      </p>
+                    </div>
+                  </div>
                 </div>
-                <div>
-                  <h2 className={`text-2xl font-bold ${status.daemon.up && status.redis.connected ? "text-chart-2" : "text-destructive"}`}>
-                    {status.daemon.up && status.redis.connected ? "All Systems Operational" : "System Issues Detected"}
-                  </h2>
-                  <p className="text-muted-foreground">
-                    CoCoPilot v{status.version || "0.1.0"}
-                  </p>
-                </div>
-              </div>
-            </div>
+              );
+            })()}
 
             {/* Status Cards Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -202,6 +237,64 @@ export function StatusPage(): React.ReactElement {
                   <p className="text-sm text-muted-foreground">
                     Message broker for real-time agent communication
                   </p>
+                </div>
+              </div>
+
+              {/* GitHub Auth Status */}
+              <div className="bg-card border border-border rounded-lg overflow-hidden shadow-sm">
+                <div className="bg-muted/50 px-4 py-3 border-b border-border">
+                  <h3 className="text-lg font-semibold text-foreground flex items-center gap-2">
+                    <span>🐙</span> GitHub Authentication
+                  </h3>
+                </div>
+                <div className="p-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground">Status</span>
+                    <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-sm font-medium ${status.github?.authenticated ? "bg-chart-2/20 text-chart-2" : "bg-amber-500/20 text-amber-500"}`}>
+                      <span className={`inline-block h-2 w-2 rounded-full ${status.github?.authenticated ? "bg-chart-2" : "bg-amber-500"}`} />
+                      {status.github?.authenticated ? "Authenticated" : "Not Logged In"}
+                    </span>
+                  </div>
+                  {status.github?.authenticated && status.github.user && (
+                    <div className="flex items-center justify-between">
+                      <span className="text-muted-foreground">User</span>
+                      <span className="font-mono text-foreground">{status.github.user}</span>
+                    </div>
+                  )}
+                  {!status.github?.authenticated && (
+                    <p className="text-sm text-amber-500">
+                      Run <code className="bg-muted px-1 rounded">gh auth login</code> to authenticate
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              {/* Copilot CLI Status */}
+              <div className="bg-card border border-border rounded-lg overflow-hidden shadow-sm">
+                <div className="bg-muted/50 px-4 py-3 border-b border-border">
+                  <h3 className="text-lg font-semibold text-foreground flex items-center gap-2">
+                    <span>🤖</span> Copilot CLI
+                  </h3>
+                </div>
+                <div className="p-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground">Status</span>
+                    <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-sm font-medium ${status.copilot?.installed ? "bg-chart-2/20 text-chart-2" : "bg-amber-500/20 text-amber-500"}`}>
+                      <span className={`inline-block h-2 w-2 rounded-full ${status.copilot?.installed ? "bg-chart-2" : "bg-amber-500"}`} />
+                      {status.copilot?.installed ? "Installed" : "Not Found"}
+                    </span>
+                  </div>
+                  {status.copilot?.installed && status.copilot.version && (
+                    <div className="flex items-center justify-between">
+                      <span className="text-muted-foreground">Version</span>
+                      <span className="font-mono text-foreground text-sm">{status.copilot.version}</span>
+                    </div>
+                  )}
+                  {!status.copilot?.installed && (
+                    <p className="text-sm text-amber-500">
+                      Run <code className="bg-muted px-1 rounded">gh extension install github/gh-copilot</code> to install
+                    </p>
+                  )}
                 </div>
               </div>
 

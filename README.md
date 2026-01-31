@@ -6,7 +6,7 @@
 
 <p align="center">
   <strong>Collaborative Copilot Orchestration Platform</strong><br/>
-  <em>Multi-agent AI coding assistants working in parallel on your codebase</em>
+  <em>Co-AI coding assistants working in parallel on your codebase</em>
 </p>
 
 <p align="center">

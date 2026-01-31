@@ -67,6 +67,14 @@ export function FactoryFloor() {
   // Onboard modal state
   const [showOnboardModal, setShowOnboardModal] = useState(false);
 
+  // System status state
+  const [systemStatus, setSystemStatus] = useState<{
+    daemon: { up: boolean };
+    redis: { connected: boolean };
+    github: { authenticated: boolean; user: string | null; error: string | null };
+    copilot: { installed: boolean; version: string | null; error: string | null };
+  } | null>(null);
+
   const fetchRepos = () => {
     fetch("/api/v1/repositories")
       .then((res) => {
@@ -83,8 +91,16 @@ export function FactoryFloor() {
       });
   };
 
+  const fetchStatus = () => {
+    fetch("/api/v1/status")
+      .then((res) => res.json())
+      .then((data) => setSystemStatus(data))
+      .catch(() => {/* ignore status fetch errors */});
+  };
+
   useEffect(() => {
     fetchRepos();
+    fetchStatus();
   }, []);
 
   // Get unique branches for filter dropdown
@@ -222,12 +238,44 @@ export function FactoryFloor() {
           <p className="text-muted-foreground text-lg italic">
             "Good code, like good chocolate, requires the right blend of chaos and control."
           </p>
-          <div className="mt-4 flex items-center justify-center gap-4">
-            <div className="bg-chart-2/10 text-chart-2 px-4 py-2 rounded-full text-sm font-semibold">
-              ✓ Concher Active
+          <div className="mt-4 flex flex-wrap items-center justify-center gap-3">
+            {/* Concher Status */}
+            <div className={`px-4 py-2 rounded-full text-sm font-semibold ${
+              systemStatus?.daemon?.up 
+                ? "bg-chart-2/10 text-chart-2" 
+                : "bg-destructive/10 text-destructive"
+            }`}>
+              {systemStatus?.daemon?.up ? "✓" : "✗"} Concher {systemStatus?.daemon?.up ? "Active" : "Inactive"}
             </div>
-            <div className="bg-primary/10 text-primary px-4 py-2 rounded-full text-sm font-semibold">
-              ✓ Redis Connected
+            {/* Redis Status */}
+            <div className={`px-4 py-2 rounded-full text-sm font-semibold ${
+              systemStatus?.redis?.connected 
+                ? "bg-chart-2/10 text-chart-2" 
+                : "bg-destructive/10 text-destructive"
+            }`}>
+              {systemStatus?.redis?.connected ? "✓" : "✗"} Redis {systemStatus?.redis?.connected ? "Connected" : "Disconnected"}
+            </div>
+            {/* GitHub Auth Status */}
+            <div className={`px-4 py-2 rounded-full text-sm font-semibold ${
+              systemStatus?.github?.authenticated 
+                ? "bg-chart-2/10 text-chart-2" 
+                : "bg-amber-500/10 text-amber-500"
+            }`}>
+              {systemStatus?.github?.authenticated ? "✓" : "⚠"} GitHub {
+                systemStatus?.github?.authenticated 
+                  ? (systemStatus.github.user ? `(${systemStatus.github.user})` : "Logged In")
+                  : "Not Logged In"
+              }
+            </div>
+            {/* Copilot CLI Status */}
+            <div className={`px-4 py-2 rounded-full text-sm font-semibold ${
+              systemStatus?.copilot?.installed 
+                ? "bg-chart-2/10 text-chart-2" 
+                : "bg-amber-500/10 text-amber-500"
+            }`}>
+              {systemStatus?.copilot?.installed ? "✓" : "⚠"} Copilot CLI {
+                systemStatus?.copilot?.installed ? "Installed" : "Not Found"
+              }
             </div>
           </div>
         </header>
