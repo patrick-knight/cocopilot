@@ -8,6 +8,7 @@
  */
 
 import { Router } from "express";
+import { spawn } from "child_process";
 import type { StateManager } from "../../state/index.js";
 import { createApiError } from "../middleware/error-handler.js";
 
@@ -15,8 +16,58 @@ export function repositoryRoutes(stateManager: StateManager): Router {
   const router = Router();
 
   // POST /repositories -- Initialize repo tracking
+  // Accepts either:
+  //   { url: "https://github.com/org/repo" } - runs coco init
+  //   { name, url, localPath, mode, defaultBranch } - direct add
   router.post("/", async (req, res, next) => {
     const { name, url, localPath, mode, defaultBranch } = req.body ?? {};
+    
+    // If only URL provided, run coco init
+    if (url && !name && !localPath && !mode) {
+      // Validate URL format
+      const urlPattern = /^https?:\/\/(github\.com|gitlab\.com|bitbucket\.org)\/[\w.-]+\/[\w.-]+/i;
+      if (!urlPattern.test(url)) {
+        next(createApiError(400, "Invalid repository URL. Please provide a valid GitHub, GitLab, or Bitbucket URL."));
+        return;
+      }
+
+      try {
+        // Run coco init command
+        const result = await runCocoInit(url);
+        
+        // Reload state to pick up the new repository
+        await stateManager.reloadState();
+        
+        // Get the newly added repo
+        const repos = stateManager.getRepos();
+        const repoName = extractRepoName(url);
+        const newRepo = repos[repoName];
+
+        if (newRepo) {
+          res.status(201).json({
+            message: "Repository onboarded successfully",
+            repository: {
+              name: newRepo.name,
+              url: newRepo.url,
+              defaultBranch: newRepo.defaultBranch,
+              mode: newRepo.mode,
+              status: newRepo.status,
+            },
+          });
+        } else {
+          res.status(201).json({
+            message: "Repository onboarded successfully",
+            output: result,
+          });
+        }
+      } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : String(err);
+        next(createApiError(500, `Failed to onboard repository: ${errorMessage}`));
+      }
+      return;
+    }
+    
+    // Otherwise require all fields for direct add
     if (!name || !url || !localPath || !mode) {
       next(createApiError(400, "Missing required fields: name, url, localPath, mode"));
       return;
@@ -72,4 +123,53 @@ export function repositoryRoutes(stateManager: StateManager): Router {
   });
 
   return router;
+}
+
+/**
+ * Run `coco init <url>` command and return the output
+ */
+function runCocoInit(url: string): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const child = spawn("coco", ["init", url], {
+      shell: true,
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+
+    let stdout = "";
+    let stderr = "";
+
+    child.stdout?.on("data", (data) => {
+      stdout += data.toString();
+    });
+
+    child.stderr?.on("data", (data) => {
+      stderr += data.toString();
+    });
+
+    child.on("error", (err) => {
+      reject(new Error(`Failed to run coco init: ${err.message}`));
+    });
+
+    child.on("close", (code) => {
+      if (code === 0) {
+        resolve(stdout || "Repository initialized successfully");
+      } else {
+        reject(new Error(stderr || stdout || `coco init exited with code ${code}`));
+      }
+    });
+
+    // Timeout after 60 seconds
+    setTimeout(() => {
+      child.kill();
+      reject(new Error("coco init timed out after 60 seconds"));
+    }, 60000);
+  });
+}
+
+/**
+ * Extract repository name from URL
+ */
+function extractRepoName(url: string): string {
+  const match = url.match(/\/([^/]+?)(?:\.git)?$/);
+  return match ? match[1] : url;
 }
