@@ -218,11 +218,31 @@ export function SpawnWorkerModal({
         if (!res.ok) {
           const errBody = await res.json().catch(() => null);
           throw new Error(
-            errBody?.message ?? `Server returned ${res.status}`,
+            errBody?.message ?? errBody?.error ?? `Server returned ${res.status}`,
           );
         }
 
-        const worker: SpawnWorkerResponse = await res.json();
+        const data = await res.json();
+        
+        // Handle 202 Accepted response (async spawn)
+        if (data.status === "accepted") {
+          setPhase("worker_spawned");
+          onWorkerSpawned?.({
+            id: "",
+            name: "pending",
+            task: data.task,
+            branch: body.branch,
+            status: "starting",
+            container_id: "",
+            created_at: new Date().toISOString(),
+          });
+          // Auto-close modal after brief delay
+          setTimeout(() => onClose(), 1500);
+          return;
+        }
+
+        // Handle legacy response with worker object
+        const worker: SpawnWorkerResponse = data;
         setSpawnedWorker(worker);
         setPhase("container_starting");
         onWorkerSpawned?.(worker);

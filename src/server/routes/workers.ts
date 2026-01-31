@@ -58,12 +58,14 @@ export function workerRoutes(
 
     try {
       // Send SPAWN_WORKER message to Chocolatier
+      // Include repoName so the correct Chocolatier handles it
       await broker.send({
         type: MessageType.SPAWN_WORKER,
         from: "api",
         to: "chocolatier",
         payload: {
           task,
+          repoName,
           branch: workerBranch,
           name,
           model,

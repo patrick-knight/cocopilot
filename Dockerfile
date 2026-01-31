@@ -71,19 +71,20 @@ RUN npm ci --omit=dev
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/dist-web ./dist-web
 
-# Copy and setup the GitHub auth helper script
+# Copy and setup the GitHub auth helper scripts
 COPY docker/setup-gh.sh /usr/local/bin/setup-gh.sh
-RUN chmod +x /usr/local/bin/setup-gh.sh
+COPY docker/check-gh.sh /usr/local/bin/check-gh.sh
+RUN chmod +x /usr/local/bin/setup-gh.sh /usr/local/bin/check-gh.sh
 
 # Create symlink for coco command
 RUN ln -s /app/dist/cli/index.js /usr/local/bin/coco && \
     chmod +x /app/dist/cli/index.js
 
-# Add setup script to shell profiles for interactive sessions
-RUN printf '%s\n' 'case $- in *i*) /usr/local/bin/setup-gh.sh ;; esac' > /etc/profile.d/cocopilot-setup.sh \
-    && chmod +x /etc/profile.d/cocopilot-setup.sh \
-    && echo 'case $- in *i*) /usr/local/bin/setup-gh.sh ;; esac' >> /etc/profile \
-    && echo 'case $- in *i*) /usr/local/bin/setup-gh.sh ;; esac' >> /etc/bash.bashrc
+# Add check script to shell profiles for interactive sessions
+# This runs on every login and re-runs setup if gh auth or copilot is missing
+RUN printf '%s\n' '/usr/local/bin/check-gh.sh' > /etc/profile.d/cocopilot-check.sh \
+    && chmod +x /etc/profile.d/cocopilot-check.sh \
+    && echo '/usr/local/bin/check-gh.sh' >> /etc/bash.bashrc
 
 EXPOSE 3000
 
