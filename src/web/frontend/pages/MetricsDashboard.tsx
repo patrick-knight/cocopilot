@@ -18,6 +18,7 @@
  */
 
 import React, { useState, useEffect, useCallback } from "react";
+import { Link } from "react-router-dom";
 import {
   BarChart,
   Bar,
@@ -321,8 +322,17 @@ export function MetricsDashboard(): React.ReactElement {
   return (
     <div className="p-6">
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-[#3B1F0B]">Metrics Dashboard</h1>
-        <p className="mt-1 text-sm text-gray-500">
+        <Link
+          to="/"
+          className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground mb-4"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M19 12H5M12 19l-7-7 7-7"/>
+          </svg>
+          Back to Factory Floor
+        </Link>
+        <h1 className="text-2xl font-bold text-foreground">Metrics Dashboard</h1>
+        <p className="mt-1 text-sm text-muted-foreground">
           System performance and analytics
         </p>
       </div>
