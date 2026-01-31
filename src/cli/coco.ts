@@ -16,6 +16,7 @@ import { registerListCommand } from "./commands/list.js";
 import { registerAgentsCommand } from "./commands/agents.js";
 import { registerConfigCommand } from "./commands/config-keys.js";
 import { registerRemoveCommand } from "./commands/remove.js";
+import { registerRepairCommand } from "./commands/repair.js";
 import { registerCommands } from "./commands/commands.js";
 
 export function createProgram(): Command {
@@ -34,6 +35,7 @@ export function createProgram(): Command {
   registerInitCommand(program);
   registerListCommand(program);
   registerRemoveCommand(program);
+  registerRepairCommand(program);
   registerAgentsCommand(program);
   registerConfigCommand(program);
   registerCommands(program);
