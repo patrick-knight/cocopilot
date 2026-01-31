@@ -15,10 +15,10 @@ const execFileAsync = promisify(execFile);
 
 /**
  * Extract owner and repo name from a GitHub URL.
- * Expects format: https://github.com/{owner}/{repo}[.git]
+ * Expects format: https://github.com/{owner}/{repo}[.git][/]
  */
 export function ownerAndRepoFromUrl(url: string): { owner: string; repo: string } {
-  const cleaned = url.replace(/\.git$/, "");
+  const cleaned = url.replace(/\.git$/, "").replace(/\/$/, "");
   const parts = cleaned.split("/");
   const repo = parts[parts.length - 1];
   const owner = parts[parts.length - 2];

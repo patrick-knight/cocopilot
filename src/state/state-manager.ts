@@ -371,6 +371,7 @@ export class StateManager extends EventEmitter {
     if (!this.state.repositories[name]) {
       throw new Error(`Repository "${name}" is not tracked`);
     }
+    await this.cleanupRepoDir(name);
     delete this.state.repositories[name];
     await this.persistState();
     this.emit("repoRemoved", name);
@@ -534,6 +535,23 @@ export class StateManager extends EventEmitter {
     await this.persistState();
     this.emit("workerRemoved", repoName, workerName);
     this.emit("stateChanged", this.state);
+  }
+
+  /** Remove the on-disk repo directory under ~/.cocopilot/repos/<name>. */
+  private async cleanupRepoDir(name: string): Promise<void> {
+    const repoDir = path.resolve(this.baseDir, "repos", name);
+    const reposRoot = path.resolve(this.baseDir, "repos") + path.sep;
+
+    // Safety check: only delete paths under the repos root
+    if (!repoDir.startsWith(reposRoot)) {
+      return;
+    }
+
+    try {
+      await fs.promises.rm(repoDir, { recursive: true, force: true });
+    } catch {
+      // Best-effort cleanup; ignore errors
+    }
   }
 
   getWorker(

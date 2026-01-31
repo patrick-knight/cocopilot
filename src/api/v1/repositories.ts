@@ -39,15 +39,18 @@ export function extRepositoriesRoutes(deps: RepositoriesDeps): Router {
 
   // POST / — Onboard a new repository
   router.post("/", async (req, res) => {
-    const { url } = req.body;
+    let { url } = req.body;
 
     if (!url || typeof url !== "string") {
       res.status(400).json({ error: "Missing required field: url" });
       return;
     }
 
+    // Normalize URL: remove trailing slash and .git suffix for validation
+    url = url.trim().replace(/\/$/, "");
+
     // Validate URL format
-    const urlPattern = /^https?:\/\/(github\.com|gitlab\.com|bitbucket\.org)\/[\w.-]+\/[\w.-]+/i;
+    const urlPattern = /^https?:\/\/(github\.com|gitlab\.com|bitbucket\.org)\/[\w.-]+\/[\w.-]+(\.git)?$/i;
     if (!urlPattern.test(url)) {
       res.status(400).json({ 
         error: "Invalid repository URL. Please provide a valid GitHub, GitLab, or Bitbucket URL." 

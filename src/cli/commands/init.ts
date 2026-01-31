@@ -12,14 +12,14 @@ import type { ForkInfo } from "../../github/types.js";
 const execFileAsync = promisify(execFile);
 
 const GITHUB_URL_PATTERN =
-  /^https?:\/\/(www\.)?github\.com\/[\w.-]+\/[\w.-]+(\.git)?$/;
+  /^https?:\/\/(www\.)?github\.com\/[\w.-]+\/[\w.-]+(\.git)?\/?$/;
 
 export function isValidGitHubUrl(url: string): boolean {
   return GITHUB_URL_PATTERN.test(url);
 }
 
 export function repoNameFromUrl(url: string): string {
-  const cleaned = url.replace(/\.git$/, "");
+  const cleaned = url.replace(/\.git$/, "").replace(/\/$/, "");
   const parts = cleaned.split("/");
   return parts[parts.length - 1];
 }
