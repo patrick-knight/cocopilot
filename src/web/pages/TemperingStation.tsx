@@ -185,7 +185,7 @@ export function TemperingStation({
     .filter(
       (w) => w.status === "completed" || w.status === "failed" || w.status === "terminated",
     )
-    .sort((a, b) => b.updatedAt - a.updatedAt); // Most recent activity first
+    .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()); // Most recent activity first
 
   // ---------------------------------------------------------------------------
   // Render
