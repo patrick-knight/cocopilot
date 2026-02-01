@@ -89,6 +89,16 @@ export enum ContainerStatus {
   UNKNOWN = "unknown",
 }
 
+/** Container resource usage statistics. */
+export interface ContainerStats {
+  /** Memory usage in bytes. */
+  memoryUsage: number;
+  /** Memory limit in bytes. */
+  memoryLimit: number;
+  /** CPU usage percentage (0-100+). */
+  cpuPercent: number;
+}
+
 /** Information about a running or stopped container. */
 export interface ContainerInfo {
   /** Docker container ID. */

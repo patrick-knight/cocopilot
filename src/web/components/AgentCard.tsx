@@ -148,7 +148,7 @@ export function WorkerCard({ worker, onView, onStop, onDelete, onRestart }: Work
       <div className="mt-1 flex flex-col gap-0.5">
         <p className="text-xs text-muted-foreground/70">Branch: {worker.branch}</p>
         <p className="text-xs text-muted-foreground/70">Last activity: {lastActivity}</p>
-        {worker.prUrl && (
+        {worker.prUrl && worker.prNumber && (
           <a
             href={worker.prUrl}
             target="_blank"

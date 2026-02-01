@@ -148,6 +148,16 @@ function getWorkerDetail(deps: WorkerRouteDeps): RouteHandler {
       try {
         const info = await deps.containerManager.inspect(worker.containerId);
         detail.containerStatus = info.status;
+
+        // Fetch resource stats if container is running
+        if (info.status === ContainerStatus.RUNNING) {
+          const stats = await deps.containerManager.stats(worker.containerId);
+          detail.resources = {
+            memoryUsageMb: stats.memoryUsage / (1024 * 1024),
+            memoryLimitMb: stats.memoryLimit / (1024 * 1024),
+            cpuPercent: stats.cpuPercent,
+          };
+        }
       } catch {
         detail.containerStatus = ContainerStatus.UNKNOWN;
       }
