@@ -40,6 +40,11 @@ export class MessageBroker {
     this.store = new FileMessageStore(config.fileStore);
   }
 
+  /** Get the underlying message store (for API access to historical messages). */
+  get messageStore(): FileMessageStore {
+    return this.store;
+  }
+
   /** Connect to Redis. Must be called before publishing or subscribing. */
   async connect(): Promise<void> {
     await this.bus.connect();

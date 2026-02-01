@@ -95,6 +95,7 @@ export function createServer(deps: ServerDeps): CocoServer {
     broker,
     redisConnected: redisBus ? () => redisBus.isReady : undefined,
     redisBus,
+    messageStore: broker.messageStore,
   });
   app.use("/api/v1", extApi);
 

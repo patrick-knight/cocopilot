@@ -2,20 +2,61 @@
  * Messages API — Real-time stream of inter-agent messages.
  *
  * GET /api/v1/messages/stream — SSE endpoint for real-time message viewing
- * GET /api/v1/messages — List recent messages
+ * GET /api/v1/messages/recent — List recent messages
  */
 
 import { Router, type Request, type Response } from "express";
 import type { RedisMessageBus } from "../../messaging/index.js";
+import type { FileMessageStore } from "../../messaging/file-store.js";
 import { streamChannel } from "../../messaging/types.js";
 
 export interface MessagesDeps {
   redisBus?: RedisMessageBus;
+  messageStore?: FileMessageStore;
 }
 
 export function messagesRoutes(deps: MessagesDeps): Router {
   const router = Router();
-  const { redisBus } = deps;
+  const { redisBus, messageStore } = deps;
+
+  /**
+   * GET /api/v1/messages/recent — List recent messages across all agents.
+   * Query params:
+   *   - repo: Filter by repository name
+   *   - agent: Filter by agent name (from or to)
+   *   - limit: Max number of messages (default 20)
+   */
+  router.get("/recent", async (req: Request, res: Response) => {
+    if (!messageStore) {
+      res.status(503).json({ error: "Message store not available" });
+      return;
+    }
+
+    const { repo, agent, limit = "20" } = req.query as {
+      repo?: string;
+      agent?: string;
+      limit?: string;
+    };
+
+    try {
+      const limitNum = Math.min(100, Math.max(1, parseInt(limit, 10) || 20));
+      let messages = await messageStore.getRecent(limitNum * 2, repo);
+
+      // Filter by agent if specified
+      if (agent) {
+        messages = messages.filter(
+          (m) => m.from === agent || m.to === agent || m.to === "*"
+        );
+      }
+
+      // Apply final limit
+      messages = messages.slice(0, limitNum);
+
+      res.json({ messages });
+    } catch (err) {
+      res.status(500).json({ error: "Failed to fetch messages" });
+    }
+  });
 
   /**
    * SSE endpoint for streaming inter-agent messages in real-time.

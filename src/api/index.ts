@@ -12,6 +12,7 @@
 import { Router } from "express";
 import type { StateManager } from "../state/index.js";
 import type { MessageBroker, RedisMessageBus } from "../messaging/index.js";
+import type { FileMessageStore } from "../messaging/file-store.js";
 
 import { extRepositoriesRoutes } from "./v1/repositories.js";
 import { extWorkerRoutes } from "./v1/workers.js";
@@ -25,6 +26,7 @@ export interface ExtApiDeps {
   broker: MessageBroker;
   redisConnected?: () => boolean;
   redisBus?: RedisMessageBus;
+  messageStore?: FileMessageStore;
 }
 
 /**
@@ -32,7 +34,7 @@ export interface ExtApiDeps {
  * Mount the returned router at `/api/v1` (or wherever the host app prefers).
  */
 export function createExtApiRouter(deps: ExtApiDeps): Router {
-  const { stateManager, broker, redisConnected, redisBus } = deps;
+  const { stateManager, broker, redisConnected, redisBus, messageStore } = deps;
 
   const router = Router();
 
@@ -43,7 +45,7 @@ export function createExtApiRouter(deps: ExtApiDeps): Router {
     "/status",
     extStatusRoutes({ stateManager, redisConnected } satisfies StatusDeps),
   );
-  router.use("/messages", messagesRoutes({ redisBus }));
+  router.use("/messages", messagesRoutes({ redisBus, messageStore }));
   
   // System control endpoints
   router.post("/system/reload-state", (req, res) =>

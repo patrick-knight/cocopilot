@@ -348,6 +348,48 @@ export function useRepoState(repoName: string): UseRepoStateResult {
 }
 
 // ---------------------------------------------------------------------------
+// Message formatting helpers
+// ---------------------------------------------------------------------------
+
+function getMessageTypeEmoji(type: string): string {
+  const emojis: Record<string, string> = {
+    BROADCAST: "📢",
+    NUDGE: "💡",
+    TASK_ASSIGNED: "📋",
+    STATUS_UPDATE: "📊",
+    CODE_REVIEW_REQUEST: "🔍",
+    CODE_REVIEW_RESULT: "✅",
+    ERROR_REPORT: "❌",
+    WORKER_ACTIVITY: "⚙️",
+    HEARTBEAT: "💓",
+  };
+  return emojis[type] || "📨";
+}
+
+function formatMessageContent(msg: any): string {
+  const payload = msg.payload;
+  if (!payload) return "(empty)";
+
+  // Handle different message types
+  if (typeof payload === "string") return payload;
+
+  // Extract meaningful content based on type
+  if (payload.content) return String(payload.content).slice(0, 100);
+  if (payload.message) return String(payload.message).slice(0, 100);
+  if (payload.task) return `Task: ${String(payload.task).slice(0, 80)}`;
+  if (payload.status) return `Status: ${payload.status}`;
+  if (payload.error) return `Error: ${String(payload.error).slice(0, 80)}`;
+
+  // Fallback: show truncated JSON
+  try {
+    const str = JSON.stringify(payload);
+    return str.length > 100 ? str.slice(0, 97) + "..." : str;
+  } catch {
+    return "(complex payload)";
+  }
+}
+
+// ---------------------------------------------------------------------------
 // useAgentStream – subscribe to a single agent's output
 // ---------------------------------------------------------------------------
 
@@ -372,14 +414,19 @@ export function useAgentStream(
 
   const clear = useCallback(() => setLines([]), []);
 
-  // Fetch historical logs when agent is selected
+  // Clear lines and fetch historical logs when agent changes
   useEffect(() => {
-    if (!agentName || !repoName) {
-      setLines([]);
+    // Always clear lines when agent changes
+    setLines([]);
+
+    if (!agentName) {
       return;
     }
 
+    // Try to fetch historical logs for the agent
     const fetchLogs = async () => {
+      if (!repoName) return;
+      
       try {
         // Try worker logs first
         const res = await fetch(
@@ -387,7 +434,7 @@ export function useAgentStream(
         );
         if (res.ok) {
           const data = await res.json();
-          if (data.logs && Array.isArray(data.logs)) {
+          if (data.logs && Array.isArray(data.logs) && data.logs.length > 0) {
             const historicalLines: AgentOutputLine[] = data.logs.map((log: any) => ({
               agent: agentName,
               timestamp: new Date(log.timestamp || Date.now()).getTime(),
@@ -395,6 +442,36 @@ export function useAgentStream(
               stream: log.stream || "stdout",
             }));
             setLines(historicalLines.slice(-maxLines));
+            return; // Found logs, done
+          }
+        }
+      } catch {
+        // Continue to try messages endpoint
+      }
+
+      // Try fetching recent inter-agent messages for system agents
+      try {
+        const msgRes = await fetch(
+          `/api/v1/messages/recent?repo=${encodeURIComponent(repoName)}&agent=${encodeURIComponent(agentName)}&limit=10`
+        );
+        if (msgRes.ok) {
+          const data = await msgRes.json();
+          if (data.messages && Array.isArray(data.messages) && data.messages.length > 0) {
+            const messageLines: AgentOutputLine[] = data.messages.map((msg: any) => {
+              // Format message content for display
+              const typeEmoji = getMessageTypeEmoji(msg.type);
+              const direction = msg.from === agentName ? "→" : "←";
+              const other = msg.from === agentName ? msg.to : msg.from;
+              const content = formatMessageContent(msg);
+              return {
+                agent: agentName,
+                timestamp: msg.timestamp || Date.now(),
+                text: `${typeEmoji} ${direction} ${other}: ${content}`,
+                stream: "stdout" as const,
+              };
+            });
+            // Reverse to show oldest first (API returns newest first)
+            setLines(messageLines.reverse().slice(-maxLines));
           }
         }
       } catch {
@@ -405,14 +482,17 @@ export function useAgentStream(
     fetchLogs();
   }, [agentName, repoName, maxLines]);
 
+  // Subscribe to live output when agent changes
   useEffect(() => {
     if (!socket || !agentName) {
       return;
     }
 
+    // Subscribe to the new agent's stream
     socket.emit("agent:stream:subscribe", agentName);
 
     const appendLine = (line: AgentOutputLine) => {
+      // Only append lines from the currently selected agent
       if (line.agent !== agentName) return;
       setLines((prev) => {
         const next = [...prev, line];
@@ -438,6 +518,7 @@ export function useAgentStream(
     (socket as any).on("batch:agent:output", handleBatchOutput);
 
     return () => {
+      // Unsubscribe from the agent's stream on cleanup
       socket.emit("agent:stream:unsubscribe", agentName);
       socket.off("agent:output", handleOutput);
       (socket as any).off("batch:agent:output", handleBatchOutput);

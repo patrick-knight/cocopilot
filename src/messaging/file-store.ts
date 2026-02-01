@@ -168,6 +168,42 @@ export class FileMessageStore {
     return deleted;
   }
 
+  /**
+   * Get recent messages across all agents, sorted by timestamp descending.
+   * @param limit Maximum number of messages to return
+   * @param repoName Optional filter by repository name
+   */
+  async getRecent(limit = 50, repoName?: string): Promise<CocoMessage[]> {
+    const allMessages: CocoMessage[] = [];
+
+    try {
+      const agents = await fs.promises.readdir(this.basePath, { withFileTypes: true });
+      for (const entry of agents) {
+        if (!entry.isDirectory()) continue;
+        const dir = path.join(this.basePath, entry.name);
+        const messages = await this.readMessagesFromDir(dir, (file) =>
+          file.endsWith(".json") && !file.endsWith(".tmp"),
+        );
+        allMessages.push(...messages);
+      }
+    } catch {
+      // basePath doesn't exist yet
+    }
+
+    // Filter by repo if specified
+    let filtered = allMessages;
+    if (repoName) {
+      filtered = allMessages.filter((m) => {
+        const payload = m.payload as { repoName?: string } | undefined;
+        return payload?.repoName === repoName;
+      });
+    }
+
+    // Sort by timestamp descending (newest first) and limit
+    filtered.sort((a, b) => b.timestamp - a.timestamp);
+    return filtered.slice(0, limit);
+  }
+
   private agentDir(agentName: string): string {
     return path.join(this.basePath, agentName);
   }
