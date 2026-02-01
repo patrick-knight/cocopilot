@@ -61,7 +61,7 @@ if ! command -v copilot >/dev/null 2>&1; then
         echo ""
         echo "Retrying with OpenSSL legacy provider..."
         echo ""
-        if NODE_OPTIONS=--openssl-legacy-provider npm install -g @github/copilot; then
+        if ; then
             echo ""
             echo "✅ GitHub Copilot CLI installed!"
             echo ""
@@ -82,7 +82,7 @@ fi
 mkdir -p "$(dirname "$SETUP_MARKER")"
 touch "$SETUP_MARKER"
 
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "━━━━━━━━━NODE_OPTIONS=--openssl-legacy-provider npm install -g @github/copilot━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "🎉 Setup Complete!"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""

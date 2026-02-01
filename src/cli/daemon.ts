@@ -30,6 +30,7 @@ export async function startDaemon(foreground: boolean = false): Promise<void> {
     // Keep process alive until a signal triggers shutdown
     setInterval(() => {}, 60_000);
     await new Promise<void>(() => {});
+    return; // Foreground mode never reaches here, but explicit return for clarity
   }
 
   // Fork a detached child process running the daemon entry point
