@@ -67,25 +67,97 @@ export class MessageBroker {
     await this.store.save(message as CocoMessage);
     await this.bus.publish(message as CocoMessage);
 
-    // Also publish WORKER_ACTIVITY to the stream channel for Live Output
-    if (options.type === MessageType.WORKER_ACTIVITY) {
-      const payload = options.payload as import("./types.js").WorkerActivityPayload;
-      const channel = streamChannel(`worker:${payload.repoName}:${payload.workerName}`);
-      const streamEvent = {
-        type: "activity" as const,
-        content: JSON.stringify(payload),
-        timestamp: Date.now(),
-        agent: payload.workerName,
-        sessionId: message.id,
-        eventType: payload.activityType,
-      };
-      // Fire-and-forget; don't block the message send, but log errors
-      this.bus.publishRaw(channel, JSON.stringify(streamEvent)).catch(err => {
-        console.error('[MessageBroker] Failed to publish stream event:', err instanceof Error ? err.message : err);
-      });
-    }
+    // Publish ALL messages to stream for Live Output visibility
+    this.publishToStream(message as CocoMessage);
 
     return message;
+  }
+
+  /**
+   * Publish a message to the stream channel for Live Output visibility.
+   * Extracts repoName from the scoped agent/worker names.
+   */
+  private publishToStream(message: CocoMessage): void {
+    // Extract repoName from scoped names (format: "agentType:repoName" or "workerName:repoName")
+    const fromParts = message.from.split(":");
+    const toParts = message.to.split(":");
+    const repoName = fromParts[1] || toParts[1] || "global";
+    
+    // Determine the agent name for the stream channel
+    const agentName = message.from;
+    const channel = streamChannel(agentName);
+
+    // Format message content for human readability
+    let content: string;
+    const payload = message.payload as unknown as Record<string, unknown>;
+    
+    switch (message.type) {
+      case MessageType.BROADCAST:
+        content = `📢 ${(payload as { message?: string }).message || JSON.stringify(payload)}`;
+        break;
+      case MessageType.NUDGE:
+        content = `💡 Nudge to ${message.to}: ${(payload as { hint?: string }).hint || ""}`;
+        break;
+      case MessageType.TASK_ASSIGNED:
+        content = `📋 Task assigned to ${message.to}: ${(payload as { task?: string }).task || ""}`;
+        break;
+      case MessageType.TASK_COMPLETE:
+        content = `✅ Task complete: ${(payload as { summary?: string }).summary || ""}`;
+        break;
+      case MessageType.TASK_FAILED:
+        content = `❌ Task failed: ${(payload as { error?: string }).error || ""}`;
+        break;
+      case MessageType.PR_CREATED:
+        content = `🔗 PR created: ${(payload as { prUrl?: string }).prUrl || ""}`;
+        break;
+      case MessageType.PR_MERGED:
+        content = `🎉 PR merged: ${(payload as { prUrl?: string }).prUrl || ""}`;
+        break;
+      case MessageType.CI_FAILED:
+        content = `🔴 CI failed: ${(payload as { reason?: string }).reason || ""}`;
+        break;
+      case MessageType.REVIEW_COMPLETE:
+        content = `📝 Review complete: ${(payload as { verdict?: string }).verdict || "approved"}`;
+        break;
+      case MessageType.SECURITY_REVIEW_PASSED:
+        content = `🛡️ Security review passed`;
+        break;
+      case MessageType.SECURITY_REVIEW_FAILED:
+        content = `⚠️ Security review failed: ${(payload as { reason?: string }).reason || ""}`;
+        break;
+      case MessageType.SPAWN_WORKER:
+        content = `🚀 Spawn worker requested: ${(payload as { task?: string }).task || ""}`;
+        break;
+      case MessageType.WORKER_ACTIVITY:
+        content = `📊 Activity: ${(payload as { activityType?: string }).activityType || ""}`;
+        break;
+      default:
+        content = `[${message.type}] ${message.from} → ${message.to}`;
+    }
+
+    const streamEvent = {
+      type: "message" as const,
+      content,
+      timestamp: message.timestamp,
+      agent: agentName,
+      sessionId: message.id,
+      eventType: message.type,
+      messageType: message.type,
+      from: message.from,
+      to: message.to,
+      repoName,
+    };
+
+    // Fire-and-forget; don't block the message send
+    this.bus.publishRaw(channel, JSON.stringify(streamEvent)).catch(err => {
+      console.error('[MessageBroker] Failed to publish stream event:', err instanceof Error ? err.message : err);
+    });
+
+    // Also publish to a global messages channel for the repo
+    const globalChannel = streamChannel(`messages:${repoName}`);
+    this.bus.publishRaw(globalChannel, JSON.stringify(streamEvent)).catch(err => {
+      console.error('[MessageBroker] Failed to publish to global channel:', err instanceof Error ? err.message : err);
+    });
   }
 
   /**

@@ -735,6 +735,53 @@ export function registerCommands(program: Command): void {
       }
     });
 
+  messageCmd
+    .command("tail")
+    .description("Watch inter-agent messages in real-time")
+    .option("--repo <name>", "Filter messages by repository")
+    .option("--agent <name>", "Filter messages by agent")
+    .action(async (options: { repo?: string; agent?: string }) => {
+      console.log("📡 Watching inter-agent messages... (Ctrl+C to stop)\n");
+      console.log("─".repeat(60));
+
+      // Dynamic import with workaround for different module systems
+      const eventsource = await import("eventsource");
+      const EventSourceClass = (eventsource as { default?: typeof eventsource.EventSource; EventSource?: typeof eventsource.EventSource }).default 
+        ?? (eventsource as { EventSource: typeof eventsource.EventSource }).EventSource;
+      const baseUrl = `http://localhost:3000/api/v1/messages/stream`;
+      const params = new URLSearchParams();
+      if (options.repo) params.set("repo", options.repo);
+      if (options.agent) params.set("agent", options.agent);
+      const url = params.toString() ? `${baseUrl}?${params}` : baseUrl;
+
+      const es = new EventSourceClass(url);
+
+      es.onmessage = (event: { data: string }) => {
+        try {
+          const msg = JSON.parse(event.data);
+          const time = new Date(msg.timestamp).toLocaleTimeString("en-US", { hour12: false });
+          const type = msg.messageType || msg.type || "MSG";
+          const content = msg.content || JSON.stringify(msg);
+          console.log(`[${time}] ${type.padEnd(20)} ${content}`);
+        } catch {
+          console.log(event.data);
+        }
+      };
+
+      es.onerror = () => {
+        console.error("\n⚠️  Connection lost. Daemon may not be running.");
+        console.error("   Start the daemon with: coco start");
+        process.exit(1);
+      };
+
+      // Handle Ctrl+C
+      process.on("SIGINT", () => {
+        es.close();
+        console.log("\n\n👋 Stopped watching messages.");
+        process.exit(0);
+      });
+    });
+
   // cleanup
   program
     .command("cleanup")

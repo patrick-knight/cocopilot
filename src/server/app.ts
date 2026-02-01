@@ -89,11 +89,12 @@ export function createServer(deps: ServerDeps): CocoServer {
   api.use("/waves", waveReportRoutes(stateManager));
   app.use("/api/v1", api);
 
-  // External integration API (flat worker management, webhooks, status)
+  // External integration API (flat worker management, webhooks, status, messages)
   const extApi = createExtApiRouter({
     stateManager,
     broker,
     redisConnected: redisBus ? () => redisBus.isReady : undefined,
+    redisBus,
   });
   app.use("/api/v1", extApi);
 
