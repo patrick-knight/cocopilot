@@ -18,8 +18,8 @@ WORKDIR /app
 
 # Set HOME explicitly for container
 ENV HOME=/root
-ENV NPM_CONFIG_PREFIX=/root/.npm-global
-ENV PATH=/root/.npm-global/bin:$PATH
+ENV NPM_CONFIG_PREFIX=/root/.cocopilot/npm-global
+ENV PATH=/root/.cocopilot/npm-global/bin:$PATH
 
 # Install system dependencies: Docker CLI, git, GitHub CLI, tmux, and CA certs
 RUN rm -rf /var/lib/apt/lists/* \
@@ -71,10 +71,16 @@ RUN npm ci --omit=dev
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/dist-web ./dist-web
 
+# Create symlinks so gh and copilot-config resolve into the single volume
+RUN mkdir -p /root/.config \
+    && ln -s /root/.cocopilot/gh /root/.config/gh \
+    && ln -s /root/.cocopilot/copilot-config /root/.config/github-copilot
+
 # Copy and setup the GitHub auth helper scripts
 COPY docker/setup-gh.sh /usr/local/bin/setup-gh.sh
 COPY docker/check-gh.sh /usr/local/bin/check-gh.sh
-RUN chmod +x /usr/local/bin/setup-gh.sh /usr/local/bin/check-gh.sh
+COPY docker/entrypoint.sh /usr/local/bin/entrypoint.sh
+RUN chmod +x /usr/local/bin/setup-gh.sh /usr/local/bin/check-gh.sh /usr/local/bin/entrypoint.sh
 
 # Create symlink for coco command
 RUN ln -s /app/dist/cli/index.js /usr/local/bin/coco && \
@@ -88,4 +94,5 @@ RUN printf '%s\n' '/usr/local/bin/check-gh.sh' > /etc/profile.d/cocopilot-check.
 
 EXPOSE 3000
 
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
 CMD ["node", "dist/cli/index.js"]
