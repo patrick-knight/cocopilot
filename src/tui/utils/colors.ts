@@ -2,13 +2,13 @@
  * TUI color utilities - respects NO_COLOR env var
  */
 
-import chalk from "chalk";
+import chalk, { Chalk } from "chalk";
 
 const noColor = process.env.NO_COLOR !== undefined || process.argv.includes("--no-color");
 
 // Create a chalk instance that respects NO_COLOR
 export const colors = noColor
-  ? new chalk.Instance({ level: 0 })
+  ? new Chalk({ level: 0 })
   : chalk;
 
 // Export noColor for other modules

@@ -259,6 +259,7 @@ export function createSocketBridge(
  * Listens for both event name patterns:
  *   - agent:join / agent:leave (legacy)
  *   - agent:stream:subscribe / agent:stream:unsubscribe (current)
+ *   - worker:join / worker:leave (used by LiveOutput component)
  *
  * When a client subscribes, we subscribe to the Redis stream channel
  * for that agent and forward every message as `agent:output`.
@@ -298,13 +299,27 @@ function setupAgentStreamHandlers(socket: Socket, redisBus: RedisMessageBus): vo
           stream: parsed.type === "error" ? "stderr" : "stdout",
         };
         socket.emit("agent:output", outputLine);
+        // Also emit as worker:output for LiveOutput component compatibility
+        socket.emit("worker:output", {
+          workerName: agentName,
+          type: parsed.type === "error" ? "error" : "output",
+          content: outputLine.text,
+          timestamp: outputLine.timestamp,
+        });
       } catch {
         // Fallback for non-JSON messages
+        const text = String(message);
         socket.emit("agent:output", {
           agent: agentName,
           timestamp: Date.now(),
-          text: String(message),
+          text,
           stream: "stdout",
+        });
+        socket.emit("worker:output", {
+          workerName: agentName,
+          type: "output",
+          content: text,
+          timestamp: Date.now(),
         });
       }
     };
@@ -314,14 +329,18 @@ function setupAgentStreamHandlers(socket: Socket, redisBus: RedisMessageBus): vo
     });
   };
 
-  // Listen for both event patterns
+  // Listen for all event patterns (agent:* for agents, worker:* for LiveOutput)
   socket.on("agent:join", join);
   socket.on("agent:stream:subscribe", join);
+  socket.on("worker:join", join);
 
   socket.on("agent:leave", () => {
     leave();
   });
   socket.on("agent:stream:unsubscribe", () => {
+    leave();
+  });
+  socket.on("worker:leave", () => {
     leave();
   });
 

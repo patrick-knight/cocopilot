@@ -27,6 +27,7 @@
   },
   "dependencies": {
     "@github/copilot-sdk": "^0.1.19",
+    "chalk": "^5.4.1",
     "commander": "^14.0.2",
     "cors": "^2.8.6",
     "dockerode": "^4.0.9",
