@@ -19,12 +19,15 @@ export interface GitLogProps {
   workerName: string;
   /** Base API URL (e.g., "/api/v1"). */
   apiBase?: string;
+  /** GitHub repository URL (e.g., "https://github.com/owner/repo"). Used to link commit hashes. */
+  repoUrl?: string;
 }
 
 export const GitLog: React.FC<GitLogProps> = ({
   repoName,
   workerName,
   apiBase = "/api/v1",
+  repoUrl,
 }) => {
   const [commits, setCommits] = useState<GitCommit[]>([]);
   const [loading, setLoading] = useState(true);
@@ -84,9 +87,20 @@ export const GitLog: React.FC<GitLogProps> = ({
           <ul className="space-y-2 overflow-hidden">
             {commits.map((commit) => (
               <li key={commit.hash} className="flex items-start gap-3 min-w-0">
-                <span className="font-mono text-xs text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded shrink-0">
-                  {commit.shortHash}
-                </span>
+                {repoUrl ? (
+                  <a
+                    href={`${repoUrl.replace(/\/+$/, "")}/commit/${commit.hash}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="font-mono text-xs text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded shrink-0 hover:bg-amber-100 hover:underline transition-colors"
+                  >
+                    {commit.shortHash}
+                  </a>
+                ) : (
+                  <span className="font-mono text-xs text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded shrink-0">
+                    {commit.shortHash}
+                  </span>
+                )}
                 <div className="min-w-0 flex-1 overflow-hidden">
                   <p className="text-sm text-stone-800 truncate">
                     {commit.message}

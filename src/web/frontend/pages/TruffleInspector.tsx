@@ -79,6 +79,7 @@ export const TruffleInspector: React.FC<TruffleInspectorProps> = ({
   onBack,
 }) => {
   const [worker, setWorker] = useState<WorkerDetail | null>(null);
+  const [repoUrl, setRepoUrl] = useState<string | undefined>(undefined);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -89,14 +90,19 @@ export const TruffleInspector: React.FC<TruffleInspectorProps> = ({
   const fetchWorker = useCallback(async () => {
     setError(null);
     try {
-      const res = await fetch(
-        `${apiBase}/repositories/${encodeURIComponent(repoName)}/workers/${encodeURIComponent(workerName)}`,
-      );
-      if (!res.ok) {
-        throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+      const [workerRes, repoRes] = await Promise.all([
+        fetch(`${apiBase}/repositories/${encodeURIComponent(repoName)}/workers/${encodeURIComponent(workerName)}`),
+        fetch(`${apiBase}/repositories/${encodeURIComponent(repoName)}`),
+      ]);
+      if (!workerRes.ok) {
+        throw new Error(`HTTP ${workerRes.status}: ${workerRes.statusText}`);
       }
-      const data = (await res.json()) as WorkerDetail;
+      const data = (await workerRes.json()) as WorkerDetail;
       setWorker(data);
+      if (repoRes.ok) {
+        const repoData = (await repoRes.json()) as { url?: string };
+        setRepoUrl(repoData.url);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -357,6 +363,7 @@ export const TruffleInspector: React.FC<TruffleInspectorProps> = ({
                   repoName={repoName}
                   workerName={worker.name}
                   apiBase={apiBase}
+                  repoUrl={repoUrl}
                 />
               </div>
             </section>
