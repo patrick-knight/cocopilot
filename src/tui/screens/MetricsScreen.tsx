@@ -7,10 +7,10 @@ import { Box, Text } from "ink";
 import Spinner from "ink-spinner";
 import { useMetrics } from "../hooks/index.js";
 import { Header } from "../components/index.js";
-import { symbols, colors } from "../utils/colors.js";
+import { symbols, noColor } from "../utils/colors.js";
 
 export function MetricsScreen(): React.ReactElement {
-  const { metrics, loading, error, refresh } = useMetrics();
+  const { metrics, loading, error } = useMetrics();
 
   if (loading && !metrics) {
     return (
@@ -44,7 +44,9 @@ export function MetricsScreen(): React.ReactElement {
   // ASCII bar chart helper
   const barChart = (value: number, max: number, width: number = 20): string => {
     const filled = Math.round((value / max) * width);
-    return "█".repeat(filled) + "░".repeat(width - filled);
+    const filledChar = noColor ? "#" : "█";
+    const emptyChar = noColor ? "-" : "░";
+    return filledChar.repeat(filled) + emptyChar.repeat(width - filled);
   };
 
   // Find max for throughput
@@ -52,7 +54,7 @@ export function MetricsScreen(): React.ReactElement {
 
   // CI success rate
   const totalCI = metrics.ciSuccess.passed + metrics.ciSuccess.failed;
-  const successRate = totalCI > 0 ? (metrics.ciSuccess.passed / totalCI) * 100 : 0;
+  const successRate = totalCI > 0 ? (metrics.ciSuccess.passed / totalCI) * 100 : null;
 
   // Max tokens
   const maxTokens = Math.max(...metrics.tokenUsage.map((t) => t.tokens), 1);
@@ -95,7 +97,7 @@ export function MetricsScreen(): React.ReactElement {
           <Text color="green">{symbols.success} {metrics.ciSuccess.passed} passed</Text>
           <Text> | </Text>
           <Text color="red">{symbols.error} {metrics.ciSuccess.failed} failed</Text>
-          <Text> ({successRate.toFixed(1)}%)</Text>
+          <Text> ({successRate !== null ? `${successRate.toFixed(1)}%` : "N/A"})</Text>
         </Text>
       </Box>
 

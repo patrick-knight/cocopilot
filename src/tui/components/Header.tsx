@@ -5,7 +5,7 @@
 import React from "react";
 import { Box, Text } from "ink";
 import { useRouter, getBreadcrumbs } from "../router.js";
-import { colors, symbols } from "../utils/colors.js";
+import { symbols } from "../utils/colors.js";
 
 export function Header(): React.ReactElement {
   const { screen, canGoBack } = useRouter();

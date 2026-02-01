@@ -11,6 +11,9 @@ export const colors = noColor
   ? new chalk.Instance({ level: 0 })
   : chalk;
 
+// Export noColor for other modules
+export { noColor };
+
 // Status colors
 export const statusColors = {
   healthy: colors.green,
@@ -38,6 +41,7 @@ export const symbols = {
   spinner: noColor ? "*" : "◐",
   bullet: noColor ? "-" : "•",
   arrow: noColor ? ">" : "→",
+  pointer: noColor ? ">" : "❯",
   check: noColor ? "[x]" : "✓",
   cross: noColor ? "[x]" : "✗",
 };
