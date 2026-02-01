@@ -249,12 +249,16 @@ export class TruffleAgent extends EventEmitter<TruffleEvents> {
     // Ensure parent directory exists
     await fs.promises.mkdir(path.dirname(worktreePath), { recursive: true });
 
+    // Clean up stale worktree entries and existing directories
+    await this.pruneStaleWorktrees(repoPath, worktreePath);
+
     if (pushTo) {
       // Iterating on existing PR: fetch and checkout the existing branch
       await this.git(["fetch", "origin", pushTo], repoPath);
-      await this.git(
-        ["worktree", "add", worktreePath, `origin/${pushTo}`],
+      await this.tryAddWorktree(
+        ["worktree", "add", "-f", worktreePath, `origin/${pushTo}`],
         repoPath,
+        worktreePath,
       );
       // Create local tracking branch
       await this.git(
@@ -265,11 +269,16 @@ export class TruffleAgent extends EventEmitter<TruffleEvents> {
       // New work: create the worktree on a new branch (or reuse if it exists)
       const branchExists = await this.localBranchExists(repoPath, branch);
       if (branch === baseBranch || branchExists) {
-        await this.git(["worktree", "add", worktreePath, branch], repoPath);
-      } else {
-        await this.git(
-          ["worktree", "add", "-b", branch, worktreePath, baseBranch],
+        await this.tryAddWorktree(
+          ["worktree", "add", "-f", worktreePath, branch],
           repoPath,
+          worktreePath,
+        );
+      } else {
+        await this.tryAddWorktree(
+          ["worktree", "add", "-f", "-b", branch, worktreePath, baseBranch],
+          repoPath,
+          worktreePath,
         );
       }
     }
@@ -593,6 +602,52 @@ export class TruffleAgent extends EventEmitter<TruffleEvents> {
       maxBuffer: 10 * 1024 * 1024, // 10MB
       timeout: 120_000, // 2 minutes
     });
+  }
+
+  private async pruneStaleWorktrees(
+    repoPath: string,
+    worktreePath: string,
+  ): Promise<void> {
+    try {
+      await this.git(["worktree", "prune"], repoPath);
+    } catch {
+      // Best-effort; ignore
+    }
+
+    try {
+      if (fs.existsSync(worktreePath)) {
+        await fs.promises.rm(worktreePath, { recursive: true, force: true });
+      }
+    } catch {
+      // Best-effort; ignore
+    }
+
+    try {
+      await this.git(["worktree", "prune"], repoPath);
+    } catch {
+      // Best-effort; ignore
+    }
+  }
+
+  private async tryAddWorktree(
+    args: string[],
+    repoPath: string,
+    worktreePath: string,
+  ): Promise<void> {
+    try {
+      await this.git(args, repoPath);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      if (
+        message.includes("already exists") ||
+        message.includes("already registered worktree")
+      ) {
+        await this.pruneStaleWorktrees(repoPath, worktreePath);
+        await this.git(args, repoPath);
+        return;
+      }
+      throw err;
+    }
   }
 
   /** Check if a local branch exists. */

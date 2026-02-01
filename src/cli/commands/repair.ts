@@ -2,7 +2,8 @@ import { Command } from "commander";
 
 interface RepairResponse {
   message: string;
-  cleaned: number;
+  workersCleanedUp: number;
+  agentsRestarted: number;
   errors?: string[];
 }
 
@@ -26,20 +27,28 @@ async function repairViaApi(repoName: string): Promise<RepairResponse> {
 export function registerRepairCommand(program: Command): void {
   program
     .command("repair")
-    .description("Clean up orphaned workers and stale worktrees for a repository")
+    .description("Clean up orphaned workers and restart agents for a repository")
     .argument("<repo-name>", "Repository name to repair")
     .action(async (repoName: string) => {
       try {
         const result = await repairViaApi(repoName);
         
-        if (result.cleaned > 0) {
+        const hasChanges = result.workersCleanedUp > 0 || result.agentsRestarted > 0;
+        
+        if (hasChanges) {
           console.log(`✅ ${result.message}`);
+          if (result.workersCleanedUp > 0) {
+            console.log(`   🧹 Workers cleaned up: ${result.workersCleanedUp}`);
+          }
+          if (result.agentsRestarted > 0) {
+            console.log(`   🔄 Agents restarted: ${result.agentsRestarted}`);
+          }
         } else {
           console.log(`✓ ${result.message}`);
         }
 
         if (result.errors && result.errors.length > 0) {
-          console.log("\n⚠️  Some cleanup errors occurred:");
+          console.log("\n⚠️  Some errors occurred:");
           for (const err of result.errors) {
             console.log(`   - ${err}`);
           }

@@ -12,6 +12,7 @@ import { MessageBroker } from "../messaging/index.js";
 import { Chocolatier } from "../agents/chocolatier.js";
 import { Temperer } from "../agents/temperer.js";
 import { Enrober } from "../agents/enrober.js";
+import { ReviewerAgent } from "../agents/reviewer.js";
 import { SecurityReviewerAgent } from "../agents/security-reviewer.js";
 import { scopedAgentName } from "../agents/scoped-name.js";
 import { ContainerManager as AgentContainerManager } from "../docker/index.js";
@@ -35,6 +36,7 @@ export class Concher {
   private repoAgents: Map<string, {
     chocolatier: Chocolatier;
     mergeAgent: Temperer | Enrober;
+    reviewer: ReviewerAgent;
     securityReviewer: SecurityReviewerAgent;
   }> = new Map();
   private shutdownPromise: Promise<void> | null = null;
@@ -111,6 +113,7 @@ export class Concher {
         broker: this.broker,
         redisBus: this.broker.redisBus,
         eventStore,
+        onRecoverRepository: (repoName) => this.recoverRepository(repoName),
       });
       await startServer(this.server, this.config.webPort);
       logger.info(`Web server listening on port ${this.config.webPort}`);
@@ -130,12 +133,84 @@ export class Concher {
   private async resetAgentStatusesAfterRestart(): Promise<void> {
     const repos = this.state.getRepos();
     for (const [repoName, repo] of Object.entries(repos)) {
+      // Reset crashed system agents - they'll be restarted by ensureRepoAgentsRunning
       for (const agent of Object.values(repo.agents)) {
         if (agent.status === "crashed" && agent.error?.includes("Daemon restarted")) {
-          await this.state.updateAgentStatus(repoName, agent.name, "stopped", "Daemon restarted; agent runtime not restarted");
+          await this.state.updateAgentStatus(repoName, agent.name, "stopped", "Recovering after daemon restart");
+        }
+      }
+
+      // Recover stuck workers
+      for (const [workerName, worker] of Object.entries(repo.workers ?? {})) {
+        if (worker.status === "stuck" && worker.error?.includes("Daemon restarted")) {
+          logger.info(`Auto-recovering stuck worker ${workerName} in ${repoName}`);
+          // Mark as failed first, then attempt recovery via repair
+          await this.state.updateWorkerStatus(repoName, workerName, "failed", {
+            error: "Marked for auto-recovery after daemon restart",
+          });
         }
       }
     }
+  }
+
+  /**
+   * Recover a repository by cleaning up orphaned workers and restarting agents.
+   * Called by auto-recovery on daemon restart and by `coco repair` command.
+   */
+  async recoverRepository(repoName: string): Promise<{
+    agentsRestarted: number;
+    workersCleanedUp: number;
+    errors: string[];
+  }> {
+    const repo = this.state.getRepo(repoName);
+    if (!repo) {
+      throw new Error(`Repository "${repoName}" not found`);
+    }
+
+    const result = {
+      agentsRestarted: 0,
+      workersCleanedUp: 0,
+      errors: [] as string[],
+    };
+
+    // Clean up orphaned workers (failed, stuck, terminated, completed)
+    const workers = repo.workers ?? {};
+    const orphanedStatuses = ["failed", "stuck", "terminated", "completed"];
+
+    for (const [workerName, worker] of Object.entries(workers)) {
+      if (orphanedStatuses.includes(worker.status)) {
+        try {
+          // Clean up worktree if exists
+          if (repo.localPath) {
+            const { cleanupWorktree } = await import("../git/index.js");
+            await cleanupWorktree(repo.localPath, workerName).catch(() => {});
+          }
+          // Remove from state
+          await this.state.removeWorker(repoName, workerName);
+          result.workersCleanedUp++;
+          logger.info(`Cleaned up worker ${workerName} in ${repoName}`);
+        } catch (err) {
+          const msg = `Failed to clean up worker ${workerName}: ${err instanceof Error ? err.message : String(err)}`;
+          result.errors.push(msg);
+          logger.warn(msg);
+        }
+      }
+    }
+
+    // Restart system agents if not running
+    if (!this.repoAgents.has(repoName) && repo.localPath) {
+      try {
+        await this.startRepoAgentsForRepo(repoName, repo);
+        result.agentsRestarted = 4; // chocolatier, merge-agent, reviewer, security-reviewer
+        logger.info(`Restarted agents for ${repoName}`);
+      } catch (err) {
+        const msg = `Failed to restart agents: ${err instanceof Error ? err.message : String(err)}`;
+        result.errors.push(msg);
+        logger.error(msg);
+      }
+    }
+
+    return result;
   }
 
   /**
@@ -277,7 +352,14 @@ export class Concher {
 
       await mergeAgent.start();
 
-      // Start security reviewer agent
+      // Start code reviewer agent (general code quality)
+      const reviewer = new ReviewerAgent(
+        { repoPath: repo.localPath, repoName },
+        this.broker,
+      );
+      await reviewer.start();
+
+      // Start security reviewer agent (security-focused analysis)
       const securityReviewer = new SecurityReviewerAgent(
         { repoPath: repo.localPath, repoName },
         this.broker,
@@ -285,7 +367,7 @@ export class Concher {
       await securityReviewer.start();
 
       // Set the map entry BEFORE state updates to prevent re-entry from stateChanged events
-      this.repoAgents.set(repoName, { chocolatier, mergeAgent, securityReviewer });
+      this.repoAgents.set(repoName, { chocolatier, mergeAgent, reviewer, securityReviewer });
 
       await this.state.setAgent(repoName, {
         name: scopedAgentName("chocolatier", repoName),
@@ -296,6 +378,12 @@ export class Concher {
       await this.state.setAgent(repoName, {
         name: repo.mode === "multiplayer" ? scopedAgentName("enrober", repoName) : scopedAgentName("temperer", repoName),
         type: repo.mode === "multiplayer" ? "pr-shepherd" : "merge-queue",
+        status: "healthy",
+      });
+
+      await this.state.setAgent(repoName, {
+        name: scopedAgentName("reviewer", repoName),
+        type: "reviewer",
         status: "healthy",
       });
 
@@ -320,12 +408,14 @@ export class Concher {
     if (!agents) return;
     await agents.chocolatier.stop().catch(() => {});
     await agents.mergeAgent.stop().catch(() => {});
+    await agents.reviewer.stop().catch(() => {});
     await agents.securityReviewer.stop().catch(() => {});
     await this.state.updateAgentStatus(repoName, scopedAgentName("chocolatier", repoName), "stopped").catch(() => {});
     const mergeName = agents.mergeAgent instanceof Enrober
       ? scopedAgentName("enrober", repoName)
       : scopedAgentName("temperer", repoName);
     await this.state.updateAgentStatus(repoName, mergeName, "stopped").catch(() => {});
+    await this.state.updateAgentStatus(repoName, scopedAgentName("reviewer", repoName), "stopped").catch(() => {});
     await this.state.updateAgentStatus(repoName, scopedAgentName("security-reviewer", repoName), "stopped").catch(() => {});
     this.repoAgents.delete(repoName);
   }

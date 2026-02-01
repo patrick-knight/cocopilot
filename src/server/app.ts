@@ -35,6 +35,12 @@ export interface ServerDeps {
   broker: MessageBroker;
   redisBus?: RedisMessageBus;
   eventStore?: EventStore;
+  /** Optional callback for repository recovery (used by repair endpoint) */
+  onRecoverRepository?: (repoName: string) => Promise<{
+    agentsRestarted: number;
+    workersCleanedUp: number;
+    errors: string[];
+  }>;
 }
 
 export interface CocoServer {
@@ -48,7 +54,7 @@ export interface CocoServer {
  * attached, and bridges wired up.
  */
 export function createServer(deps: ServerDeps): CocoServer {
-  const { stateManager, broker, redisBus, eventStore } = deps;
+  const { stateManager, broker, redisBus, eventStore, onRecoverRepository } = deps;
 
   const app = express();
 
@@ -63,7 +69,7 @@ export function createServer(deps: ServerDeps): CocoServer {
   // REST API routes under /api/v1
   const api = express.Router();
   api.use("/config", configRoutes(stateManager));
-  api.use("/repositories", repositoryRoutes(stateManager));
+  api.use("/repositories", repositoryRoutes(stateManager, onRecoverRepository));
   api.use(
     "/repositories/:repoName/workers",
     workerRoutes(stateManager, broker),

@@ -13,7 +13,7 @@
 // Enums / union types
 // ---------------------------------------------------------------------------
 
-export type AgentType = "supervisor" | "merge-queue" | "pr-shepherd" | "worker" | "security";
+export type AgentType = "supervisor" | "merge-queue" | "pr-shepherd" | "worker" | "reviewer" | "security";
 
 export type AgentStatus =
   | "starting"

@@ -5,6 +5,7 @@
  * GET    /api/v1/repositories             -- List all repos
  * GET    /api/v1/repositories/:repoName   -- Get repo detail
  * DELETE /api/v1/repositories/:repoName   -- Remove repo
+ * POST   /api/v1/repositories/:repoName/repair -- Repair/recover repository
  */
 
 import { Router } from "express";
@@ -13,7 +14,17 @@ import type { StateManager } from "../../state/index.js";
 import { cleanupWorktree } from "../../git/index.js";
 import { createApiError } from "../middleware/error-handler.js";
 
-export function repositoryRoutes(stateManager: StateManager): Router {
+/** Recovery function signature for the repair endpoint */
+export type RecoverRepositoryFn = (repoName: string) => Promise<{
+  agentsRestarted: number;
+  workersCleanedUp: number;
+  errors: string[];
+}>;
+
+export function repositoryRoutes(
+  stateManager: StateManager,
+  onRecoverRepository?: RecoverRepositoryFn,
+): Router {
   const router = Router();
 
   // POST /repositories -- Initialize repo tracking
@@ -123,7 +134,7 @@ export function repositoryRoutes(stateManager: StateManager): Router {
     }
   });
 
-  // POST /repositories/:repoName/repair -- Clean up orphaned workers and stale worktrees
+  // POST /repositories/:repoName/repair -- Clean up orphaned workers, restart agents
   router.post("/:repoName/repair", async (req, res, next) => {
     const { repoName } = req.params;
     const repo = stateManager.getRepo(repoName);
@@ -133,6 +144,31 @@ export function repositoryRoutes(stateManager: StateManager): Router {
     }
 
     try {
+      // If we have the full recovery function (from Concher), use it
+      if (onRecoverRepository) {
+        const result = await onRecoverRepository(repoName);
+        const messages: string[] = [];
+        
+        if (result.workersCleanedUp > 0) {
+          messages.push(`Cleaned up ${result.workersCleanedUp} orphaned worker(s)`);
+        }
+        if (result.agentsRestarted > 0) {
+          messages.push(`Restarted ${result.agentsRestarted} agent(s)`);
+        }
+        if (messages.length === 0) {
+          messages.push("No recovery needed");
+        }
+
+        res.json({
+          message: messages.join(". "),
+          workersCleanedUp: result.workersCleanedUp,
+          agentsRestarted: result.agentsRestarted,
+          errors: result.errors.length > 0 ? result.errors : undefined,
+        });
+        return;
+      }
+
+      // Fallback: basic cleanup without agent restart (if no recovery function)
       const workers = repo.workers || {};
       const orphanedStatuses = ["failed", "stuck", "terminated", "completed"];
       let cleaned = 0;
@@ -158,7 +194,8 @@ export function repositoryRoutes(stateManager: StateManager): Router {
         message: cleaned > 0 
           ? `Cleaned up ${cleaned} orphaned worker(s)` 
           : "No orphaned workers found",
-        cleaned,
+        workersCleanedUp: cleaned,
+        agentsRestarted: 0,
         errors: errors.length > 0 ? errors : undefined,
       });
     } catch (err) {

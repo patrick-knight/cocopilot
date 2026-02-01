@@ -167,6 +167,12 @@ export const AGENT_DISPLAY: Record<AgentType, AgentDisplayInfo> = {
     description: "Worker — executes a single task",
     color: "text-stone-700",
   },
+  reviewer: {
+    label: "Reviewer",
+    icon: "📝",
+    description: "Reviewer — reviews PRs for code quality",
+    color: "text-blue-700",
+  },
   security: {
     label: "Security Reviewer",
     icon: "🔒",
