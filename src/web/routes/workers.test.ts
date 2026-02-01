@@ -38,6 +38,11 @@ function createMockContainerManager(): jest.Mocked<ContainerManager> {
     logs: jest.fn(),
     stop: jest.fn(),
     destroy: jest.fn(),
+    stats: jest.fn().mockResolvedValue({
+      memoryUsage: 256 * 1024 * 1024,
+      memoryLimit: 4096 * 1024 * 1024,
+      cpuPercent: 12.5,
+    }),
   } as unknown as jest.Mocked<ContainerManager>;
 }
 

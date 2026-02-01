@@ -38,14 +38,28 @@ jest.mock("recharts", () => ({
   ),
 }));
 
+// @ts-expect-error -- required for React 18 act() in tests
+globalThis.IS_REACT_ACT_ENVIRONMENT = true;
+
 // Import after mocking
 import { MetricsDashboard } from "./MetricsDashboard.js";
+import { MemoryRouter } from "react-router-dom";
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
 const MOCK_METRICS = {
+  summary: {
+    totalWorkers: 5,
+    activeWorkers: 2,
+    completedWorkers: 2,
+    failedWorkers: 1,
+    totalPRs: 3,
+    totalRepos: 1,
+    avgCompletionTimeHours: 2.5,
+    successRate: 83,
+  },
   workerThroughput: [
     { hour: "2026-01-15T10:00", count: 2 },
     { hour: "2026-01-15T11:00", count: 1 },
@@ -118,7 +132,7 @@ describe("MetricsDashboard", () => {
       root.render(React.createElement(MetricsDashboard));
     });
 
-    expect(container.textContent).toContain("Failed to load metrics");
+    expect(container.textContent).toContain("Failed to Load Metrics");
     expect(container.textContent).toContain("Network error");
 
     act(() => {
@@ -141,14 +155,20 @@ describe("MetricsDashboard", () => {
     const { act } = require("react");
 
     await act(async () => {
-      root.render(React.createElement(MetricsDashboard));
+      root.render(
+        React.createElement(
+          MemoryRouter,
+          null,
+          React.createElement(MetricsDashboard),
+        ),
+      );
     });
 
     expect(container.textContent).toContain("Metrics Dashboard");
     expect(container.textContent).toContain("Worker Throughput");
     expect(container.textContent).toContain("PR Cycle Time");
     expect(container.textContent).toContain("CI Success Rate");
-    expect(container.textContent).toContain("Token Usage by Model");
+    expect(container.textContent).toContain("Tasks by Model");
 
     act(() => {
       root.unmount();
@@ -174,7 +194,7 @@ describe("MetricsDashboard", () => {
       root.render(React.createElement(MetricsDashboard));
     });
 
-    expect(container.textContent).toContain("Failed to load metrics");
+    expect(container.textContent).toContain("Failed to Load Metrics");
     expect(container.textContent).toContain("HTTP 500");
 
     act(() => {

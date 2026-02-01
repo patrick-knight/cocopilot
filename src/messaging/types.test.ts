@@ -27,11 +27,12 @@ describe("MessageType enum", () => {
     expect(MessageType.SECURITY_REVIEW_PASSED).toBe("SECURITY_REVIEW_PASSED");
     expect(MessageType.SECURITY_REVIEW_FAILED).toBe("SECURITY_REVIEW_FAILED");
     expect(MessageType.WORKER_ACTIVITY).toBe("WORKER_ACTIVITY");
+    expect(MessageType.CODE_REVIEW_REQUEST).toBe("CODE_REVIEW_REQUEST");
   });
 
-  it("has exactly 17 message types", () => {
+  it("has exactly 18 message types", () => {
     const values = Object.values(MessageType);
-    expect(values).toHaveLength(17);
+    expect(values).toHaveLength(18);
   });
 });
 

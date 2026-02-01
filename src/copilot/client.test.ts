@@ -82,6 +82,7 @@ function createMockBus(ready = true) {
   return {
     isReady: ready,
     publish: jest.fn().mockResolvedValue(undefined),
+    publishRaw: jest.fn().mockResolvedValue(undefined),
     subscribe: jest.fn().mockResolvedValue(undefined),
     unsubscribe: jest.fn().mockResolvedValue(undefined),
     subscribeChannel: jest.fn().mockResolvedValue(undefined),

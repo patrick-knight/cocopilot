@@ -1,5 +1,5 @@
 /**
- * Full User Journey E2E Test — Jest + supertest + Socket.IO client.
+ * Full User Journey E2E Test -- Jest + supertest + Socket.IO client.
  *
  * Chains the complete critical user flow through the API and WebSocket
  * layers:
@@ -130,7 +130,7 @@ afterAll(async () => {
 // Full User Journey
 // ---------------------------------------------------------------------------
 
-describe("Full user journey: init → spawn → monitor → merge → cleanup", () => {
+describe("Full user journey: init -> spawn -> monitor -> merge -> cleanup", () => {
   let client: ClientSocket;
   const REPO_NAME = "journey-repo";
   let workerName: string;
@@ -148,7 +148,7 @@ describe("Full user journey: init → spawn → monitor → merge → cleanup", 
   });
 
   // Step 1: Initialize repository
-  it("Step 1 — creates a new repository via API", async () => {
+  it("Step 1 -- creates a new repository via API", async () => {
     const res = await request(server.httpServer)
       .post("/api/v1/repositories")
       .send({
@@ -166,7 +166,7 @@ describe("Full user journey: init → spawn → monitor → merge → cleanup", 
   });
 
   // Step 2: Verify repository appears in listing
-  it("Step 2 — verifies repository appears in list", async () => {
+  it("Step 2 -- verifies repository appears in list", async () => {
     const res = await request(server.httpServer).get(
       "/api/v1/repositories",
     );
@@ -180,7 +180,7 @@ describe("Full user journey: init → spawn → monitor → merge → cleanup", 
   });
 
   // Step 3: Set up agents (supervisor + merge queue)
-  it("Step 3 — sets up supervisor and merge queue agents", async () => {
+  it("Step 3 -- sets up supervisor and merge queue agents", async () => {
     // Simulate daemon setting up agents via StateManager directly
     await stateManager.setAgent(REPO_NAME, {
       name: "chocolatier",
@@ -205,33 +205,34 @@ describe("Full user journey: init → spawn → monitor → merge → cleanup", 
     expect(names).toContain("temperer");
   });
 
-  // Step 4: Spawn a worker and receive WebSocket event
-  it("Step 4 — spawns a worker and receives worker_spawned event", async () => {
-    // Set up event listener before spawning
-    const eventPromise = waitForEvent<{
-      repository: string;
-      worker: { name: string; task: string; status: string };
-    }>(client, "worker_spawned");
-
+  // Step 4: Spawn a worker (API returns 202, simulate Chocolatier creating worker)
+  it("Step 4 -- spawns a worker via API and simulates Chocolatier response", async () => {
+    // Request spawn via API
     const res = await request(server.httpServer)
       .post(`/api/v1/repositories/${REPO_NAME}/workers`)
       .send({ task: "Implement JWT authentication middleware" });
 
-    expect(res.status).toBe(201);
-    workerName = res.body.name;
-    expect(workerName).toBeDefined();
-    expect(res.body.task).toBe("Implement JWT authentication middleware");
-    expect(res.body.status).toBe("starting");
-    expect(res.body.branch).toContain("work/");
+    expect(res.status).toBe(202);
+    expect(res.body.status).toBe("accepted");
 
-    // Verify WebSocket event
-    const event = await eventPromise;
-    expect(event.repository).toBe(REPO_NAME);
-    expect(event.worker.name).toBe(workerName);
+    // Simulate Chocolatier creating the worker in state
+    const worker = await stateManager.addWorker(REPO_NAME, {
+      task: "Implement JWT authentication middleware",
+    });
+    workerName = worker.name;
+    expect(workerName).toBeDefined();
+
+    // Verify worker exists via API
+    const getRes = await request(server.httpServer).get(
+      `/api/v1/repositories/${REPO_NAME}/workers/${workerName}`,
+    );
+    expect(getRes.status).toBe(200);
+    expect(getRes.body.task).toBe("Implement JWT authentication middleware");
+    expect(getRes.body.status).toBe("starting");
   });
 
-  // Step 5: Monitor worker — simulate progress via state transitions
-  it("Step 5 — monitors worker status transitions via WebSocket", async () => {
+  // Step 5: Monitor worker -- simulate progress via state transitions
+  it("Step 5 -- monitors worker status transitions via WebSocket", async () => {
     // Listen for worker_updated event
     const eventPromise = waitForEvent<{
       repository: string;
@@ -254,8 +255,8 @@ describe("Full user journey: init → spawn → monitor → merge → cleanup", 
     expect(res.body.status).toBe("working");
   });
 
-  // Step 6: Worker creates a PR — simulate via state update
-  it("Step 6 — worker creates a PR", async () => {
+  // Step 6: Worker creates a PR -- simulate via state update
+  it("Step 6 -- worker creates a PR", async () => {
     const eventPromise = waitForEvent<{
       repository: string;
       worker: { name: string; status: string; prNumber: number };
@@ -283,8 +284,8 @@ describe("Full user journey: init → spawn → monitor → merge → cleanup", 
     expect(res.body.prUrl).toBe("https://github.com/acme/journey/pull/42");
   });
 
-  // Step 7: Worker completes — CI passes and PR merges
-  it("Step 7 — worker completes and PR is merged", async () => {
+  // Step 7: Worker completes -- CI passes and PR merges
+  it("Step 7 -- worker completes and PR is merged", async () => {
     const eventPromise = waitForEvent<{
       repository: string;
       worker: { name: string; status: string };
@@ -311,7 +312,7 @@ describe("Full user journey: init → spawn → monitor → merge → cleanup", 
   });
 
   // Step 8: Verify merge was recorded on repository
-  it("Step 8 — verifies merge recorded on repository", async () => {
+  it("Step 8 -- verifies merge recorded on repository", async () => {
     const res = await request(server.httpServer).get(
       `/api/v1/repositories/${REPO_NAME}`,
     );
@@ -321,17 +322,15 @@ describe("Full user journey: init → spawn → monitor → merge → cleanup", 
   });
 
   // Step 9: Nudge a worker (send a message)
-  it("Step 9 — can nudge a worker via the API", async () => {
-    // First spawn another worker to nudge
-    const spawnRes = await request(server.httpServer)
-      .post(`/api/v1/repositories/${REPO_NAME}/workers`)
-      .send({ task: "Refactor the database layer" });
-    expect(spawnRes.status).toBe(201);
-    const worker2 = spawnRes.body.name;
+  it("Step 9 -- can nudge a worker via the API", async () => {
+    // Spawn another worker directly in state to nudge
+    const worker2 = await stateManager.addWorker(REPO_NAME, {
+      task: "Refactor the database layer",
+    });
 
     const nudgeRes = await request(server.httpServer)
       .post(
-        `/api/v1/repositories/${REPO_NAME}/workers/${worker2}/nudge`,
+        `/api/v1/repositories/${REPO_NAME}/workers/${worker2.name}/nudge`,
       )
       .send({ hint: "Try checking the error logs" });
 
@@ -339,8 +338,8 @@ describe("Full user journey: init → spawn → monitor → merge → cleanup", 
     expect([200, 204]).toContain(nudgeRes.status);
   });
 
-  // Step 10: Cleanup — remove workers and repository
-  it("Step 10 — cleans up workers and repository", async () => {
+  // Step 10: Cleanup -- remove workers and repository
+  it("Step 10 -- cleans up workers and repository", async () => {
     // List all workers
     const listRes = await request(server.httpServer).get(
       `/api/v1/repositories/${REPO_NAME}/workers`,
@@ -431,11 +430,9 @@ describe("Concurrent worker management", () => {
 
     const workers = [];
     for (const task of tasks) {
-      const res = await request(server.httpServer)
-        .post(`/api/v1/repositories/${REPO_NAME}/workers`)
-        .send({ task });
-      expect(res.status).toBe(201);
-      workers.push(res.body);
+      // Simulate Chocolatier creating each worker directly in state
+      const worker = await stateManager.addWorker(REPO_NAME, { task });
+      workers.push(worker);
     }
 
     // All names should be unique
@@ -536,7 +533,7 @@ describe("Error handling in user flows", () => {
     await request(server.httpServer).delete("/api/v1/repositories/dupe-test");
   });
 
-  it("returns 409 when spawning a duplicate-named worker", async () => {
+  it("returns 202 for spawn request (duplicate detection is async via Chocolatier)", async () => {
     await request(server.httpServer)
       .post("/api/v1/repositories")
       .send({
@@ -546,22 +543,18 @@ describe("Error handling in user flows", () => {
         mode: "single-player",
       });
 
-    // First worker
-    await request(server.httpServer)
+    // Spawn requests always return 202 (async) - Chocolatier handles duplicates
+    const res1 = await request(server.httpServer)
       .post("/api/v1/repositories/dupe-worker-test/workers")
-      .send({ task: "First task", name: "Twix" });
+      .send({ task: "First task" });
+    expect(res1.status).toBe(202);
 
-    // Duplicate name
-    const res = await request(server.httpServer)
+    const res2 = await request(server.httpServer)
       .post("/api/v1/repositories/dupe-worker-test/workers")
-      .send({ task: "Second task", name: "Twix" });
-
-    expect(res.status).toBe(409);
+      .send({ task: "Second task" });
+    expect(res2.status).toBe(202);
 
     // Cleanup
-    await request(server.httpServer).delete(
-      "/api/v1/repositories/dupe-worker-test/workers/Twix",
-    );
     await request(server.httpServer).delete(
       "/api/v1/repositories/dupe-worker-test",
     );

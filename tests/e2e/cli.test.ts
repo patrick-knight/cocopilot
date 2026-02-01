@@ -153,10 +153,19 @@ async function runCLI(
   const origError = console.error;
   const origWarn = console.warn;
   const origExitCode = process.exitCode;
+  const origExit = process.exit;
 
   console.log = (...a: unknown[]) => logs.push(a.map(String).join(" "));
   console.error = (...a: unknown[]) => errors.push(a.map(String).join(" "));
   console.warn = (...a: unknown[]) => errors.push(a.map(String).join(" "));
+
+  // Mock process.exit to capture exit code without actually exiting.
+  // We do NOT throw here because the init command wraps process.exit(0)
+  // inside a try/catch, and throwing would be caught by the command's
+  // own error handler, which would set exitCode to 1.
+  process.exit = ((code?: number) => {
+    exitCode = code ?? 0;
+  }) as never;
 
   try {
     process.exitCode = undefined as unknown as number;
@@ -167,16 +176,22 @@ async function runCLI(
       writeErr: (str: string) => errors.push(str),
     });
     await program.parseAsync(["node", "coco", ...args]);
-    exitCode = (process.exitCode as number) ?? 0;
+    exitCode = (process.exitCode as number) ?? exitCode;
   } catch (err: unknown) {
     // Commander throws on --help, --version, and unknown commands
     const code = (err as { exitCode?: number }).exitCode;
-    exitCode = code ?? 1;
+    if (code !== undefined) {
+      exitCode = code;
+    } else if (exitCode === 0) {
+      // Only override if not already set by process.exit mock
+      exitCode = 1;
+    }
   } finally {
     console.log = origLog;
     console.error = origError;
     console.warn = origWarn;
     process.exitCode = origExitCode;
+    process.exit = origExit;
   }
 
   return {

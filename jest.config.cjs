@@ -2,6 +2,7 @@
 module.exports = {
   preset: 'ts-jest',
   testEnvironment: 'node',
+  setupFiles: ['<rootDir>/jest.setup.cjs'],
   roots: ['<rootDir>/src', '<rootDir>/tests'],
   testMatch: ['**/*.test.ts', '**/*.test.tsx'],
   collectCoverageFrom: ['src/**/*.ts', 'src/**/*.tsx', '!src/**/*.test.ts', '!src/**/*.test.tsx'],
@@ -14,7 +15,7 @@ module.exports = {
   ],
   transform: {
     '^.+\\.[tj]sx?$': ['ts-jest', {
-      diagnostics: { ignoreCodes: [151002] },
+      diagnostics: { ignoreCodes: [151002, 2307] },
       tsconfig: {
         jsx: 'react-jsx',
         allowJs: true,

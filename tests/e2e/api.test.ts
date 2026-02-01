@@ -131,33 +131,24 @@ describe("GET /api/v1/repositories/:repoName", () => {
 // ---------------------------------------------------------------------------
 
 describe("POST /api/v1/repositories/:repoName/workers", () => {
-  it("spawns a new worker", async () => {
+  it("sends spawn request and returns 202", async () => {
     const res = await request(server.httpServer)
       .post("/api/v1/repositories/test-repo/workers")
       .send({ task: "Fix the login bug" });
 
-    expect(res.status).toBe(201);
+    expect(res.status).toBe(202);
     expect(res.body).toMatchObject({
+      status: "accepted",
       task: "Fix the login bug",
-      status: "starting",
     });
-    expect(res.body.name).toBeDefined();
-    expect(res.body.id).toBeDefined();
-    expect(res.body.branch).toContain("work/");
-  });
-
-  it("accepts optional name and model", async () => {
-    const res = await request(server.httpServer)
-      .post("/api/v1/repositories/test-repo/workers")
-      .send({
-        task: "Refactor auth",
-        name: "KitKat",
-        model: "claude-sonnet-4-5",
-      });
-
-    expect(res.status).toBe(201);
-    expect(res.body.name).toBe("KitKat");
-    expect(res.body.model).toBe("claude-sonnet-4-5");
+    // Broker should have received the SPAWN_WORKER message
+    expect(broker.send).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: "SPAWN_WORKER",
+        to: "chocolatier:test-repo",
+        payload: expect.objectContaining({ task: "Fix the login bug" }),
+      }),
+    );
   });
 
   it("returns 400 when task is missing", async () => {
@@ -176,18 +167,21 @@ describe("POST /api/v1/repositories/:repoName/workers", () => {
 
     expect(res.status).toBe(404);
   });
-
-  it("returns 409 when worker name already exists", async () => {
-    const res = await request(server.httpServer)
-      .post("/api/v1/repositories/test-repo/workers")
-      .send({ task: "Another task", name: "KitKat" });
-
-    expect(res.status).toBe(409);
-    expect(res.body.error).toContain("already exists");
-  });
 });
 
 describe("GET /api/v1/repositories/:repoName/workers", () => {
+  // Pre-populate workers directly in state (Chocolatier would normally do this)
+  beforeAll(async () => {
+    await stateManager.addWorker("test-repo", {
+      task: "Refactor auth",
+      name: "KitKat",
+      model: "claude-sonnet-4-5",
+    });
+    await stateManager.addWorker("test-repo", {
+      task: "Fix the login bug",
+    });
+  });
+
   it("lists all workers in the repository", async () => {
     const res = await request(server.httpServer).get(
       "/api/v1/repositories/test-repo/workers",
@@ -301,12 +295,18 @@ describe("full API lifecycle", () => {
     expect(createRepo.status).toBe(201);
     expect(createRepo.body.mode).toBe("multiplayer");
 
-    // 2. Spawn a worker
+    // 2. Spawn a worker via API (returns 202 - async)
     const spawnWorker = await request(server.httpServer)
       .post("/api/v1/repositories/lifecycle-repo/workers")
       .send({ task: "Add dark mode" });
-    expect(spawnWorker.status).toBe(201);
-    const workerName = spawnWorker.body.name;
+    expect(spawnWorker.status).toBe(202);
+    expect(spawnWorker.body.status).toBe("accepted");
+
+    // Simulate Chocolatier creating the worker in state
+    const worker = await stateManager.addWorker("lifecycle-repo", {
+      task: "Add dark mode",
+    });
+    const workerName = worker.name;
 
     // 3. List workers - should have exactly one
     const listWorkers = await request(server.httpServer).get(

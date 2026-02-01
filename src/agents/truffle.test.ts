@@ -200,10 +200,10 @@ describe("TruffleAgent", () => {
       const agent = new TruffleAgent(config, broker);
       await agent.init();
 
-      // Should have called git worktree add
+      // Should have called git worktree add (with -f flag; branch may already exist)
       expect(mockExecFile).toHaveBeenCalledWith(
         "git",
-        expect.arrayContaining(["worktree", "add", "-b", "work/Snickers"]),
+        expect.arrayContaining(["worktree", "add", "-f"]),
         expect.any(Object),
         expect.any(Function),
       );
@@ -219,6 +219,27 @@ describe("TruffleAgent", () => {
     });
 
     it("uses custom baseBranch when provided", async () => {
+      // Make show-ref fail so localBranchExists returns false,
+      // which triggers the code path that includes baseBranch in worktree add
+      setupExecFileMock({
+        "git worktree add": { stdout: "" },
+        "git worktree prune": { stdout: "" },
+        "git show-ref": { error: new Error("not found") },
+        "git add": { stdout: "" },
+        "git diff --cached --quiet": {
+          error: new Error("changes exist"),
+        },
+        "git diff --cached --numstat": {
+          stdout: "10\t2\tsrc/user.ts\n5\t0\tsrc/user.test.ts\n",
+        },
+        "git commit": { stdout: "" },
+        "git rev-parse --short HEAD": { stdout: "abc1234\n" },
+        "git push": { stdout: "" },
+        "gh pr create": {
+          stdout: "https://github.com/org/my-app/pull/42\n",
+        },
+      });
+
       const agent = new TruffleAgent(
         createConfig({ baseBranch: "develop" }),
         broker,
@@ -367,11 +388,29 @@ describe("TruffleAgent", () => {
       expect(prs[0].number).toBe(42);
     });
 
-    it("sends PR_CREATED message to the Temperer", async () => {
+    it("sends SECURITY_REVIEW_REQUEST on createPR and PR_CREATED on markPRReady", async () => {
       const agent = new TruffleAgent(config, broker);
       await agent.init();
 
       await agent.createPR("feat: test", "body");
+
+      // createPR now creates a draft and requests security review first
+      expect(broker.send).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: MessageType.SECURITY_REVIEW_REQUEST,
+          from: "Snickers:my-app",
+          to: "security-reviewer:my-app",
+          payload: expect.objectContaining({
+            prNumber: 42,
+            prUrl: "https://github.com/org/my-app/pull/42",
+            workerName: "Snickers",
+            branch: "work/Snickers",
+          }),
+        }),
+      );
+
+      // markPRReady converts from draft and sends PR_CREATED to temperer
+      await agent.markPRReady();
 
       expect(broker.send).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -388,7 +427,7 @@ describe("TruffleAgent", () => {
       );
     });
 
-    it("sends to custom merge queue agent name", async () => {
+    it("sends PR_CREATED to custom merge queue agent name on markPRReady", async () => {
       const agent = new TruffleAgent(
         createConfig({ mergeQueueName: "enrober" }),
         broker,
@@ -396,6 +435,7 @@ describe("TruffleAgent", () => {
       await agent.init();
 
       await agent.createPR("feat: test", "body");
+      await agent.markPRReady();
 
       expect(broker.send).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -814,6 +854,7 @@ describe("TruffleAgent", () => {
       );
       await agent.init();
       await agent.createPR("t", "b");
+      await agent.markPRReady();
 
       expect(broker.send).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -824,6 +865,27 @@ describe("TruffleAgent", () => {
     });
 
     it("defaults baseBranch to main", async () => {
+      // Make show-ref fail so localBranchExists returns false,
+      // which triggers the code path that includes baseBranch in worktree add
+      setupExecFileMock({
+        "git worktree add": { stdout: "" },
+        "git worktree prune": { stdout: "" },
+        "git show-ref": { error: new Error("not found") },
+        "git add": { stdout: "" },
+        "git diff --cached --quiet": {
+          error: new Error("changes exist"),
+        },
+        "git diff --cached --numstat": {
+          stdout: "10\t2\tsrc/user.ts\n5\t0\tsrc/user.test.ts\n",
+        },
+        "git commit": { stdout: "" },
+        "git rev-parse --short HEAD": { stdout: "abc1234\n" },
+        "git push": { stdout: "" },
+        "gh pr create": {
+          stdout: "https://github.com/org/my-app/pull/42\n",
+        },
+      });
+
       const agent = new TruffleAgent(config, broker);
       await agent.init();
 

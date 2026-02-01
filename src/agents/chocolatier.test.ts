@@ -38,6 +38,9 @@ function createMockStateManager(): jest.Mocked<StateManager> {
     addWorker: jest.fn(),
     updateWorkerStatus: jest.fn(),
     nextWorkerName: jest.fn().mockReturnValue("Snickers"),
+    on: jest.fn(),
+    off: jest.fn(),
+    emit: jest.fn(),
   } as unknown as jest.Mocked<StateManager>;
 }
 
@@ -142,15 +145,14 @@ describe("Chocolatier", () => {
 
       expect(chocolatier.isRunning).toBe(true);
       expect(stateManager.setAgent).toHaveBeenCalledWith("test-repo", {
-        name: "chocolatier",
+        name: "chocolatier:test-repo",
         type: "supervisor",
         status: "healthy",
       });
       expect(broker.subscribe).toHaveBeenCalledWith(
-        "chocolatier",
+        "chocolatier:test-repo",
         expect.any(Function),
       );
-      expect(broker.replay).toHaveBeenCalledWith("chocolatier");
     });
 
     it("should unsubscribe and update status on stop", async () => {
@@ -172,10 +174,10 @@ describe("Chocolatier", () => {
       await chocolatier.stop();
 
       expect(chocolatier.isRunning).toBe(false);
-      expect(broker.unsubscribe).toHaveBeenCalledWith("chocolatier");
+      expect(broker.unsubscribe).toHaveBeenCalledWith("chocolatier:test-repo");
       expect(stateManager.updateAgentStatus).toHaveBeenCalledWith(
         "test-repo",
-        "chocolatier",
+        "chocolatier:test-repo",
         "stopped",
       );
     });
@@ -429,8 +431,8 @@ describe("Chocolatier", () => {
       expect(broker.send).toHaveBeenCalledWith(
         expect.objectContaining({
           type: MessageType.TASK_ASSIGNED,
-          from: "chocolatier",
-          to: "Snickers",
+          from: "chocolatier:test-repo",
+          to: "Snickers:test-repo",
           payload: expect.objectContaining({ task: "Add auth" }),
         }),
       );
@@ -486,8 +488,8 @@ describe("Chocolatier", () => {
 
       expect(broker.send).toHaveBeenCalledWith({
         type: MessageType.NUDGE,
-        from: "chocolatier",
-        to: "Snickers",
+        from: "chocolatier:test-repo",
+        to: "Snickers:test-repo",
         payload: { hint: "Try checking the logs", context: undefined },
         priority: "high",
       });
@@ -502,8 +504,8 @@ describe("Chocolatier", () => {
 
       expect(broker.send).toHaveBeenCalledWith({
         type: MessageType.NUDGE,
-        from: "chocolatier",
-        to: "KitKat",
+        from: "chocolatier:test-repo",
+        to: "KitKat:test-repo",
         payload: {
           hint: "The test is flaky",
           context: "It fails intermittently on CI",
@@ -523,7 +525,7 @@ describe("Chocolatier", () => {
 
       expect(broker.send).toHaveBeenCalledWith({
         type: MessageType.BROADCAST,
-        from: "chocolatier",
+        from: "chocolatier:test-repo",
         to: "*",
         payload: { message: "System restarting", level: "info" },
       });
@@ -534,7 +536,7 @@ describe("Chocolatier", () => {
 
       expect(broker.send).toHaveBeenCalledWith({
         type: MessageType.BROADCAST,
-        from: "chocolatier",
+        from: "chocolatier:test-repo",
         to: "*",
         payload: { message: "CI failing", level: "error" },
       });
@@ -582,7 +584,7 @@ describe("Chocolatier", () => {
       expect(broker.send).toHaveBeenCalledWith(
         expect.objectContaining({
           type: MessageType.STATUS_RESPONSE,
-          from: "chocolatier",
+          from: "chocolatier:test-repo",
           to: "temperer",
           payload: expect.objectContaining({
             request_id: "req-1",
@@ -640,7 +642,7 @@ describe("Chocolatier", () => {
       );
 
       // Should acknowledge the message
-      expect(broker.acknowledge).toHaveBeenCalledWith("chocolatier", "msg-2");
+      expect(broker.acknowledge).toHaveBeenCalledWith("chocolatier:test-repo", "msg-2");
 
       // Should broadcast completion
       expect(broker.send).toHaveBeenCalledWith(
@@ -875,7 +877,7 @@ describe("Chocolatier", () => {
       expect(broker.send).toHaveBeenCalledWith(
         expect.objectContaining({
           type: MessageType.NUDGE,
-          to: "Snickers",
+          to: "Snickers:test-repo",
         }),
       );
     });

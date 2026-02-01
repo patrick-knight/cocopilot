@@ -132,11 +132,14 @@ describe("createWorktree", () => {
     expect(content).toBe("# Test Repo\n");
   });
 
-  it("throws when branch already exists", async () => {
-    await createWorktree(repoDir, "Reeses", "main");
-    await expect(
-      createWorktree(repoDir, "Reeses", "main"),
-    ).rejects.toThrow();
+  it("cleans up and recreates when called twice with the same name", async () => {
+    const wtPath1 = await createWorktree(repoDir, "Reeses", "main");
+    expect(fs.existsSync(wtPath1)).toBe(true);
+
+    // Second call should succeed due to cleanup logic
+    const wtPath2 = await createWorktree(repoDir, "Reeses", "main");
+    expect(wtPath2).toBe(wtPath1);
+    expect(fs.existsSync(wtPath2)).toBe(true);
   });
 
   it("throws when base branch does not exist", async () => {

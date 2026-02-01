@@ -3,7 +3,7 @@ import request from "supertest";
 import { workerRoutes } from "./workers";
 import { errorHandler } from "../middleware/error-handler";
 
-function createApp(stateManager: any, broker: any = {}) {
+function createApp(stateManager: any, broker: any = { send: jest.fn().mockResolvedValue({}) }) {
   const app = express();
   app.use(express.json());
   app.use(
@@ -15,28 +15,32 @@ function createApp(stateManager: any, broker: any = {}) {
 }
 
 describe("POST /api/v1/repositories/:repoName/workers", () => {
-  it("spawns a worker and returns 201", async () => {
-    const worker = { id: "uuid-1", name: "Snickers", task: "Add tests", status: "starting" };
-    const sm = { addWorker: jest.fn().mockResolvedValue(worker) };
-    const app = createApp(sm);
+  it("sends spawn request and returns 202", async () => {
+    const repo = { name: "my-app", defaultBranch: "main", workers: {} };
+    const broker = { send: jest.fn().mockResolvedValue({}) };
+    const sm = { getRepo: jest.fn().mockReturnValue(repo) };
+    const app = createApp(sm, broker);
 
     const res = await request(app)
       .post("/api/v1/repositories/my-app/workers")
       .send({ task: "Add tests" });
 
-    expect(res.status).toBe(201);
-    expect(res.body.name).toBe("Snickers");
-    expect(sm.addWorker).toHaveBeenCalledWith("my-app", {
-      task: "Add tests",
-      branch: undefined,
-      name: undefined,
-      model: undefined,
-    });
+    expect(res.status).toBe(202);
+    expect(res.body.status).toBe("accepted");
+    expect(res.body.task).toBe("Add tests");
+    expect(broker.send).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: "SPAWN_WORKER",
+        to: "chocolatier:my-app",
+        payload: expect.objectContaining({ task: "Add tests" }),
+      }),
+    );
   });
 
   it("returns 400 when task is missing", async () => {
-    const sm = { addWorker: jest.fn() };
-    const app = createApp(sm);
+    const sm = { getRepo: jest.fn() };
+    const broker = { send: jest.fn() };
+    const app = createApp(sm, broker);
 
     const res = await request(app)
       .post("/api/v1/repositories/my-app/workers")
@@ -47,31 +51,15 @@ describe("POST /api/v1/repositories/:repoName/workers", () => {
   });
 
   it("returns 404 when repo not tracked", async () => {
-    const sm = {
-      addWorker: jest.fn().mockRejectedValue(new Error('Repository "ghost" is not tracked')),
-    };
-    const app = createApp(sm);
+    const sm = { getRepo: jest.fn().mockReturnValue(undefined) };
+    const broker = { send: jest.fn() };
+    const app = createApp(sm, broker);
 
     const res = await request(app)
       .post("/api/v1/repositories/ghost/workers")
       .send({ task: "Do work" });
 
     expect(res.status).toBe(404);
-  });
-
-  it("returns 409 when max workers reached", async () => {
-    const sm = {
-      addWorker: jest
-        .fn()
-        .mockRejectedValue(new Error("Maximum workers (2) reached")),
-    };
-    const app = createApp(sm);
-
-    const res = await request(app)
-      .post("/api/v1/repositories/my-app/workers")
-      .send({ task: "Do work" });
-
-    expect(res.status).toBe(409);
   });
 });
 

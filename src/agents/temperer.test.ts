@@ -305,6 +305,24 @@ describe("Temperer", () => {
       };
 
       const { temperer, broker } = createTemperer(execFn);
+
+      // start() subscribes + does first poll (discovers PR -> awaiting_security_review)
+      await temperer.start();
+
+      // Simulate security review passing via the handler registered during start()
+      await broker.handler!({
+        id: "sec-1",
+        type: MessageType.SECURITY_REVIEW_PASSED,
+        from: "security-reviewer:test-repo",
+        to: "temperer:test-repo",
+        payload: { prNumber: 10, warnings: [] },
+        priority: "normal",
+        timestamp: Date.now(),
+        ack_required: false,
+      });
+
+      // Second poll: CI passes, security passed -> merge
+      broker.sent = [];
       await temperer.pollOnce();
 
       // Should have sent PR_MERGED to chocolatier
@@ -322,6 +340,8 @@ describe("Temperer", () => {
       // PR should be tracked as merged
       const tracked = temperer.getTrackedPRs().get(10);
       expect(tracked?.state).toBe("merged");
+
+      await temperer.stop();
     });
 
     it("sends CI_FAILED and SPAWN_FIXUP when CI fails", async () => {
@@ -357,6 +377,24 @@ describe("Temperer", () => {
       };
 
       const { temperer, broker } = createTemperer(execFn);
+
+      // start() subscribes + does first poll (discovers PR -> awaiting_security_review)
+      await temperer.start();
+
+      // Simulate security review passing via the handler registered during start()
+      await broker.handler!({
+        id: "sec-1",
+        type: MessageType.SECURITY_REVIEW_PASSED,
+        from: "security-reviewer:test-repo",
+        to: "temperer:test-repo",
+        payload: { prNumber: 20, warnings: [] },
+        priority: "normal",
+        timestamp: Date.now(),
+        ack_required: false,
+      });
+
+      // Second poll: CI fails
+      broker.sent = [];
       await temperer.pollOnce();
 
       // Should have sent CI_FAILED
@@ -384,6 +422,8 @@ describe("Temperer", () => {
       // PR should be tracked as fixup_requested
       const tracked = temperer.getTrackedPRs().get(20);
       expect(tracked?.state).toBe("fixup_requested");
+
+      await temperer.stop();
     });
 
     it("does not re-request fixup for PRs already in fixup_requested state", async () => {
@@ -416,19 +456,37 @@ describe("Temperer", () => {
 
       const { temperer, broker } = createTemperer(execFn);
 
-      // First poll: should send fixup request
+      // start() subscribes + does first poll (discovers PR -> awaiting_security_review)
+      await temperer.start();
+
+      // Simulate security review passing via the handler registered during start()
+      await broker.handler!({
+        id: "sec-1",
+        type: MessageType.SECURITY_REVIEW_PASSED,
+        from: "security-reviewer:test-repo",
+        to: "temperer:test-repo",
+        payload: { prNumber: 30, warnings: [] },
+        priority: "normal",
+        timestamp: Date.now(),
+        ack_required: false,
+      });
+
+      // Second poll: CI fails, should send fixup request
+      broker.sent = [];
       await temperer.pollOnce();
       pollCount = broker.sent.filter(
         (m) => m.type === MessageType.SPAWN_FIXUP,
       ).length;
       expect(pollCount).toBe(1);
 
-      // Second poll: should NOT send another fixup request
+      // Third poll: should NOT send another fixup request
       await temperer.pollOnce();
       pollCount = broker.sent.filter(
         (m) => m.type === MessageType.SPAWN_FIXUP,
       ).length;
       expect(pollCount).toBe(1);
+
+      await temperer.stop();
     });
 
     it("skips PRs with pending checks", async () => {
@@ -459,14 +517,34 @@ describe("Temperer", () => {
       };
 
       const { temperer, broker } = createTemperer(execFn);
+
+      // start() subscribes + does first poll (discovers PR -> awaiting_security_review)
+      await temperer.start();
+
+      // Simulate security review passing via the handler registered during start()
+      await broker.handler!({
+        id: "sec-1",
+        type: MessageType.SECURITY_REVIEW_PASSED,
+        from: "security-reviewer:test-repo",
+        to: "temperer:test-repo",
+        payload: { prNumber: 40, warnings: [] },
+        priority: "normal",
+        timestamp: Date.now(),
+        ack_required: false,
+      });
+
+      // Second poll: CI pending, no merge/fixup messages
+      broker.sent = [];
       await temperer.pollOnce();
 
-      // No messages should be sent
+      // No messages should be sent (pending checks = no action)
       expect(broker.sent).toHaveLength(0);
 
       // PR should be tracked as watching
       const tracked = temperer.getTrackedPRs().get(40);
       expect(tracked?.state).toBe("watching");
+
+      await temperer.stop();
     });
 
     it("cleans up tracked PRs that are no longer open", async () => {
@@ -500,16 +578,30 @@ describe("Temperer", () => {
         return { stdout: "", stderr: "" };
       };
 
-      const { temperer } = createTemperer(execFn);
+      const { temperer, broker } = createTemperer(execFn);
 
-      // First poll: PR 50 is open
-      await temperer.pollOnce();
+      // start() subscribes + does first poll (discovers PR -> awaiting_security_review)
+      await temperer.start();
       expect(temperer.getTrackedPRs().has(50)).toBe(true);
+
+      // Simulate security review passing via the handler registered during start()
+      await broker.handler!({
+        id: "sec-1",
+        type: MessageType.SECURITY_REVIEW_PASSED,
+        from: "security-reviewer:test-repo",
+        to: "temperer:test-repo",
+        payload: { prNumber: 50, warnings: [] },
+        priority: "normal",
+        timestamp: Date.now(),
+        ack_required: false,
+      });
 
       // Second poll: PR 50 is no longer open
       returnPRs = false;
       await temperer.pollOnce();
       expect(temperer.getTrackedPRs().has(50)).toBe(false);
+
+      await temperer.stop();
     });
 
     it("skips already-merged PRs", async () => {
@@ -544,15 +636,32 @@ describe("Temperer", () => {
         return { stdout: "", stderr: "" };
       };
 
-      const { temperer } = createTemperer(execFn);
+      const { temperer, broker } = createTemperer(execFn);
 
-      // First poll: merge the PR
+      // start() subscribes + does first poll (discovers PR -> awaiting_security_review)
+      await temperer.start();
+
+      // Simulate security review passing via the handler registered during start()
+      await broker.handler!({
+        id: "sec-1",
+        type: MessageType.SECURITY_REVIEW_PASSED,
+        from: "security-reviewer:test-repo",
+        to: "temperer:test-repo",
+        payload: { prNumber: 60, warnings: [] },
+        priority: "normal",
+        timestamp: Date.now(),
+        ack_required: false,
+      });
+
+      // Second poll: CI passes, security passed -> merge
       await temperer.pollOnce();
       expect(callCount).toBe(1);
 
-      // Second poll: should skip checks entirely since PR is merged
+      // Third poll: should skip checks entirely since PR is merged
       await temperer.pollOnce();
       expect(callCount).toBe(1); // no additional checks call
+
+      await temperer.stop();
     });
   });
 
@@ -586,7 +695,7 @@ describe("Temperer", () => {
       const tracked = temperer.getTrackedPRs().get(99);
       expect(tracked).toBeDefined();
       expect(tracked!.originalWorker).toBe("Snickers");
-      expect(tracked!.state).toBe("watching");
+      expect(tracked!.state).toBe("awaiting_security_review");
       expect(tracked!.branch).toBe("work/Snickers");
 
       await temperer.stop();
@@ -638,6 +747,18 @@ describe("Temperer", () => {
           title: "feat: new feature",
           branch: "work/Snickers",
         },
+        priority: "normal",
+        timestamp: Date.now(),
+        ack_required: false,
+      });
+
+      // Simulate security review passing
+      await broker.handler!({
+        id: "sec-1",
+        type: MessageType.SECURITY_REVIEW_PASSED,
+        from: "security-reviewer:test-repo",
+        to: "temperer:test-repo",
+        payload: { prNumber: 99, warnings: [] },
         priority: "normal",
         timestamp: Date.now(),
         ack_required: false,
