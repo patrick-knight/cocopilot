@@ -194,8 +194,19 @@ export class FileMessageStore {
     let filtered = allMessages;
     if (repoName) {
       filtered = allMessages.filter((m) => {
+        // Check payload for repoName
         const payload = m.payload as { repoName?: string } | undefined;
-        return payload?.repoName === repoName;
+        if (payload?.repoName === repoName) return true;
+        
+        // Check if from/to contains the repo name (format: "agentType:repoName")
+        const fromParts = m.from.split(":");
+        const toParts = m.to.split(":");
+        if (fromParts[1] === repoName || toParts[1] === repoName) return true;
+        
+        // Check if from/to exactly matches (for workers that are just named with the repo)
+        if (m.from.includes(repoName) || m.to.includes(repoName)) return true;
+        
+        return false;
       });
     }
 

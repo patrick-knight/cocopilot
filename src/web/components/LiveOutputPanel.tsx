@@ -115,7 +115,7 @@ export function LiveOutputPanel({
   const canPageDown = viewOffset < maxOffset;
 
   return (
-    <section className="flex flex-col" aria-label="Live Output">
+    <section className="flex flex-col min-w-0" aria-label="Live Output">
       {/* Header */}
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold text-foreground dark:text-stone-100">
@@ -201,7 +201,7 @@ export function LiveOutputPanel({
         )}
 
         {/* Output content */}
-        <div className="p-3 font-mono text-sm min-h-[320px] max-h-[320px] overflow-hidden bg-stone-900 dark:bg-stone-950">
+        <div className="p-3 font-mono text-sm h-[320px] overflow-y-auto overflow-x-hidden bg-stone-900 dark:bg-stone-950">
           {!selectedAgent && (
             <p className="text-stone-500 italic">Select an agent to view live output...</p>
           )}
@@ -230,7 +230,7 @@ function OutputLine({ line }: { line: AgentOutputLine }): React.ReactElement {
   const isError = line.stream === "stderr";
   
   return (
-    <div className={`py-0.5 ${isError ? "text-red-400" : "text-stone-300"}`}>
+    <div className={`py-0.5 break-all overflow-hidden ${isError ? "text-red-400" : "text-stone-300"}`}>
       <span className="text-stone-600 select-none mr-2 text-xs">
         {formatTime(line.timestamp)}
       </span>

@@ -609,39 +609,70 @@ export function useMessageQueue(repoName?: string, workers?: WorkerState[]): Mes
   const { socket } = useSocket();
   const [messages, setMessages] = useState<MessageEntry[]>([]);
 
-  // Fetch initial messages from API when we have workers
+  // Fetch initial messages from API - both worker messages and system agent messages
   useEffect(() => {
-    if (!repoName || !workers || workers.length === 0) return;
+    if (!repoName) return;
 
     const fetchMessages = async () => {
       try {
-        // Fetch messages for each worker and combine
         const allMessages: MessageEntry[] = [];
         
-        for (const worker of workers.slice(0, 5)) { // Limit to 5 workers for performance
-          try {
-            const res = await fetch(
-              `/api/v1/repositories/${encodeURIComponent(repoName)}/workers/${encodeURIComponent(worker.name)}/messages`
-            );
-            if (res.ok) {
-              const data = await res.json();
-              if (data.messages && Array.isArray(data.messages)) {
-                for (const msg of data.messages) {
-                  allMessages.push({
-                    id: msg.id,
-                    type: msg.type,
-                    from: msg.from,
-                    to: msg.to,
-                    priority: msg.priority || "normal",
-                    timestamp: new Date(msg.timestamp || Date.now()).getTime(),
-                    acked: msg.acked ?? false,
-                    payloadPreview: JSON.stringify(msg.payload || {}).slice(0, 200),
-                  });
-                }
+        // First, fetch recent messages for the whole repo (includes system agents)
+        try {
+          const repoRes = await fetch(
+            `/api/v1/messages/recent?repo=${encodeURIComponent(repoName)}&limit=30`
+          );
+          if (repoRes.ok) {
+            const data = await repoRes.json();
+            if (data.messages && Array.isArray(data.messages)) {
+              for (const msg of data.messages) {
+                allMessages.push({
+                  id: msg.id,
+                  type: msg.type,
+                  from: msg.from,
+                  to: msg.to,
+                  priority: msg.priority || "normal",
+                  timestamp: msg.timestamp || Date.now(),
+                  acked: msg.ack_received != null,
+                  payloadPreview: formatPayloadPreview(msg.payload),
+                });
               }
             }
-          } catch {
-            // Skip this worker's messages on error
+          }
+        } catch {
+          // Continue to try worker-specific messages
+        }
+
+        // Also fetch worker-specific messages if we have workers
+        if (workers && workers.length > 0) {
+          for (const worker of workers.slice(0, 5)) {
+            try {
+              const res = await fetch(
+                `/api/v1/repositories/${encodeURIComponent(repoName)}/workers/${encodeURIComponent(worker.name)}/messages`
+              );
+              if (res.ok) {
+                const data = await res.json();
+                if (data.messages && Array.isArray(data.messages)) {
+                  for (const msg of data.messages) {
+                    // Avoid duplicates
+                    if (!allMessages.some((m) => m.id === msg.id)) {
+                      allMessages.push({
+                        id: msg.id,
+                        type: msg.type,
+                        from: msg.from,
+                        to: msg.to,
+                        priority: msg.priority || "normal",
+                        timestamp: new Date(msg.timestamp || Date.now()).getTime(),
+                        acked: msg.acked ?? msg.ack_received != null,
+                        payloadPreview: formatPayloadPreview(msg.payload),
+                      });
+                    }
+                  }
+                }
+              }
+            } catch {
+              // Skip this worker's messages on error
+            }
           }
         }
 
@@ -690,4 +721,24 @@ export function useMessageQueue(repoName?: string, workers?: WorkerState[]): Mes
   }, [socket]);
 
   return messages;
+}
+
+/** Format payload for preview display */
+function formatPayloadPreview(payload: unknown): string {
+  if (!payload) return "(empty)";
+  if (typeof payload === "string") return payload.slice(0, 200);
+  
+  try {
+    // Extract meaningful content
+    const p = payload as Record<string, unknown>;
+    if (p.content) return String(p.content).slice(0, 200);
+    if (p.message) return String(p.message).slice(0, 200);
+    if (p.task) return `Task: ${String(p.task).slice(0, 180)}`;
+    if (p.status) return `Status: ${String(p.status)}`;
+    if (p.error) return `Error: ${String(p.error).slice(0, 180)}`;
+    
+    return JSON.stringify(payload).slice(0, 200);
+  } catch {
+    return "(complex payload)";
+  }
 }
