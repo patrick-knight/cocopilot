@@ -19,8 +19,8 @@ export function StatusIndicator({ status, label, showSymbol = true }: StatusIndi
   return (
     <Text>
       {showSymbol && <Text>{symbol} </Text>}
-      <Text color={colorFn === undefined ? undefined : undefined}>
-        {colorFn(label ?? status)}
+      <Text color={undefined}>
+        {colorFn ? colorFn(label ?? status) : (label ?? status)}
       </Text>
     </Text>
   );
