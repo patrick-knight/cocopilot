@@ -86,6 +86,10 @@ RUN chmod +x /usr/local/bin/setup-gh.sh /usr/local/bin/check-gh.sh /usr/local/bi
 RUN ln -s /app/dist/cli/index.js /usr/local/bin/coco && \
     chmod +x /app/dist/cli/index.js
 
+# Ensure npm global bin is on PATH for login shells (Debian /etc/profile resets PATH)
+RUN echo 'export PATH=/root/.cocopilot/npm-global/bin:$PATH' > /etc/profile.d/00-cocopilot-path.sh \
+    && chmod +x /etc/profile.d/00-cocopilot-path.sh
+
 # Add check script to shell profiles for interactive sessions
 # This runs on every login and re-runs setup if gh auth or copilot is missing
 RUN printf '%s\n' '/usr/local/bin/check-gh.sh' > /etc/profile.d/cocopilot-check.sh \
