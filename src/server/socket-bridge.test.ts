@@ -3,7 +3,9 @@ import { createSocketBridge } from "./socket-bridge";
 import { MessageType } from "../messaging/types";
 
 function mockIO() {
-  return { emit: jest.fn(), on: jest.fn() } as any;
+  const io: any = { emit: jest.fn(), on: jest.fn() };
+  io.to = jest.fn().mockReturnValue({ emit: jest.fn() });
+  return io;
 }
 
 function mockBroker() {
