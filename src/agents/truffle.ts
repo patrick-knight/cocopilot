@@ -39,15 +39,53 @@ const execFileAsync = promisify(execFile);
 const VALID_BRANCH_PATTERN = /^[a-zA-Z0-9][a-zA-Z0-9_\-\/]*[a-zA-Z0-9]$|^[a-zA-Z0-9]$/;
 const MAX_BRANCH_LENGTH = 250;
 
-/** Validate a git branch name for safety */
+/**
+ * Validate a git branch name for safety.
+ *
+ * This is intended for any user-controlled ref-like value that will be passed
+ * to git (e.g., `branch`, `baseBranch`, `pushTo`). Callers should reject or
+ * sanitize values for which this returns false.
+ */
 function isValidBranchName(branch: string): boolean {
   if (!branch || branch.length > MAX_BRANCH_LENGTH) return false;
   if (!VALID_BRANCH_PATTERN.test(branch)) return false;
-  // Disallow dangerous patterns
-  if (branch.includes("..") || branch.includes("@{") || branch.startsWith("-")) return false;
+  // Disallow dangerous patterns and anything that could be interpreted as a git option
+  if (branch.includes("..")) return false;
+  if (branch.includes("@{")) return false;
+  if (branch.startsWith("-")) return false;
   return true;
 }
 
+/**
+ * Ensure a branch name is valid, throwing an Error if not.
+ *
+ * This helper should be used before passing `branch`, `baseBranch`, or
+ * `pushTo` into any `git` command to prevent option-injection and other
+ * unsafe ref usages.
+ */
+function ensureValidBranchName(branch: string, fieldName: string = "branch"): string {
+  if (!isValidBranchName(branch)) {
+    throw new Error(`Invalid git ${fieldName} name: "${branch}"`);
+  }
+  return branch;
+}
+
+/**
+ * Convert a validated branch name into a safe refspec for git commands.
+ *
+ * Note: Callers should still pass this after a `--` option terminator when
+ * constructing git CLI argument arrays, e.g.:
+ *   ["fetch", "origin", "--", toSafeBranchRef(pushTo)]
+ */
+function toSafeBranchRef(branch: string): string {
+  // Ensure the branch name itself is valid first.
+  const safeBranch = ensureValidBranchName(branch);
+  // If the caller already provided a fully qualified ref, leave it as-is.
+  if (safeBranch.startsWith("refs/")) {
+    return safeBranch;
+  }
+  return `refs/heads/${safeBranch}`;
+}
 // ---------------------------------------------------------------------------
 // Configuration
 // ---------------------------------------------------------------------------
