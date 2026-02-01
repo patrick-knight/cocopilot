@@ -464,7 +464,7 @@ export function usePRPipeline(repoName?: string): PRPipelineEntry[] {
         const res = await fetch(`/api/v1/repositories/${encodeURIComponent(repoName)}/prs`);
         if (res.ok) {
           const data = await res.json();
-          setPrs(Array.isArray(data) ? data : []);
+          setPrs(Array.isArray(data.prs) ? data.prs : (Array.isArray(data) ? data : []));
         }
       } catch {
         // Silently fail - will get updates via socket

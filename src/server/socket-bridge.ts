@@ -253,12 +253,16 @@ export function createSocketBridge(
 }
 
 /**
- * Set up agent:join / agent:leave handlers on a socket so the frontend can
+ * Set up agent streaming handlers on a socket so the frontend can
  * subscribe to live output from any agent via the default namespace.
  *
- * When a client emits `agent:join <agentName>`, we subscribe to the Redis
- * stream channel for that agent and forward every message as `agent:output`.
- * On `agent:leave` (or disconnect), we unsubscribe.
+ * Listens for both event name patterns:
+ *   - agent:join / agent:leave (legacy)
+ *   - agent:stream:subscribe / agent:stream:unsubscribe (current)
+ *
+ * When a client subscribes, we subscribe to the Redis stream channel
+ * for that agent and forward every message as `agent:output`.
+ * On unsubscribe (or disconnect), we unsubscribe from Redis.
  */
 function setupAgentStreamHandlers(socket: Socket, redisBus: RedisMessageBus): void {
   // Track current subscription so we can clean up on leave/disconnect
@@ -274,7 +278,9 @@ function setupAgentStreamHandlers(socket: Socket, redisBus: RedisMessageBus): vo
     currentHandler = null;
   };
 
-  socket.on("agent:join", (agentName: string) => {
+  const join = (agentName: string): void => {
+    if (typeof agentName !== "string" || !agentName) return;
+    
     // Leave previous agent if any
     leave();
 
@@ -282,15 +288,40 @@ function setupAgentStreamHandlers(socket: Socket, redisBus: RedisMessageBus): vo
     const channel = streamChannel(agentName);
 
     currentHandler = (message: unknown): void => {
-      socket.emit("agent:output", message);
+      // Parse the message and emit as AgentOutputLine format
+      try {
+        const parsed = typeof message === "string" ? JSON.parse(message) : message;
+        const outputLine = {
+          agent: agentName,
+          timestamp: parsed.timestamp ?? Date.now(),
+          text: parsed.content ?? (typeof message === "string" ? message : JSON.stringify(message)),
+          stream: parsed.type === "error" ? "stderr" : "stdout",
+        };
+        socket.emit("agent:output", outputLine);
+      } catch {
+        // Fallback for non-JSON messages
+        socket.emit("agent:output", {
+          agent: agentName,
+          timestamp: Date.now(),
+          text: String(message),
+          stream: "stdout",
+        });
+      }
     };
 
     redisBus.subscribeChannel(channel, currentHandler as never).catch(() => {
       // Redis may not be ready — non-fatal
     });
-  });
+  };
+
+  // Listen for both event patterns
+  socket.on("agent:join", join);
+  socket.on("agent:stream:subscribe", join);
 
   socket.on("agent:leave", () => {
+    leave();
+  });
+  socket.on("agent:stream:unsubscribe", () => {
     leave();
   });
 
