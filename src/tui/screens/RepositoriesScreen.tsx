@@ -220,7 +220,7 @@ export function RepositoriesScreen(): React.ReactElement {
                   backgroundColor={isSelected ? "blue" : undefined}
                   color={isSelected ? "white" : undefined}
                 >
-                  {isSelected ? "❯ " : "  "}
+                  {isSelected ? `${symbols.arrow} ` : "  "}
                   <Text bold>{repo.name}</Text>
                   <Text dimColor> ({repo.mode})</Text>
                   <Text> - {workers} worker{workers !== 1 ? "s" : ""}</Text>
