@@ -16,6 +16,7 @@ import {
   CreateMessageOptions,
   MessageHandler,
   MessageType,
+  streamChannel,
 } from "./types.js";
 import { RedisMessageBus, RedisConfig } from "./redis-bus.js";
 import { FileMessageStore, FileStoreConfig } from "./file-store.js";
@@ -65,6 +66,22 @@ export class MessageBroker {
     // Persist first for durability, then publish for real-time delivery
     await this.store.save(message as CocoMessage);
     await this.bus.publish(message as CocoMessage);
+
+    // Also publish WORKER_ACTIVITY to the stream channel for Live Output
+    if (options.type === MessageType.WORKER_ACTIVITY) {
+      const payload = options.payload as import("./types.js").WorkerActivityPayload;
+      const channel = streamChannel(`worker:${payload.repoName}:${payload.workerName}`);
+      const streamEvent = {
+        type: "activity" as const,
+        content: JSON.stringify(payload),
+        timestamp: Date.now(),
+        agent: payload.workerName,
+        sessionId: message.id,
+        eventType: payload.activityType,
+      };
+      // Fire-and-forget; don't block the message send
+      this.bus.publishRaw(channel, JSON.stringify(streamEvent)).catch(() => {});
+    }
 
     return message;
   }

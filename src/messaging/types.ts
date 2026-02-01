@@ -39,6 +39,8 @@ export enum MessageType {
   SECURITY_REVIEW_PASSED = "SECURITY_REVIEW_PASSED",
   /** Security Reviewer blocks PR due to security issues. */
   SECURITY_REVIEW_FAILED = "SECURITY_REVIEW_FAILED",
+  /** Worker broadcasts real-time activity (commits, status changes, etc.). */
+  WORKER_ACTIVITY = "WORKER_ACTIVITY",
 }
 
 /** Message priority levels. */
@@ -157,6 +159,30 @@ export interface SecurityReviewFailedPayload {
   issues: SecurityIssue[];
 }
 
+/** Worker activity types for real-time updates. */
+export type WorkerActivityType = "commit" | "status_change" | "pr_created" | "push" | "started" | "completed";
+
+export interface WorkerActivityPayload {
+  activityType: WorkerActivityType;
+  workerName: string;
+  repoName: string;
+  branch: string;
+  /** For commit activity */
+  commitHash?: string;
+  commitMessage?: string;
+  filesChanged?: number;
+  /** For status_change activity */
+  status?: string;
+  previousStatus?: string;
+  progress?: number;
+  /** For pr_created activity */
+  prNumber?: number;
+  prUrl?: string;
+  prTitle?: string;
+  /** Human-readable description */
+  description: string;
+}
+
 /** Maps each MessageType to its corresponding payload type. */
 export interface MessagePayloadMap {
   [MessageType.TASK_ASSIGNED]: TaskAssignedPayload;
@@ -175,6 +201,7 @@ export interface MessagePayloadMap {
   [MessageType.SECURITY_REVIEW_REQUEST]: SecurityReviewRequestPayload;
   [MessageType.SECURITY_REVIEW_PASSED]: SecurityReviewPassedPayload;
   [MessageType.SECURITY_REVIEW_FAILED]: SecurityReviewFailedPayload;
+  [MessageType.WORKER_ACTIVITY]: WorkerActivityPayload;
 }
 
 /** The core message structure for all inter-agent communication. */

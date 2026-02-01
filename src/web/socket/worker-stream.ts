@@ -310,7 +310,24 @@ export class WorkerStreamManager {
       const parsed = JSON.parse(raw) as {
         type?: string;
         content?: string;
+        eventType?: string;
       };
+
+      // Handle activity events specially
+      if (parsed.type === "activity" || parsed.eventType) {
+        const activityData = parsed.content ? JSON.parse(parsed.content) : parsed;
+        this.batcher.enqueue({
+          event: "worker:activity",
+          data: {
+            workerName,
+            ...activityData,
+            timestamp: Date.now(),
+          },
+          room: `worker:${workerName}`,
+          dedupeKey: `activity:${workerName}:${parsed.eventType ?? "unknown"}`,
+        });
+        return;
+      }
 
       const event: WorkerOutputEvent = {
         workerName,

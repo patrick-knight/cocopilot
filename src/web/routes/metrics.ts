@@ -36,7 +36,20 @@ export interface TokenUsageBucket {
   tokens: number;
 }
 
+/** Summary statistics for quick overview. */
+export interface MetricsSummary {
+  totalWorkers: number;
+  activeWorkers: number;
+  completedWorkers: number;
+  failedWorkers: number;
+  totalPRs: number;
+  totalRepos: number;
+  avgCompletionTimeHours: number | null;
+  successRate: number; // 0-100 percentage
+}
+
 export interface MetricsResponse {
+  summary: MetricsSummary;
   workerThroughput: WorkerThroughputBucket[];
   prCycleTime: PRCycleTimePoint[];
   ciSuccessRate: CISuccessRateSlice[];
@@ -167,15 +180,63 @@ export function computeTokenUsage(
 }
 
 /**
+ * Compute summary statistics for quick overview.
+ */
+export function computeSummary(
+  workers: WorkerState[],
+  repoCount: number,
+): MetricsSummary {
+  const totalWorkers = workers.length;
+  const activeWorkers = workers.filter(
+    (w) => w.status === "working" || w.status === "starting",
+  ).length;
+  const completedWorkers = workers.filter((w) => w.status === "completed").length;
+  const failedWorkers = workers.filter((w) => w.status === "failed").length;
+  const totalPRs = workers.filter((w) => w.prNumber !== undefined).length;
+
+  // Calculate average completion time
+  const completedWithTimes = workers.filter(
+    (w) => w.status === "completed" && w.completedAt,
+  );
+  let avgCompletionTimeHours: number | null = null;
+  if (completedWithTimes.length > 0) {
+    const totalHours = completedWithTimes.reduce((sum, w) => {
+      const created = new Date(w.createdAt).getTime();
+      const completed = new Date(w.completedAt!).getTime();
+      return sum + (completed - created) / (1000 * 60 * 60);
+    }, 0);
+    avgCompletionTimeHours = Math.round((totalHours / completedWithTimes.length) * 10) / 10;
+  }
+
+  // Calculate success rate
+  const finished = completedWorkers + failedWorkers;
+  const successRate = finished > 0 ? Math.round((completedWorkers / finished) * 100) : 0;
+
+  return {
+    totalWorkers,
+    activeWorkers,
+    completedWorkers,
+    failedWorkers,
+    totalPRs,
+    totalRepos: repoCount,
+    avgCompletionTimeHours,
+    successRate,
+  };
+}
+
+/**
  * Build the complete metrics response from state manager data.
  */
 export function buildMetrics(
   stateManager: StateManager,
   now?: Date,
 ): MetricsResponse {
+  const repos = stateManager.getRepos();
   const workers = collectAllWorkers(stateManager);
+  const repoCount = Object.keys(repos).length;
 
   return {
+    summary: computeSummary(workers, repoCount),
     workerThroughput: computeWorkerThroughput(workers, now),
     prCycleTime: computePRCycleTime(workers),
     ciSuccessRate: computeCISuccessRate(workers),

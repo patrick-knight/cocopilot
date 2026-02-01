@@ -284,6 +284,11 @@ export class TruffleAgent extends EventEmitter<TruffleEvents> {
     }
 
     this._worktreeReady = true;
+
+    // Broadcast that worker has started
+    this.broadcastActivity("started", {
+      description: `Worker ${this.config.name} started on branch ${branch}`,
+    }).catch(() => {});
   }
 
   /**
@@ -354,6 +359,14 @@ export class TruffleAgent extends EventEmitter<TruffleEvents> {
 
     this._commitCount++;
     this.emit("committed", shortHash, message);
+
+    // Broadcast commit activity to all agents
+    this.broadcastActivity("commit", {
+      commitHash: shortHash,
+      commitMessage: message,
+      filesChanged: changedFiles,
+      description: `Committed ${shortHash}: ${message.split("\n")[0]}`,
+    }).catch(() => {});
 
     return shortHash;
   }
@@ -542,6 +555,7 @@ export class TruffleAgent extends EventEmitter<TruffleEvents> {
 
   /**
    * Notify the Temperer (merge queue) that a PR has been created.
+   * Also broadcasts PR creation to all agents.
    */
   private async notifyPRCreated(pr: PRResult): Promise<void> {
     const mergeQueue = this.config.mergeQueueName ?? scopedAgentName("temperer", this.config.repoName);
@@ -556,14 +570,30 @@ export class TruffleAgent extends EventEmitter<TruffleEvents> {
         branch: this.config.branch,
       },
     });
+
+    // Broadcast PR creation to all agents
+    await this.broadcastActivity("pr_created", {
+      prNumber: pr.number,
+      prUrl: pr.url,
+      prTitle: pr.title,
+      description: `Created PR #${pr.number}: ${pr.title}`,
+    });
   }
 
-  /** Transition status and emit event. */
+  /** Transition status and emit event, broadcasting to all agents. */
   private setStatus(status: WorkerStatus): void {
     const previous = this._status;
     if (previous === status) return;
     this._status = status;
     this.emit("statusChanged", status, previous);
+
+    // Broadcast status change to all agents (fire-and-forget)
+    this.broadcastActivity("status_change", {
+      status,
+      previousStatus: previous,
+      progress: this.estimateProgress(),
+      description: `Worker ${this.config.name} is now ${status}`,
+    }).catch(() => {});
   }
 
   /** Estimate task progress (0-100) based on lifecycle stage. */
@@ -572,6 +602,29 @@ export class TruffleAgent extends EventEmitter<TruffleEvents> {
     if (this._commitCount > 0) return 50 + Math.min(this._commitCount * 10, 40);
     if (this._worktreeReady) return 10;
     return 0;
+  }
+
+  /**
+   * Broadcast worker activity to all agents (supervisor, dashboard, etc.).
+   * Used for real-time updates in the Live Output, PR pipeline, and message queue.
+   */
+  private async broadcastActivity(
+    activityType: import("../messaging/types.js").WorkerActivityType,
+    extra: Partial<import("../messaging/types.js").WorkerActivityPayload>,
+  ): Promise<void> {
+    await this.broker.send({
+      type: MessageType.WORKER_ACTIVITY,
+      from: this.scopedName,
+      to: "*", // Broadcast to all
+      payload: {
+        activityType,
+        workerName: this.config.name,
+        repoName: this.config.repoName,
+        branch: this.config.branch,
+        description: extra.description ?? `Worker ${this.config.name} activity: ${activityType}`,
+        ...extra,
+      },
+    });
   }
 
   /** Ensure the worktree has been set up before git operations. */

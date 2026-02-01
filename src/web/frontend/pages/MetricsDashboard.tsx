@@ -60,7 +60,19 @@ interface TokenUsageBucket {
   tokens: number;
 }
 
+interface MetricsSummary {
+  totalWorkers: number;
+  activeWorkers: number;
+  completedWorkers: number;
+  failedWorkers: number;
+  totalPRs: number;
+  totalRepos: number;
+  avgCompletionTimeHours: number | null;
+  successRate: number;
+}
+
 interface MetricsData {
+  summary: MetricsSummary;
   workerThroughput: WorkerThroughputBucket[];
   prCycleTime: PRCycleTimePoint[];
   ciSuccessRate: CISuccessRateSlice[];
@@ -83,22 +95,78 @@ const PIE_COLORS = ["#C68B3C", "#7B3F00"];
 const REFRESH_INTERVAL_MS = 30_000;
 
 // ---------------------------------------------------------------------------
+// Stat card component
+// ---------------------------------------------------------------------------
+
+function StatCard({
+  label,
+  value,
+  icon,
+  trend,
+  className = "",
+}: {
+  label: string;
+  value: string | number;
+  icon: string;
+  trend?: "up" | "down" | "neutral";
+  className?: string;
+}): React.ReactElement {
+  const trendColors = {
+    up: "text-green-600",
+    down: "text-red-600",
+    neutral: "text-muted-foreground",
+  };
+
+  return (
+    <div className={`rounded-lg border border-border bg-card p-4 shadow-sm ${className}`}>
+      <div className="flex items-center justify-between">
+        <span className="text-2xl">{icon}</span>
+        {trend && (
+          <span className={`text-sm ${trendColors[trend]}`}>
+            {trend === "up" ? "↑" : trend === "down" ? "↓" : "—"}
+          </span>
+        )}
+      </div>
+      <div className="mt-2">
+        <p className="text-2xl font-bold text-foreground">{value}</p>
+        <p className="text-sm text-muted-foreground">{label}</p>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Chart panel wrapper
 // ---------------------------------------------------------------------------
 
 function ChartPanel({
   title,
   children,
+  isEmpty,
+  emptyMessage = "No data available",
 }: {
   title: string;
   children: React.ReactNode;
+  isEmpty?: boolean;
+  emptyMessage?: string;
 }): React.ReactElement {
   return (
-    <div className="rounded-lg border border-[#C68B3C]/20 bg-white p-4 shadow-sm">
-      <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-[#7B3F00]">
+    <div className="rounded-lg border border-border bg-card p-4 shadow-sm">
+      <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
         {title}
       </h2>
-      <div className="h-64">{children}</div>
+      <div className="h-64">
+        {isEmpty ? (
+          <div className="flex h-full items-center justify-center">
+            <div className="text-center">
+              <div className="text-4xl mb-2 opacity-50">📊</div>
+              <p className="text-muted-foreground text-sm">{emptyMessage}</p>
+            </div>
+          </div>
+        ) : (
+          children
+        )}
+      </div>
     </div>
   );
 }
@@ -328,6 +396,12 @@ export function MetricsDashboard(): React.ReactElement {
 
   if (!data) return <div />;
 
+  const { summary } = data;
+  const hasWorkerData = data.workerThroughput.some((d) => d.count > 0);
+  const hasPRData = data.prCycleTime.length > 0;
+  const hasCIData = data.ciSuccessRate.some((d) => d.count > 0);
+  const hasTokenData = data.tokenUsage.length > 0;
+
   return (
     <div className="min-h-screen bg-background">
       {/* Top bar with theme toggle */}
@@ -374,24 +448,94 @@ export function MetricsDashboard(): React.ReactElement {
           </p>
         </header>
 
+        {/* Summary Stats */}
+        <section className="mb-8">
+          <h2 className="text-lg font-semibold text-foreground mb-4">Overview</h2>
+          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-4">
+            <StatCard
+              label="Total Workers"
+              value={summary.totalWorkers}
+              icon="🍬"
+            />
+            <StatCard
+              label="Active"
+              value={summary.activeWorkers}
+              icon="⚡"
+              trend={summary.activeWorkers > 0 ? "up" : "neutral"}
+            />
+            <StatCard
+              label="Completed"
+              value={summary.completedWorkers}
+              icon="✅"
+              trend="up"
+            />
+            <StatCard
+              label="Failed"
+              value={summary.failedWorkers}
+              icon="❌"
+              trend={summary.failedWorkers > 0 ? "down" : "neutral"}
+            />
+            <StatCard
+              label="PRs Created"
+              value={summary.totalPRs}
+              icon="🔀"
+            />
+            <StatCard
+              label="Repositories"
+              value={summary.totalRepos}
+              icon="📦"
+            />
+            <StatCard
+              label="Avg Time (hrs)"
+              value={summary.avgCompletionTimeHours ?? "—"}
+              icon="⏱️"
+            />
+            <StatCard
+              label="Success Rate"
+              value={`${summary.successRate}%`}
+              icon="📈"
+              trend={summary.successRate >= 80 ? "up" : summary.successRate >= 50 ? "neutral" : "down"}
+            />
+          </div>
+        </section>
+
         {/* Charts Grid */}
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-          <ChartPanel title="Worker Throughput (last 24h)">
-            <WorkerThroughputChart data={data.workerThroughput} />
-          </ChartPanel>
+        <section>
+          <h2 className="text-lg font-semibold text-foreground mb-4">Charts</h2>
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+            <ChartPanel
+              title="Worker Throughput (last 24h)"
+              isEmpty={!hasWorkerData}
+              emptyMessage="No completed tasks in the last 24 hours"
+            >
+              <WorkerThroughputChart data={data.workerThroughput} />
+            </ChartPanel>
 
-          <ChartPanel title="PR Cycle Time">
-            <PRCycleTimeChart data={data.prCycleTime} />
-          </ChartPanel>
+            <ChartPanel
+              title="PR Cycle Time"
+              isEmpty={!hasPRData}
+              emptyMessage="No PR cycle time data available"
+            >
+              <PRCycleTimeChart data={data.prCycleTime} />
+            </ChartPanel>
 
-          <ChartPanel title="CI Success Rate">
-            <CISuccessRateChart data={data.ciSuccessRate} />
-          </ChartPanel>
+            <ChartPanel
+              title="CI Success Rate"
+              isEmpty={!hasCIData}
+              emptyMessage="No completed or failed tasks yet"
+            >
+              <CISuccessRateChart data={data.ciSuccessRate} />
+            </ChartPanel>
 
-          <ChartPanel title="Token Usage by Model">
-            <TokenUsageChart data={data.tokenUsage} />
-          </ChartPanel>
-        </div>
+            <ChartPanel
+              title="Tasks by Model"
+              isEmpty={!hasTokenData}
+              emptyMessage="No model usage data available"
+            >
+              <TokenUsageChart data={data.tokenUsage} />
+            </ChartPanel>
+          </div>
+        </section>
       </div>
     </div>
   );

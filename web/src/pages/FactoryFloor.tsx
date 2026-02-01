@@ -298,8 +298,22 @@ export function FactoryFloor() {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Top bar with theme toggle */}
-      <div className="absolute top-4 right-4">
+      {/* Top bar with theme toggle and navigation */}
+      <div className="absolute top-4 right-4 flex items-center gap-3">
+        <Link
+          to="/metrics"
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+        >
+          <span>📊</span>
+          <span>Metrics</span>
+        </Link>
+        <Link
+          to="/status"
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+        >
+          <span>🔧</span>
+          <span>Status</span>
+        </Link>
         <ThemeToggle />
       </div>
 

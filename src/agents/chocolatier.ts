@@ -540,6 +540,9 @@ export class Chocolatier extends EventEmitter {
         case MessageType.PR_MERGED:
           await this.handlePRMerged(message);
           break;
+        case MessageType.WORKER_ACTIVITY:
+          await this.handleWorkerActivity(message);
+          break;
         default:
           // Acknowledge any message we receive but don't handle
           break;
@@ -805,6 +808,62 @@ export class Chocolatier extends EventEmitter {
         },
       });
     }
+  }
+
+  /**
+   * Handle a WORKER_ACTIVITY message from a worker.
+   * Updates worker state and emits activity for Live Output.
+   */
+  private async handleWorkerActivity(message: CocoMessage): Promise<void> {
+    const payload = message.payload as import("../messaging/types.js").WorkerActivityPayload;
+    const workerName = payload.workerName;
+
+    // Only handle activity for workers belonging to this repo
+    if (payload.repoName !== this.config.repoName) return;
+
+    console.log(
+      `[Chocolatier:${this.config.repoName}] Worker ${workerName} activity: ${payload.activityType} - ${payload.description}`,
+    );
+
+    // Update state based on activity type
+    switch (payload.activityType) {
+      case "commit":
+        // Update status to ensure updatedAt timestamp is refreshed
+        await this.stateManager.updateWorkerStatus(
+          this.config.repoName,
+          workerName,
+          "working",
+        );
+        break;
+
+      case "status_change":
+        if (payload.status) {
+          await this.stateManager.updateWorkerStatus(
+            this.config.repoName,
+            workerName,
+            payload.status as import("../state/schemas.js").WorkerStatus,
+          );
+        }
+        break;
+
+      case "pr_created":
+        if (payload.prNumber && payload.prUrl) {
+          await this.stateManager.updateWorkerStatus(
+            this.config.repoName,
+            workerName,
+            "working",
+            { prNumber: payload.prNumber, prUrl: payload.prUrl },
+          );
+        }
+        break;
+
+      default:
+        // Other activity types are informational only
+        break;
+    }
+
+    // Emit for any listeners (dashboard, logs, etc.)
+    this.emit("workerActivity", payload);
   }
 
   // -----------------------------------------------------------------------
