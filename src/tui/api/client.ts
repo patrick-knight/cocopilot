@@ -154,21 +154,39 @@ export class TuiApiClient {
     }
   }
 
-  onWorkerOutput(callback: (data: { worker: string; output: string }) => void): void {
-    this.connect().on("worker:output", callback);
+  onWorkerOutput(callback: (data: { worker: string; output: string }) => void): () => void {
+    const socket = this.connect();
+    socket.on("worker:output", callback);
+    return () => {
+      socket.off("worker:output", callback);
+    };
   }
 
-  onStatusUpdate(callback: (status: StatusResponse) => void): void {
-    this.connect().on("status:update", callback);
+  onStatusUpdate(callback: (status: StatusResponse) => void): () => void {
+    const socket = this.connect();
+    socket.on("status:update", callback);
+    return () => {
+      socket.off("status:update", callback);
+    };
   }
 }
 
 // Singleton instance
 let client: TuiApiClient | null = null;
+let clientPort: number | undefined = undefined;
 
 export function getClient(port?: number): TuiApiClient {
   if (!client) {
     client = new TuiApiClient(port);
+    clientPort = port;
+  } else if (
+    port !== undefined &&
+    clientPort !== undefined &&
+    port !== clientPort
+  ) {
+    console.warn(
+      `TuiApiClient singleton already initialized on port ${clientPort}; ignoring requested port ${port}.`,
+    );
   }
   return client;
 }

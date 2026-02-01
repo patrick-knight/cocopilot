@@ -23,10 +23,35 @@ export function useStatus(refreshInterval = 5000) {
   }, []);
 
   useEffect(() => {
-    refresh();
-    const interval = setInterval(refresh, refreshInterval);
-    return () => clearInterval(interval);
-  }, [refresh, refreshInterval]);
+    let mounted = true;
+    
+    const refreshIfMounted = async () => {
+      if (!mounted) return;
+      try {
+        const data = await getClient().getStatus();
+        if (mounted) {
+          setStatus(data);
+          setError(null);
+        }
+      } catch (err) {
+        if (mounted) {
+          setError(err instanceof Error ? err : new Error(String(err)));
+        }
+      } finally {
+        if (mounted) {
+          setLoading(false);
+        }
+      }
+    };
+
+    refreshIfMounted();
+    const interval = setInterval(refreshIfMounted, refreshInterval);
+    
+    return () => {
+      mounted = false;
+      clearInterval(interval);
+    };
+  }, [refreshInterval]);
 
   return { status, loading, error, refresh };
 }
@@ -49,10 +74,35 @@ export function useRepositories(refreshInterval = 10000) {
   }, []);
 
   useEffect(() => {
-    refresh();
-    const interval = setInterval(refresh, refreshInterval);
-    return () => clearInterval(interval);
-  }, [refresh, refreshInterval]);
+    let mounted = true;
+    
+    const refreshIfMounted = async () => {
+      if (!mounted) return;
+      try {
+        const data = await getClient().getRepositories();
+        if (mounted) {
+          setRepositories(data);
+          setError(null);
+        }
+      } catch (err) {
+        if (mounted) {
+          setError(err instanceof Error ? err : new Error(String(err)));
+        }
+      } finally {
+        if (mounted) {
+          setLoading(false);
+        }
+      }
+    };
+
+    refreshIfMounted();
+    const interval = setInterval(refreshIfMounted, refreshInterval);
+    
+    return () => {
+      mounted = false;
+      clearInterval(interval);
+    };
+  }, [refreshInterval]);
 
   const addRepo = useCallback(async (url: string) => {
     await getClient().addRepository(url);
@@ -90,10 +140,35 @@ export function useRepository(name: string) {
   }, [name]);
 
   useEffect(() => {
-    refresh();
-    const interval = setInterval(refresh, 5000);
-    return () => clearInterval(interval);
-  }, [refresh]);
+    let mounted = true;
+    
+    const refreshIfMounted = async () => {
+      if (!mounted) return;
+      try {
+        const data = await getClient().getRepository(name);
+        if (mounted) {
+          setRepository(data);
+          setError(null);
+        }
+      } catch (err) {
+        if (mounted) {
+          setError(err instanceof Error ? err : new Error(String(err)));
+        }
+      } finally {
+        if (mounted) {
+          setLoading(false);
+        }
+      }
+    };
+
+    refreshIfMounted();
+    const interval = setInterval(refreshIfMounted, 5000);
+    
+    return () => {
+      mounted = false;
+      clearInterval(interval);
+    };
+  }, [name]);
 
   return { repository, loading, error, refresh };
 }
@@ -116,10 +191,35 @@ export function useWorkers(repoName?: string) {
   }, [repoName]);
 
   useEffect(() => {
-    refresh();
-    const interval = setInterval(refresh, 5000);
-    return () => clearInterval(interval);
-  }, [refresh]);
+    let mounted = true;
+    
+    const refreshIfMounted = async () => {
+      if (!mounted) return;
+      try {
+        const data = await getClient().getWorkers(repoName);
+        if (mounted) {
+          setWorkers(data);
+          setError(null);
+        }
+      } catch (err) {
+        if (mounted) {
+          setError(err instanceof Error ? err : new Error(String(err)));
+        }
+      } finally {
+        if (mounted) {
+          setLoading(false);
+        }
+      }
+    };
+
+    refreshIfMounted();
+    const interval = setInterval(refreshIfMounted, 5000);
+    
+    return () => {
+      mounted = false;
+      clearInterval(interval);
+    };
+  }, [repoName]);
 
   const spawnWorker = useCallback(async (task: string, options?: { branch?: string; model?: string }) => {
     if (!repoName) throw new Error("repoName required to spawn worker");
@@ -153,10 +253,35 @@ export function useWorker(repoName: string, workerName: string) {
   }, [repoName, workerName]);
 
   useEffect(() => {
-    refresh();
-    const interval = setInterval(refresh, 3000);
-    return () => clearInterval(interval);
-  }, [refresh]);
+    let mounted = true;
+    
+    const refreshIfMounted = async () => {
+      if (!mounted) return;
+      try {
+        const data = await getClient().getWorker(repoName, workerName);
+        if (mounted) {
+          setWorker(data);
+          setError(null);
+        }
+      } catch (err) {
+        if (mounted) {
+          setError(err instanceof Error ? err : new Error(String(err)));
+        }
+      } finally {
+        if (mounted) {
+          setLoading(false);
+        }
+      }
+    };
+
+    refreshIfMounted();
+    const interval = setInterval(refreshIfMounted, 3000);
+    
+    return () => {
+      mounted = false;
+      clearInterval(interval);
+    };
+  }, [repoName, workerName]);
 
   return { worker, loading, error, refresh };
 }
@@ -179,10 +304,35 @@ export function useMetrics() {
   }, []);
 
   useEffect(() => {
-    refresh();
-    const interval = setInterval(refresh, 30000);
-    return () => clearInterval(interval);
-  }, [refresh]);
+    let mounted = true;
+    
+    const refreshIfMounted = async () => {
+      if (!mounted) return;
+      try {
+        const data = await getClient().getMetrics();
+        if (mounted) {
+          setMetrics(data);
+          setError(null);
+        }
+      } catch (err) {
+        if (mounted) {
+          setError(err instanceof Error ? err : new Error(String(err)));
+        }
+      } finally {
+        if (mounted) {
+          setLoading(false);
+        }
+      }
+    };
+
+    refreshIfMounted();
+    const interval = setInterval(refreshIfMounted, 30000);
+    
+    return () => {
+      mounted = false;
+      clearInterval(interval);
+    };
+  }, []);
 
   return { metrics, loading, error, refresh };
 }
@@ -194,14 +344,16 @@ export function useStreaming(workerName?: string) {
     if (!workerName) return;
 
     const client = getClient();
-    client.onWorkerOutput(({ worker, output: line }) => {
+    const handler = ({ worker, output: line }: { worker: string; output: string }) => {
       if (worker === workerName) {
         setOutput((prev) => [...prev.slice(-500), line]); // Keep last 500 lines
       }
-    });
+    };
+
+    const unsubscribe = client.onWorkerOutput(handler);
 
     return () => {
-      client.disconnect();
+      unsubscribe();
     };
   }, [workerName]);
 
