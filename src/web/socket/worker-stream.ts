@@ -26,8 +26,8 @@
 
 // Max length for room/channel names to prevent DoS
 const MAX_NAME_LENGTH = 128;
-// Allowed characters for room/channel names (alphanumeric, dash, underscore)
-const VALID_NAME_PATTERN = /^[a-zA-Z0-9_-]+$/;
+// Allowed characters for room/channel names (alphanumeric, dot, dash, underscore)
+const VALID_NAME_PATTERN = /^[a-zA-Z0-9._-]+$/;
 
 /**
  * Minimal Socket.IO interfaces to avoid hard dependency on socket.io types.

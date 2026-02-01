@@ -172,6 +172,83 @@ describe("WorkerStreamManager", () => {
       await manager.stop();
     });
 
+    it("rejects worker names exceeding MAX_NAME_LENGTH", async () => {
+      const { config, redisSub, io } = createConfig();
+      const manager = new WorkerStreamManager(config);
+      await manager.start();
+
+      const socket = new MockSocket();
+      io.emit("connection", socket);
+
+      // Create a name that exceeds 128 characters
+      const longName = "a".repeat(129);
+      socket.emit("worker:join", longName);
+
+      await new Promise((r) => setTimeout(r, 10));
+
+      // Should not subscribe to the worker channel
+      expect(redisSub.subscribe).toHaveBeenCalledTimes(1); // Only completions channel
+      expect(socket.join).not.toHaveBeenCalled();
+
+      await manager.stop();
+    });
+
+    it("rejects worker names with invalid characters", async () => {
+      const { config, redisSub, io } = createConfig();
+      const manager = new WorkerStreamManager(config);
+      await manager.start();
+
+      const socket = new MockSocket();
+      io.emit("connection", socket);
+
+      // Test various invalid characters
+      socket.emit("worker:join", "worker:name"); // colon
+      socket.emit("worker:join", "worker/name"); // slash
+      socket.emit("worker:join", "worker name"); // space
+      socket.emit("worker:join", "worker@name"); // at sign
+      socket.emit("worker:join", "worker#name"); // hash
+      socket.emit("worker:join", "worker$name"); // dollar sign
+
+      await new Promise((r) => setTimeout(r, 10));
+
+      // Should not subscribe to any worker channels
+      expect(redisSub.subscribe).toHaveBeenCalledTimes(1); // Only completions channel
+      expect(socket.join).not.toHaveBeenCalled();
+
+      await manager.stop();
+    });
+
+    it("accepts worker names with valid characters (alphanumeric, dot, dash, underscore)", async () => {
+      const { config, redisSub, io } = createConfig();
+      const manager = new WorkerStreamManager(config);
+      await manager.start();
+
+      const socket = new MockSocket();
+      io.emit("connection", socket);
+
+      // Test valid names with different character combinations
+      socket.emit("worker:join", "worker-name");
+      await new Promise((r) => setTimeout(r, 10));
+      
+      socket.emit("worker:join", "worker_name");
+      await new Promise((r) => setTimeout(r, 10));
+      
+      socket.emit("worker:join", "worker.name");
+      await new Promise((r) => setTimeout(r, 10));
+      
+      socket.emit("worker:join", "WorkerName123");
+      await new Promise((r) => setTimeout(r, 10));
+      
+      socket.emit("worker:join", "worker-name_123.test");
+      await new Promise((r) => setTimeout(r, 10));
+
+      // All 5 valid names should be subscribed (+ 1 completions channel = 6 total)
+      expect(redisSub.subscribe).toHaveBeenCalledTimes(6);
+      expect(socket.join).toHaveBeenCalledTimes(5);
+
+      await manager.stop();
+    });
+
     it("joins repo room on repo:join event", async () => {
       const { config, io } = createConfig();
       const manager = new WorkerStreamManager(config);
@@ -220,6 +297,73 @@ describe("WorkerStreamManager", () => {
       await new Promise((r) => setTimeout(r, 10));
 
       expect(socket.join).not.toHaveBeenCalled();
+
+      await manager.stop();
+    });
+
+    it("rejects repo identifiers exceeding MAX_NAME_LENGTH", async () => {
+      const { config, io } = createConfig();
+      const manager = new WorkerStreamManager(config);
+      await manager.start();
+
+      const socket = new MockSocket();
+      io.emit("connection", socket);
+
+      // Create a repo ID that exceeds 128 characters
+      const longRepoId = "a".repeat(129);
+      socket.emit("repo:join", longRepoId);
+
+      await new Promise((r) => setTimeout(r, 10));
+
+      expect(socket.join).not.toHaveBeenCalled();
+
+      await manager.stop();
+    });
+
+    it("rejects repo identifiers with invalid characters", async () => {
+      const { config, io } = createConfig();
+      const manager = new WorkerStreamManager(config);
+      await manager.start();
+
+      const socket = new MockSocket();
+      io.emit("connection", socket);
+
+      // Test various invalid characters
+      socket.emit("repo:join", "repo:name"); // colon
+      socket.emit("repo:join", "repo/name"); // slash (though GitHub uses this, socket rooms shouldn't)
+      socket.emit("repo:join", "repo name"); // space
+      socket.emit("repo:join", "repo@name"); // at sign
+
+      await new Promise((r) => setTimeout(r, 10));
+
+      expect(socket.join).not.toHaveBeenCalled();
+
+      await manager.stop();
+    });
+
+    it("accepts repo identifiers with valid characters (alphanumeric, dot, dash, underscore)", async () => {
+      const { config, io } = createConfig();
+      const manager = new WorkerStreamManager(config);
+      await manager.start();
+
+      const socket = new MockSocket();
+      io.emit("connection", socket);
+
+      // Test valid repo IDs with different character combinations
+      socket.emit("repo:join", "my-repo");
+      await new Promise((r) => setTimeout(r, 10));
+      
+      socket.emit("repo:join", "my_repo");
+      await new Promise((r) => setTimeout(r, 10));
+      
+      socket.emit("repo:join", "my.repo");
+      await new Promise((r) => setTimeout(r, 10));
+      
+      socket.emit("repo:join", "MyRepo123");
+      await new Promise((r) => setTimeout(r, 10));
+
+      // All 4 valid repo IDs should be joined
+      expect(socket.join).toHaveBeenCalledTimes(4);
 
       await manager.stop();
     });
