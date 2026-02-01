@@ -3,7 +3,7 @@
  */
 
 import { useState, useEffect, useCallback } from "react";
-import { getClient, StatusResponse, Repository, Worker, MetricsResponse } from "../api/client.js";
+import { getClient, StatusResponse, Repository, Worker, MetricsResponse, Message } from "../api/client.js";
 
 export function useStatus(refreshInterval = 5000) {
   const [status, setStatus] = useState<StatusResponse | null>(null);
@@ -159,6 +159,32 @@ export function useWorker(repoName: string, workerName: string) {
   }, [refresh]);
 
   return { worker, loading, error, refresh };
+}
+
+export function useWorkerMessages(repoName: string, workerName: string) {
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<Error | null>(null);
+
+  const refresh = useCallback(async () => {
+    try {
+      const data = await getClient().getWorkerMessages(repoName, workerName);
+      setMessages(data);
+      setError(null);
+    } catch (err) {
+      setError(err instanceof Error ? err : new Error(String(err)));
+    } finally {
+      setLoading(false);
+    }
+  }, [repoName, workerName]);
+
+  useEffect(() => {
+    refresh();
+    const interval = setInterval(refresh, 5000);
+    return () => clearInterval(interval);
+  }, [refresh]);
+
+  return { messages, loading, error, refresh };
 }
 
 export function useMetrics() {

@@ -32,14 +32,38 @@ export interface Worker {
   task: string;
   branch?: string;
   prUrl?: string;
+  prNumber?: number;
   model?: string;
   startedAt?: string;
+  createdAt?: string;
+  updatedAt?: string;
+  completedAt?: string;
+  containerId?: string;
+  containerStatus?: string;
+  error?: string;
+  resources?: ContainerResources;
+}
+
+export interface ContainerResources {
+  memoryUsageMb: number;
+  memoryLimitMb: number;
+  cpuPercent: number;
 }
 
 export interface Agent {
   name: string;
   type: string;
   status: string;
+}
+
+export interface Message {
+  id: string;
+  type: string;
+  from: string;
+  to: string;
+  payload?: unknown;
+  timestamp: string;
+  acknowledged?: boolean;
 }
 
 export interface MetricsResponse {
@@ -116,6 +140,13 @@ export class TuiApiClient {
 
   async getWorker(repoName: string, workerName: string): Promise<Worker> {
     return this.fetch(`/api/v1/workers/${encodeURIComponent(repoName)}/${encodeURIComponent(workerName)}`);
+  }
+
+  async getWorkerMessages(repoName: string, workerName: string): Promise<Message[]> {
+    const data = await this.fetch<{ messages: Message[] }>(
+      `/api/v1/workers/${encodeURIComponent(repoName)}/${encodeURIComponent(workerName)}/messages`
+    );
+    return data.messages ?? [];
   }
 
   async spawnWorker(repoName: string, task: string, options?: { branch?: string; model?: string }): Promise<Worker> {
