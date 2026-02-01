@@ -13,7 +13,7 @@
 // Enums / union types
 // ---------------------------------------------------------------------------
 
-export type AgentType = "supervisor" | "merge-queue" | "pr-shepherd" | "worker";
+export type AgentType = "supervisor" | "merge-queue" | "pr-shepherd" | "worker" | "security";
 
 export type AgentStatus =
   | "starting"
@@ -29,7 +29,8 @@ export type WorkerStatus =
   | "stuck"
   | "completed"
   | "failed"
-  | "terminated";
+  | "terminated"
+  | "merged";
 
 export type RepoMode = "single-player" | "multiplayer";
 

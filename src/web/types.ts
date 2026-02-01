@@ -167,6 +167,12 @@ export const AGENT_DISPLAY: Record<AgentType, AgentDisplayInfo> = {
     description: "Worker — executes a single task",
     color: "text-stone-700",
   },
+  security: {
+    label: "Security Reviewer",
+    icon: "🔒",
+    description: "Security — reviews PRs for vulnerabilities",
+    color: "text-red-700",
+  },
 };
 
 /** Map agent/worker status to a status indicator color. */

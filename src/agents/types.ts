@@ -205,10 +205,14 @@ export interface ChocolatierEvents {
   workerCompleted: [repoName: string, workerName: string, summary: string];
   /** Emitted when a worker signals failure. */
   workerFailed: [repoName: string, workerName: string, error: string];
+  /** Emitted when a worker's PR is merged. */
+  workerMerged: [repoName: string, workerName: string, prUrl: string];
   /** Emitted when the agent starts. */
   started: [];
   /** Emitted when the agent stops. */
   stopped: [];
+  /** Emitted when an error occurs. */
+  error: [error: Error];
 }
 
 /** Events emitted by the Enrober agent. */
