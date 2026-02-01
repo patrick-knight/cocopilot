@@ -274,13 +274,23 @@ export function extRepositoriesRoutes(deps: RepositoriesDeps): Router {
  */
 function runCocoInit(url: string): Promise<string> {
   return new Promise((resolve, reject) => {
+    // SECURITY: Do NOT use shell: true - it enables command injection
     const child = spawn("coco", ["init", url], {
-      shell: true,
       stdio: ["ignore", "pipe", "pipe"],
     });
 
     let stdout = "";
     let stderr = "";
+    let settled = false;
+
+    // Store timeout reference so we can clear it
+    const timeoutId = setTimeout(() => {
+      if (!settled) {
+        settled = true;
+        child.kill();
+        reject(new Error("coco init timed out after 60 seconds"));
+      }
+    }, 60000);
 
     child.stdout?.on("data", (data) => {
       stdout += data.toString();
@@ -291,22 +301,24 @@ function runCocoInit(url: string): Promise<string> {
     });
 
     child.on("error", (err) => {
-      reject(new Error(`Failed to run coco init: ${err.message}`));
-    });
-
-    child.on("close", (code) => {
-      if (code === 0) {
-        resolve(stdout || "Repository initialized successfully");
-      } else {
-        reject(new Error(stderr || stdout || `coco init exited with code ${code}`));
+      if (!settled) {
+        settled = true;
+        clearTimeout(timeoutId);
+        reject(new Error(`Failed to run coco init: ${err.message}`));
       }
     });
 
-    // Timeout after 60 seconds
-    setTimeout(() => {
-      child.kill();
-      reject(new Error("coco init timed out after 60 seconds"));
-    }, 60000);
+    child.on("close", (code) => {
+      if (!settled) {
+        settled = true;
+        clearTimeout(timeoutId);
+        if (code === 0) {
+          resolve(stdout || "Repository initialized successfully");
+        } else {
+          reject(new Error(stderr || stdout || `coco init exited with code ${code}`));
+        }
+      }
+    });
   });
 }
 
