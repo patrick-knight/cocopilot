@@ -32,6 +32,23 @@ import type { WorkerStatus } from "../state/schemas.js";
 const execFileAsync = promisify(execFile);
 
 // ---------------------------------------------------------------------------
+// Validation
+// ---------------------------------------------------------------------------
+
+/** Valid branch name pattern - alphanumeric, dash, underscore, slash (no spaces, special chars) */
+const VALID_BRANCH_PATTERN = /^[a-zA-Z0-9][a-zA-Z0-9_\-\/]*[a-zA-Z0-9]$|^[a-zA-Z0-9]$/;
+const MAX_BRANCH_LENGTH = 250;
+
+/** Validate a git branch name for safety */
+function isValidBranchName(branch: string): boolean {
+  if (!branch || branch.length > MAX_BRANCH_LENGTH) return false;
+  if (!VALID_BRANCH_PATTERN.test(branch)) return false;
+  // Disallow dangerous patterns
+  if (branch.includes("..") || branch.includes("@{") || branch.startsWith("-")) return false;
+  return true;
+}
+
+// ---------------------------------------------------------------------------
 // Configuration
 // ---------------------------------------------------------------------------
 
@@ -135,6 +152,10 @@ export class TruffleAgent extends EventEmitter<TruffleEvents> {
 
   constructor(config: TruffleConfig, broker: MessageBroker) {
     super();
+    // Validate branch name to prevent injection attacks
+    if (!isValidBranchName(config.branch)) {
+      throw new Error(`Invalid branch name: ${config.branch}. Branch names must be alphanumeric with dashes, underscores, or slashes.`);
+    }
     this.config = Object.freeze({ ...config });
     this.broker = broker;
   }
