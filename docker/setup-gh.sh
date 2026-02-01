@@ -43,6 +43,16 @@ else
     echo ""
 fi
 
+# Setup git to use gh for credential management
+echo "Setting up git credentials with GitHub CLI..."
+gh auth setup-git 2>/dev/null || true
+
+# Setup git user identity if not already configured
+if ! git config --global user.email >/dev/null 2>&1; then
+    git config --global user.email "cocopilot@localhost"
+    git config --global user.name "CoCoPilot"
+fi
+
 # Install GitHub Copilot CLI via npm
 if ! command -v copilot >/dev/null 2>&1; then
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
@@ -61,7 +71,7 @@ if ! command -v copilot >/dev/null 2>&1; then
         echo ""
         echo "Retrying with OpenSSL legacy provider..."
         echo ""
-        if ; then
+        if NODE_OPTIONS=--openssl-legacy-provider npm install -g @github/copilot; then
             echo ""
             echo "✅ GitHub Copilot CLI installed!"
             echo ""
@@ -82,7 +92,7 @@ fi
 mkdir -p "$(dirname "$SETUP_MARKER")"
 touch "$SETUP_MARKER"
 
-echo "━━━━━━━━━NODE_OPTIONS=--openssl-legacy-provider npm install -g @github/copilot━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "🎉 Setup Complete!"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""

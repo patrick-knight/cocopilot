@@ -217,8 +217,20 @@ export class LocalTruffleRuntime {
       },
       handler: async (params: { message: string }) => {
         const message = String(params.message ?? "");
-        const hash = await this.truffle.commit(message);
-        return { hash };
+        try {
+          const hash = await this.truffle.commit(message);
+          return { ok: true, hash };
+        } catch (err) {
+          const errorMsg = err instanceof Error ? err.message : String(err);
+          // Report git error to message broker
+          await this.broker.send({
+            type: MessageType.BROADCAST,
+            from: this.truffle.name,
+            to: "*",
+            payload: { message: `Git commit failed: ${errorMsg}`, level: "error" },
+          }).catch(() => {});
+          return { ok: false, error: errorMsg };
+        }
       },
     });
 
@@ -241,8 +253,44 @@ export class LocalTruffleRuntime {
       handler: async (params: { title: string; body: string }) => {
         const title = String(params.title ?? "");
         const body = String(params.body ?? "");
-        const pr = await this.truffle.createPR(title, body);
-        return pr;
+        try {
+          const pr = await this.truffle.createPR(title, body);
+          return { ok: true, ...pr };
+        } catch (err) {
+          const errorMsg = err instanceof Error ? err.message : String(err);
+          // Report git/gh error to message broker
+          await this.broker.send({
+            type: MessageType.BROADCAST,
+            from: this.truffle.name,
+            to: "*",
+            payload: { message: `PR creation failed: ${errorMsg}`, level: "error" },
+          }).catch(() => {});
+          return { ok: false, error: errorMsg };
+        }
+      },
+    });
+
+    const pushBranch = defineTool("push_branch", {
+      description: "Push the current branch to the remote repository.",
+      parameters: {
+        type: "object",
+        properties: {},
+      },
+      handler: async () => {
+        try {
+          await this.truffle.push();
+          return { ok: true };
+        } catch (err) {
+          const errorMsg = err instanceof Error ? err.message : String(err);
+          // Report git push error to message broker
+          await this.broker.send({
+            type: MessageType.BROADCAST,
+            from: this.truffle.name,
+            to: "*",
+            payload: { message: `Git push failed: ${errorMsg}`, level: "error" },
+          }).catch(() => {});
+          return { ok: false, error: errorMsg };
+        }
       },
     });
 
@@ -252,6 +300,7 @@ export class LocalTruffleRuntime {
       requestHelp,
       commitChanges,
       createPr,
+      pushBranch,
     ] as Tool[];
   }
 }
