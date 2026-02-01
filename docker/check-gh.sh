@@ -1,13 +1,6 @@
-#!/bin/sh
 # GitHub CLI and Copilot check for CoCoPilot container
-# This script runs on every shell login to ensure gh auth and copilot are available
-# If either is missing, it re-runs the full setup script
-
-# Only run for interactive shells
-case $- in
-    *i*) ;;
-    *) exit 0 ;;
-esac
+# This script is SOURCED (not executed) by profile.d and bash.bashrc.
+# The caller gates on interactive mode; this script must not use `exit`.
 
 NEEDS_SETUP=0
 

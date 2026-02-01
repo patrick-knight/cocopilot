@@ -91,10 +91,10 @@ RUN echo 'export PATH=/root/.cocopilot/npm-global/bin:$PATH' > /etc/profile.d/00
     && chmod +x /etc/profile.d/00-cocopilot-path.sh
 
 # Add check script to shell profiles for interactive sessions
-# This runs on every login and re-runs setup if gh auth or copilot is missing
-RUN printf '%s\n' '/usr/local/bin/check-gh.sh' > /etc/profile.d/cocopilot-check.sh \
+# Source (not execute) so $- interactivity check works in the caller's context
+RUN printf '%s\n' 'case $- in *i*) . /usr/local/bin/check-gh.sh ;; esac' > /etc/profile.d/cocopilot-check.sh \
     && chmod +x /etc/profile.d/cocopilot-check.sh \
-    && echo '/usr/local/bin/check-gh.sh' >> /etc/bash.bashrc
+    && echo 'case $- in *i*) . /usr/local/bin/check-gh.sh ;; esac' >> /etc/bash.bashrc
 
 EXPOSE 3000
 
