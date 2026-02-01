@@ -140,14 +140,16 @@ export class Concher {
         }
       }
 
-      // Recover stuck workers
+      // Mark orphaned local workers as failed — their runtimes died with the daemon
       for (const [workerName, worker] of Object.entries(repo.workers ?? {})) {
-        if (worker.status === "stuck" && worker.error?.includes("Daemon restarted")) {
-          logger.info(`Auto-recovering stuck worker ${workerName} in ${repoName}`);
-          // Mark as failed first, then attempt recovery via repair
-          await this.state.updateWorkerStatus(repoName, workerName, "failed", {
-            error: "Marked for auto-recovery after daemon restart",
-          });
+        if (worker.status === "starting" || worker.status === "working" || worker.status === "stuck") {
+          const isLocal = !worker.containerId || worker.containerId.startsWith("local:");
+          if (isLocal) {
+            logger.info(`Marking orphaned local worker ${workerName} as failed in ${repoName}`);
+            await this.state.updateWorkerStatus(repoName, workerName, "failed", {
+              error: "Local worker process lost — daemon restarted",
+            });
+          }
         }
       }
     }

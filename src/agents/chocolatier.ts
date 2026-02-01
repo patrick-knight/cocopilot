@@ -150,8 +150,19 @@ export class Chocolatier extends EventEmitter {
     // Subscribe to incoming messages
     await this.broker.subscribe(this.agentName, (msg) => this.handleMessage(msg));
 
-    // Replay any messages that arrived before we started
-    await this.broker.replay(this.agentName);
+    // Replay pending messages, but skip stale SPAWN_WORKER requests from
+    // previous daemon sessions — they should be re-submitted by the user.
+    const pending = await this.broker.getPending(this.agentName);
+    for (const msg of pending) {
+      if (msg.type === MessageType.SPAWN_WORKER || msg.type === MessageType.SPAWN_FIXUP) {
+        console.log(
+          `[Chocolatier:${this.config.repoName}] Skipping stale ${msg.type} from previous session`,
+        );
+        await this.broker.acknowledge(this.agentName, msg.id);
+        continue;
+      }
+      await this.handleMessage(msg);
+    }
 
     // Start periodic health checks
     this.startHealthCheckLoop();
