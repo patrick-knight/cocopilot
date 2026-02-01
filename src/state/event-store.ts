@@ -118,8 +118,10 @@ export class EventStore {
       this.events.length = this.maxEvents;
     }
 
-    // Persist asynchronously (fire-and-forget)
-    this.persist().catch(() => {});
+    // Persist asynchronously (fire-and-forget but log errors)
+    this.persist().catch(err => {
+      console.error('[EventStore] Failed to persist events:', err instanceof Error ? err.message : err);
+    });
 
     return event;
   }

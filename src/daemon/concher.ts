@@ -399,7 +399,9 @@ export class Concher {
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       logger.error(`Failed to start agents for ${repoName}: ${message}`);
-      await this.state.updateRepoStatus(repoName, "error").catch(() => {});
+      await this.state.updateRepoStatus(repoName, "error").catch(err => {
+        logger.error(`Failed to update repo status to error: ${err instanceof Error ? err.message : err}`);
+      });
     } finally {
       this.startingRepos.delete(repoName);
     }
@@ -408,17 +410,29 @@ export class Concher {
   private async stopRepoAgentsForRepo(repoName: string): Promise<void> {
     const agents = this.repoAgents.get(repoName);
     if (!agents) return;
-    await agents.chocolatier.stop().catch(() => {});
-    await agents.mergeAgent.stop().catch(() => {});
-    await agents.reviewer.stop().catch(() => {});
-    await agents.securityReviewer.stop().catch(() => {});
-    await this.state.updateAgentStatus(repoName, scopedAgentName("chocolatier", repoName), "stopped").catch(() => {});
+    
+    // Stop all agents, logging any errors
+    const logStopError = (name: string) => (err: unknown) => {
+      logger.error(`Failed to stop ${name} for ${repoName}: ${err instanceof Error ? err.message : err}`);
+    };
+    
+    await agents.chocolatier.stop().catch(logStopError('chocolatier'));
+    await agents.mergeAgent.stop().catch(logStopError('mergeAgent'));
+    await agents.reviewer.stop().catch(logStopError('reviewer'));
+    await agents.securityReviewer.stop().catch(logStopError('securityReviewer'));
+    
+    // Update agent statuses, logging any errors
+    const logStatusError = (name: string) => (err: unknown) => {
+      logger.error(`Failed to update ${name} status to stopped: ${err instanceof Error ? err.message : err}`);
+    };
+    
+    await this.state.updateAgentStatus(repoName, scopedAgentName("chocolatier", repoName), "stopped").catch(logStatusError('chocolatier'));
     const mergeName = agents.mergeAgent instanceof Enrober
       ? scopedAgentName("enrober", repoName)
       : scopedAgentName("temperer", repoName);
-    await this.state.updateAgentStatus(repoName, mergeName, "stopped").catch(() => {});
-    await this.state.updateAgentStatus(repoName, scopedAgentName("reviewer", repoName), "stopped").catch(() => {});
-    await this.state.updateAgentStatus(repoName, scopedAgentName("security-reviewer", repoName), "stopped").catch(() => {});
+    await this.state.updateAgentStatus(repoName, mergeName, "stopped").catch(logStatusError('mergeAgent'));
+    await this.state.updateAgentStatus(repoName, scopedAgentName("reviewer", repoName), "stopped").catch(logStatusError('reviewer'));
+    await this.state.updateAgentStatus(repoName, scopedAgentName("security-reviewer", repoName), "stopped").catch(logStatusError('securityReviewer'));
     this.repoAgents.delete(repoName);
   }
 
