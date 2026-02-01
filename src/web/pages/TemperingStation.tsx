@@ -181,9 +181,11 @@ export function TemperingStation({
   const activeWorkers = workers.filter(
     (w) => w.status === "starting" || w.status === "working" || w.status === "stuck",
   );
-  const completedWorkers = workers.filter(
-    (w) => w.status === "completed" || w.status === "failed" || w.status === "terminated",
-  );
+  const completedWorkers = workers
+    .filter(
+      (w) => w.status === "completed" || w.status === "failed" || w.status === "terminated",
+    )
+    .sort((a, b) => b.updatedAt - a.updatedAt); // Most recent activity first
 
   // ---------------------------------------------------------------------------
   // Render
