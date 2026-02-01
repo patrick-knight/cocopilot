@@ -1404,7 +1404,7 @@ export function registerCommands(program: Command): void {
         if (typeof startTui === "function") {
           startTui(args);
         } else {
-          console.error("Error: TUI module does not export a startTui function.");
+          console.error("Error: TUI module does not export a startTui function. Please ensure the TUI module is properly installed.");
           process.exitCode = 1;
         }
       } catch (err: unknown) {

@@ -12,6 +12,7 @@
 
 import React from "react";
 import { fileURLToPath } from "url";
+import { resolve } from "path";
 import { render, useInput, useApp } from "ink";
 import { RouterProvider, useRouter, Screen } from "./router.js";
 import {
@@ -110,6 +111,6 @@ export function startTui(args?: string[]): void {
 }
 
 // Only execute if this module is the main entry point (not imported)
-if (fileURLToPath(import.meta.url) === process.argv[1]) {
+if (resolve(fileURLToPath(import.meta.url)) === resolve(process.argv[1])) {
   startTui();
 }
