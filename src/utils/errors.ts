@@ -30,5 +30,5 @@ export function getErrorMessage(err: unknown): string {
  */
 export function wrapError(err: unknown, context: string): Error {
   const message = getErrorMessage(err);
-  return new Error(`${context}: ${message}`);
+  return new Error(`${context}: ${message}`, { cause: err });
 }
