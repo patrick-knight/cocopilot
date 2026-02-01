@@ -225,8 +225,9 @@ export class StateManager extends EventEmitter {
       const raw = await readJsonFile<DaemonState>(this.statePath);
       if (!raw) {
         // No state file — first run
+        // Use sync write to avoid deadlock when called from queued operations
         const fresh = structuredClone(DEFAULT_DAEMON_STATE);
-        await this.persistState(fresh);
+        writeJsonFileSync(this.statePath, fresh);
         return fresh;
       }
       // Validate & recover
@@ -238,7 +239,8 @@ export class StateManager extends EventEmitter {
         .rename(this.statePath, backupPath)
         .catch(() => {});
       const fresh = structuredClone(DEFAULT_DAEMON_STATE);
-      await this.persistState(fresh);
+      // Use sync write to avoid deadlock when called from queued operations
+      writeJsonFileSync(this.statePath, fresh);
       return fresh;
     }
   }
@@ -265,6 +267,7 @@ export class StateManager extends EventEmitter {
       }
     }).catch(err => {
       console.error('[StateManager] Failed to persist state:', err);
+      throw err;
     });
     return this.stateOperationQueue;
   }
