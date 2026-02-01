@@ -94,6 +94,7 @@ export class StateManager extends EventEmitter {
   
   private stateWatcher: fs.FSWatcher | null = null;
   private isReloadingState = false;
+  private stateOperationQueue: Promise<void> = Promise.resolve();
 
   constructor(baseDir?: string) {
     super();
@@ -144,34 +145,42 @@ export class StateManager extends EventEmitter {
     if (this.stateWatcher) return;
 
     try {
-      this.stateWatcher = fs.watch(this.statePath, async (eventType) => {
+      this.stateWatcher = fs.watch(this.statePath, (eventType) => {
         // Only reload on 'change' events, and prevent reloading our own writes
         if (eventType === 'change' && !this.isReloadingState) {
-          this.isReloadingState = true;
-          try {
-            // Wait a bit to ensure the write is complete
-            await new Promise(resolve => setTimeout(resolve, 100));
-            const newState = await this.loadStateWithRecovery();
+          // Queue the reload operation to serialize with writes
+          this.stateOperationQueue = this.stateOperationQueue.then(async () => {
+            // Double-check the flag in case it changed while queued
+            if (this.isReloadingState) return;
             
-            // Only update if repositories actually changed
-            const oldRepoNames = Object.keys(this.state.repositories).sort();
-            const newRepoNames = Object.keys(newState.repositories).sort();
-            
-            if (JSON.stringify(oldRepoNames) !== JSON.stringify(newRepoNames)) {
-              // Preserve daemon runtime state (status, pid, startedAt)
-              newState.status = this.state.status;
-              newState.pid = this.state.pid;
-              newState.startedAt = this.state.startedAt;
+            this.isReloadingState = true;
+            try {
+              // Wait a bit to ensure the write is complete
+              await new Promise(resolve => setTimeout(resolve, 100));
+              const newState = await this.loadStateWithRecovery();
               
-              this.state = newState;
-              this.emit('stateChanged', this.state);
-              console.log('[StateManager] Reloaded state from disk - repositories updated');
+              // Only update if repositories actually changed
+              const oldRepoNames = Object.keys(this.state.repositories).sort();
+              const newRepoNames = Object.keys(newState.repositories).sort();
+              
+              if (JSON.stringify(oldRepoNames) !== JSON.stringify(newRepoNames)) {
+                // Preserve daemon runtime state (status, pid, startedAt)
+                newState.status = this.state.status;
+                newState.pid = this.state.pid;
+                newState.startedAt = this.state.startedAt;
+                
+                this.state = newState;
+                this.emit('stateChanged', this.state);
+                console.log('[StateManager] Reloaded state from disk - repositories updated');
+              }
+            } catch (error) {
+              console.error('[StateManager] Failed to reload state:', error);
+            } finally {
+              this.isReloadingState = false;
             }
-          } catch (error) {
-            console.error('[StateManager] Failed to reload state:', error);
-          } finally {
-            this.isReloadingState = false;
-          }
+          }).catch(err => {
+            console.error('[StateManager] State reload error:', err);
+          });
         }
       });
     } catch (error) {
@@ -216,8 +225,9 @@ export class StateManager extends EventEmitter {
       const raw = await readJsonFile<DaemonState>(this.statePath);
       if (!raw) {
         // No state file — first run
+        // Use sync write to avoid deadlock when called from queued operations
         const fresh = structuredClone(DEFAULT_DAEMON_STATE);
-        await this.persistState(fresh);
+        writeJsonFileSync(this.statePath, fresh);
         return fresh;
       }
       // Validate & recover
@@ -229,7 +239,8 @@ export class StateManager extends EventEmitter {
         .rename(this.statePath, backupPath)
         .catch(() => {});
       const fresh = structuredClone(DEFAULT_DAEMON_STATE);
-      await this.persistState(fresh);
+      // Use sync write to avoid deadlock when called from queued operations
+      writeJsonFileSync(this.statePath, fresh);
       return fresh;
     }
   }
@@ -243,15 +254,22 @@ export class StateManager extends EventEmitter {
   }
 
   private async persistState(state?: DaemonState): Promise<void> {
-    // Set flag to prevent reloading our own write
-    this.isReloadingState = true;
-    try {
-      await writeJsonFile(this.statePath, state ?? this.state);
-      // Brief delay after write completes to ensure fs.watch event passes
-      await new Promise(resolve => setTimeout(resolve, 150));
-    } finally {
-      this.isReloadingState = false;
-    }
+    // Queue state operations to prevent concurrent writes
+    this.stateOperationQueue = this.stateOperationQueue.then(async () => {
+      // Set flag to prevent reloading our own write
+      this.isReloadingState = true;
+      try {
+        await writeJsonFile(this.statePath, state ?? this.state);
+        // Brief delay after write completes to ensure fs.watch event passes
+        await new Promise(resolve => setTimeout(resolve, 150));
+      } finally {
+        this.isReloadingState = false;
+      }
+    }).catch(err => {
+      console.error('[StateManager] Failed to persist state:', err);
+      throw err;
+    });
+    return this.stateOperationQueue;
   }
 
   /** Sync flush for use in signal handlers. */
