@@ -7,7 +7,7 @@ import { Box, Text } from "ink";
 import Spinner from "ink-spinner";
 import { useStatus } from "../hooks/index.js";
 import { Header, StatusCard } from "../components/index.js";
-import { symbols, colors } from "../utils/colors.js";
+import { symbols } from "../utils/colors.js";
 
 export function StatusScreen(): React.ReactElement {
   const { status, loading, error } = useStatus();
