@@ -10,7 +10,7 @@ module.exports = {
     '^@github/copilot-sdk$': '<rootDir>/node_modules/@github/copilot-sdk/dist/index.js',
   },
   transformIgnorePatterns: [
-    'node_modules/(?!uuid/)',
+    'node_modules/(?!uuid|@github/copilot-sdk)/',
   ],
   transform: {
     '^.+\\.[tj]sx?$': ['ts-jest', {

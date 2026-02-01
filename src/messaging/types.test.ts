@@ -21,11 +21,17 @@ describe("MessageType enum", () => {
     expect(MessageType.CI_FAILED).toBe("CI_FAILED");
     expect(MessageType.SPAWN_FIXUP).toBe("SPAWN_FIXUP");
     expect(MessageType.BROADCAST).toBe("BROADCAST");
+    expect(MessageType.REVIEW_COMPLETE).toBe("REVIEW_COMPLETE");
+    expect(MessageType.SPAWN_WORKER).toBe("SPAWN_WORKER");
+    expect(MessageType.SECURITY_REVIEW_REQUEST).toBe("SECURITY_REVIEW_REQUEST");
+    expect(MessageType.SECURITY_REVIEW_PASSED).toBe("SECURITY_REVIEW_PASSED");
+    expect(MessageType.SECURITY_REVIEW_FAILED).toBe("SECURITY_REVIEW_FAILED");
+    expect(MessageType.WORKER_ACTIVITY).toBe("WORKER_ACTIVITY");
   });
 
-  it("has exactly 11 message types", () => {
+  it("has exactly 17 message types", () => {
     const values = Object.values(MessageType);
-    expect(values).toHaveLength(11);
+    expect(values).toHaveLength(17);
   });
 });
 
