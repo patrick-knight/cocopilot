@@ -746,8 +746,8 @@ export function registerCommands(program: Command): void {
 
       // Dynamic import with workaround for different module systems
       const eventsource = await import("eventsource");
-      const EventSourceClass = (eventsource as { default?: typeof eventsource.EventSource; EventSource?: typeof eventsource.EventSource }).default 
-        ?? (eventsource as { EventSource: typeof eventsource.EventSource }).EventSource;
+      const EventSourceClass = (eventsource as unknown as { default?: typeof eventsource.EventSource; EventSource?: typeof eventsource.EventSource }).default
+        ?? (eventsource as unknown as { EventSource: typeof eventsource.EventSource }).EventSource;
       const baseUrl = `http://localhost:3000/api/v1/messages/stream`;
       const params = new URLSearchParams();
       if (options.repo) params.set("repo", options.repo);
