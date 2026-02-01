@@ -24,6 +24,11 @@
  *   repo:{id}      — per-repository event rooms (new)
  */
 
+// Max length for room/channel names to prevent DoS
+const MAX_NAME_LENGTH = 128;
+// Allowed characters for room/channel names (alphanumeric, dot, dash, underscore)
+const VALID_NAME_PATTERN = /^[a-zA-Z0-9._-]+$/;
+
 /**
  * Minimal Socket.IO interfaces to avoid hard dependency on socket.io types.
  * The actual socket.io package will be installed when the web layer is set up.
@@ -222,7 +227,13 @@ export class WorkerStreamManager {
   private handleConnection(socket: SocketIOSocket): void {
     // Client joins a worker room to receive its output stream
     socket.on("worker:join", async (workerName: string) => {
-      if (typeof workerName !== "string" || workerName.length === 0) return;
+      // SECURITY: Validate input to prevent arbitrary room injection
+      if (typeof workerName !== "string" || 
+          workerName.length === 0 || 
+          workerName.length > MAX_NAME_LENGTH ||
+          !VALID_NAME_PATTERN.test(workerName)) {
+        return;
+      }
 
       const room = `worker:${workerName}`;
       await socket.join(room);
@@ -235,7 +246,13 @@ export class WorkerStreamManager {
 
     // Client leaves a worker room
     socket.on("worker:leave", async (workerName: string) => {
-      if (typeof workerName !== "string" || workerName.length === 0) return;
+      // SECURITY: Validate input
+      if (typeof workerName !== "string" || 
+          workerName.length === 0 || 
+          workerName.length > MAX_NAME_LENGTH ||
+          !VALID_NAME_PATTERN.test(workerName)) {
+        return;
+      }
 
       const room = `worker:${workerName}`;
       await socket.leave(room);
@@ -249,13 +266,25 @@ export class WorkerStreamManager {
 
     // Client joins a repo room (selective subscription)
     socket.on("repo:join", async (repoId: string) => {
-      if (typeof repoId !== "string" || repoId.length === 0) return;
+      // SECURITY: Validate input
+      if (typeof repoId !== "string" || 
+          repoId.length === 0 || 
+          repoId.length > MAX_NAME_LENGTH ||
+          !VALID_NAME_PATTERN.test(repoId)) {
+        return;
+      }
       await socket.join(`repo:${repoId}`);
     });
 
     // Client leaves a repo room
     socket.on("repo:leave", async (repoId: string) => {
-      if (typeof repoId !== "string" || repoId.length === 0) return;
+      // SECURITY: Validate input
+      if (typeof repoId !== "string" || 
+          repoId.length === 0 || 
+          repoId.length > MAX_NAME_LENGTH ||
+          !VALID_NAME_PATTERN.test(repoId)) {
+        return;
+      }
       await socket.leave(`repo:${repoId}`);
     });
 

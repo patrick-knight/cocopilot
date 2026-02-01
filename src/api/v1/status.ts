@@ -27,28 +27,40 @@ async function checkGitHubAuth(): Promise<{ authenticated: boolean; user?: strin
 
     let stdout = "";
     let stderr = "";
+    let settled = false;
+
+    const timeoutId = setTimeout(() => {
+      if (!settled) {
+        settled = true;
+        child.kill();
+        resolve({ authenticated: false, error: "GitHub auth check timed out" });
+      }
+    }, 5000);
 
     child.stdout?.on("data", (data) => { stdout += data.toString(); });
     child.stderr?.on("data", (data) => { stderr += data.toString(); });
 
     child.on("error", () => {
-      resolve({ authenticated: false, error: "GitHub CLI not installed" });
-    });
-
-    child.on("close", (code) => {
-      if (code === 0) {
-        // Parse username from output like "Logged in to github.com account username"
-        const match = (stdout + stderr).match(/account\s+(\S+)/i);
-        resolve({ authenticated: true, user: match?.[1] });
-      } else {
-        resolve({ authenticated: false, error: "Not logged in to GitHub" });
+      if (!settled) {
+        settled = true;
+        clearTimeout(timeoutId);
+        resolve({ authenticated: false, error: "GitHub CLI not installed" });
       }
     });
 
-    setTimeout(() => {
-      child.kill();
-      resolve({ authenticated: false, error: "GitHub auth check timed out" });
-    }, 5000);
+    child.on("close", (code) => {
+      if (!settled) {
+        settled = true;
+        clearTimeout(timeoutId);
+        if (code === 0) {
+          // Parse username from output like "Logged in to github.com account username"
+          const match = (stdout + stderr).match(/account\s+(\S+)/i);
+          resolve({ authenticated: true, user: match?.[1] });
+        } else {
+          resolve({ authenticated: false, error: "Not logged in to GitHub" });
+        }
+      }
+    });
   });
 }
 
@@ -63,27 +75,39 @@ async function checkCopilotCli(): Promise<{ installed: boolean; version?: string
 
     let stdout = "";
     let stderr = "";
+    let settled = false;
+
+    const timeoutId = setTimeout(() => {
+      if (!settled) {
+        settled = true;
+        child.kill();
+        resolve({ installed: false, error: "coco CLI check timed out" });
+      }
+    }, 5000);
 
     child.stdout?.on("data", (data) => { stdout += data.toString(); });
     child.stderr?.on("data", (data) => { stderr += data.toString(); });
 
     child.on("error", () => {
-      resolve({ installed: false, error: "coco CLI not installed" });
-    });
-
-    child.on("close", (code) => {
-      if (code === 0) {
-        const version = (stdout + stderr).trim().split("\n")[0] || "installed";
-        resolve({ installed: true, version });
-      } else {
+      if (!settled) {
+        settled = true;
+        clearTimeout(timeoutId);
         resolve({ installed: false, error: "coco CLI not installed" });
       }
     });
 
-    setTimeout(() => {
-      child.kill();
-      resolve({ installed: false, error: "coco CLI check timed out" });
-    }, 5000);
+    child.on("close", (code) => {
+      if (!settled) {
+        settled = true;
+        clearTimeout(timeoutId);
+        if (code === 0) {
+          const version = (stdout + stderr).trim().split("\n")[0] || "installed";
+          resolve({ installed: true, version });
+        } else {
+          resolve({ installed: false, error: "coco CLI not installed" });
+        }
+      }
+    });
   });
 }
 
