@@ -56,3 +56,15 @@ export function scopedWorkerName(
 export function isScopedName(name: string): boolean {
   return name.includes(":");
 }
+
+/**
+ * Extract the bare name (first segment) from a scoped "name:repoName" string.
+ * If the name is not scoped, returns it as-is.
+ *
+ * Use this when you receive a scoped broker identity (e.g. "Snickers:my-app")
+ * but need the state-manager key (e.g. "Snickers").
+ */
+export function bareNameFromScoped(scopedName: string): string {
+  const idx = scopedName.indexOf(":");
+  return idx >= 0 ? scopedName.slice(0, idx) : scopedName;
+}

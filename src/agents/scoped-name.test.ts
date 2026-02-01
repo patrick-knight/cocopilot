@@ -1,4 +1,4 @@
-import { scopedAgentName, scopedWorkerName, isScopedName } from "./scoped-name";
+import { scopedAgentName, scopedWorkerName, isScopedName, bareNameFromScoped } from "./scoped-name";
 
 describe("scopedAgentName", () => {
   it("produces type:repoName format", () => {
@@ -58,5 +58,24 @@ describe("isScopedName", () => {
     expect(isScopedName("temperer")).toBe(false);
     expect(isScopedName("Snickers")).toBe(false);
     expect(isScopedName("")).toBe(false);
+  });
+});
+
+describe("bareNameFromScoped", () => {
+  it("extracts the bare name from a scoped name", () => {
+    expect(bareNameFromScoped("Snickers:my-app")).toBe("Snickers");
+    expect(bareNameFromScoped("temperer:widgets")).toBe("temperer");
+    expect(bareNameFromScoped("security-reviewer:oura-cal")).toBe(
+      "security-reviewer",
+    );
+  });
+
+  it("returns the name as-is when not scoped", () => {
+    expect(bareNameFromScoped("Snickers")).toBe("Snickers");
+    expect(bareNameFromScoped("temperer")).toBe("temperer");
+  });
+
+  it("handles empty string", () => {
+    expect(bareNameFromScoped("")).toBe("");
   });
 });

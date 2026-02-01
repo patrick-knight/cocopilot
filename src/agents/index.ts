@@ -83,4 +83,5 @@ export {
   scopedAgentName,
   scopedWorkerName,
   isScopedName,
+  bareNameFromScoped,
 } from "./scoped-name.js";

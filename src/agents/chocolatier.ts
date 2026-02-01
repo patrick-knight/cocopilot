@@ -39,7 +39,7 @@ import type {
   HealthCheckReport,
   AgentToolDefinition,
 } from "./types.js";
-import { scopedAgentName, scopedWorkerName } from "./scoped-name.js";
+import { scopedAgentName, scopedWorkerName, bareNameFromScoped } from "./scoped-name.js";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -536,6 +536,7 @@ export class Chocolatier extends EventEmitter {
     } catch (err) {
       // Log but don't crash on malformed messages
       const errorMsg = err instanceof Error ? err.message : String(err);
+      console.error(`[Chocolatier:${this.config.repoName}] Error handling ${message.type}: ${errorMsg}`);
       this.emit("error", new Error(`Error handling message ${message.type}: ${errorMsg}`));
     }
 
@@ -581,11 +582,12 @@ export class Chocolatier extends EventEmitter {
       files_changed?: number;
       commits?: number;
     };
+    const workerName = bareNameFromScoped(message.from);
 
     try {
       await this.stateManager.updateWorkerStatus(
         this.config.repoName,
-        message.from,
+        workerName,
         "completed",
         {
           prUrl: payload.pr_url,
@@ -595,13 +597,13 @@ export class Chocolatier extends EventEmitter {
       this.emit(
         "workerCompleted",
         this.config.repoName,
-        message.from,
+        workerName,
         payload.summary,
       );
 
       // Broadcast the completion event
       await this.broadcast(
-        `Worker ${message.from} completed: ${payload.summary}`,
+        `Worker ${workerName} completed: ${payload.summary}`,
       );
     } catch {
       // Worker may have already been removed
@@ -618,11 +620,12 @@ export class Chocolatier extends EventEmitter {
       task: string;
       recoverable: boolean;
     };
+    const workerName = bareNameFromScoped(message.from);
 
     try {
       await this.stateManager.updateWorkerStatus(
         this.config.repoName,
-        message.from,
+        workerName,
         "failed",
         { error: payload.error },
       );
@@ -630,12 +633,12 @@ export class Chocolatier extends EventEmitter {
       this.emit(
         "workerFailed",
         this.config.repoName,
-        message.from,
+        workerName,
         payload.error,
       );
 
       await this.broadcast(
-        `Worker ${message.from} failed: ${payload.error}`,
+        `Worker ${workerName} failed: ${payload.error}`,
         "error",
       );
     } catch {
@@ -763,6 +766,8 @@ export class Chocolatier extends EventEmitter {
         pushTo: payload.pushTo,
       });
 
+      console.log(`[Chocolatier:${this.config.repoName}] Spawned worker ${worker.name} for task: ${payload.task.slice(0, 80)}`);
+
       // Send confirmation back to requester
       await this.broker.send({
         type: MessageType.STATUS_RESPONSE,
@@ -777,6 +782,7 @@ export class Chocolatier extends EventEmitter {
       });
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : String(err);
+      console.error(`[Chocolatier:${this.config.repoName}] Failed to spawn worker: ${errorMsg}`);
       await this.broker.send({
         type: MessageType.TASK_FAILED,
         from: this.agentName,
