@@ -267,6 +267,7 @@ export function MetricsDashboard(): React.ReactElement {
   const [data, setData] = useState<MetricsData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
   const fetchMetrics = useCallback(async () => {
     try {
@@ -274,6 +275,7 @@ export function MetricsDashboard(): React.ReactElement {
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const json: MetricsData = await res.json();
       setData(json);
+      setLastUpdated(new Date());
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load metrics");
@@ -371,11 +373,16 @@ export function MetricsDashboard(): React.ReactElement {
           {/* Auto-refresh note */}
           <p className="mt-4 text-sm text-muted-foreground">
             Auto-refreshes every 30 seconds
+            {lastUpdated && (
+              <span className="ml-2">
+                • Last updated: {lastUpdated.toLocaleTimeString()}
+              </span>
+            )}
           </p>
         </header>
 
         {/* Charts Grid */}
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2" key={lastUpdated?.getTime()}>
           <ChartPanel title="Worker Throughput (last 24h)">
             <WorkerThroughputChart data={data.workerThroughput} />
           </ChartPanel>
