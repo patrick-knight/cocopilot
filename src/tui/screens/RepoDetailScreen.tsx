@@ -7,7 +7,7 @@ import { Box, Text, useInput } from "ink";
 import Spinner from "ink-spinner";
 import TextInput from "ink-text-input";
 import { useRepository, useWorkers } from "../hooks/index.js";
-import { Header, StatusIndicator, LogPane } from "../components/index.js";
+import { Header, StatusIndicator } from "../components/index.js";
 import { useRouter } from "../router.js";
 import { symbols, getStatusColor } from "../utils/colors.js";
 
@@ -20,7 +20,7 @@ type Mode = "view" | "spawn";
 export function RepoDetailScreen({ repoName }: RepoDetailScreenProps): React.ReactElement {
   const { repository, loading: repoLoading, error: repoError } = useRepository(repoName);
   const { workers, spawnWorker, stopWorker, refresh } = useWorkers(repoName);
-  const { navigate, goBack } = useRouter();
+  const { navigate } = useRouter();
   const [mode, setMode] = useState<Mode>("view");
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [spawnTask, setSpawnTask] = useState("");
@@ -196,7 +196,6 @@ export function RepoDetailScreen({ repoName }: RepoDetailScreenProps): React.Rea
         ) : (
           workers.map((worker, index) => {
             const isSelected = index === selectedIndex;
-            const colorFn = getStatusColor(worker.status);
 
             return (
               <Box key={worker.name}>
@@ -204,7 +203,7 @@ export function RepoDetailScreen({ repoName }: RepoDetailScreenProps): React.Rea
                   backgroundColor={isSelected ? "blue" : undefined}
                   color={isSelected ? "white" : undefined}
                 >
-                  {isSelected ? "❯ " : "  "}
+                  {isSelected ? `${symbols.pointer} ` : "  "}
                   <StatusIndicator status={worker.status} showSymbol={false} label={worker.status.padEnd(10)} />
                   <Text bold> {worker.name}</Text>
                   {worker.branch && <Text dimColor> [{worker.branch}]</Text>}

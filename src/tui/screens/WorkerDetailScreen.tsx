@@ -19,13 +19,12 @@ interface WorkerDetailScreenProps {
 export function WorkerDetailScreen({ repoName, workerName }: WorkerDetailScreenProps): React.ReactElement {
   const { worker, loading, error, refresh } = useWorker(repoName, workerName);
   const { output } = useStreaming(workerName);
-  const { goBack } = useRouter();
   const [actionError, setActionError] = React.useState<string | null>(null);
 
   useInput((input, key) => {
     if (input === "r") {
       refresh();
-    } else if (input === "x") {
+    } else if (input === "x" || key.return) {
       handleStop();
     }
   });
@@ -68,8 +67,6 @@ export function WorkerDetailScreen({ repoName, workerName }: WorkerDetailScreenP
       </Box>
     );
   }
-
-  const colorFn = getStatusColor(worker.status);
 
   return (
     <Box flexDirection="column">

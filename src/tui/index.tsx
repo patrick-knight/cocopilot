@@ -11,7 +11,9 @@
  */
 
 import React from "react";
-import { render, Box, Text, useInput, useApp } from "ink";
+import { fileURLToPath } from "url";
+import { normalize } from "path";
+import { render, useInput, useApp } from "ink";
 import { RouterProvider, useRouter, Screen } from "./router.js";
 import {
   StatusScreen,
@@ -77,8 +79,7 @@ function App({ initialScreen }: AppProps): React.ReactElement {
 }
 
 // Parse CLI args
-function parseArgs(): { port: number; initialScreen?: Screen } {
-  const args = process.argv.slice(2);
+function parseArgs(args: string[]): { port: number; initialScreen?: Screen } {
   let port = 3000;
   let initialScreen: Screen | undefined;
 
@@ -98,11 +99,20 @@ function parseArgs(): { port: number; initialScreen?: Screen } {
   return { port, initialScreen };
 }
 
-// Main entry point
-const { port, initialScreen } = parseArgs();
+// Main entry point - export as function instead of executing at module level
+export function startTui(args?: string[]): void {
+  const { port, initialScreen } = parseArgs(args || process.argv.slice(2));
 
-// Initialize API client with port
-getClient(port);
+  // Initialize API client with port
+  getClient(port);
 
-// Render the TUI
-render(<App initialScreen={initialScreen} />);
+  // Render the TUI
+  render(<App initialScreen={initialScreen} />);
+}
+
+// Only execute if this module is the main entry point (not imported)
+const modulePath = normalize(fileURLToPath(import.meta.url));
+const mainPath = normalize(process.argv[1] || "");
+if (modulePath === mainPath) {
+  startTui();
+}

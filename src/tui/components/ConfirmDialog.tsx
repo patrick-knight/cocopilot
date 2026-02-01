@@ -25,7 +25,7 @@ export function ConfirmDialog({
   useInput((input, key) => {
     if (input === "y" || input === "Y") {
       onConfirm();
-    } else if (input === "n" || input === "N" || key.escape) {
+    } else if (input === "n" || input === "N") {
       onCancel();
     } else if (key.leftArrow || key.rightArrow || key.tab) {
       setSelected((prev) => !prev);

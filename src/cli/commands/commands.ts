@@ -1398,10 +1398,15 @@ export function registerCommands(program: Command): void {
         args.push("--no-color");
       }
 
-      // Dynamically import and run the TUI
+      // Dynamically import and start the TUI with the constructed args
       try {
-        // The TUI module handles its own rendering via ink
-        await import("../../tui/index.js");
+        const { startTui } = await import("../../tui/index.js");
+        if (typeof startTui === "function") {
+          startTui(args);
+        } else {
+          console.error("Error: TUI module failed to load properly. This may indicate a build or import error.");
+          process.exitCode = 1;
+        }
       } catch (err: unknown) {
         const message = err instanceof Error ? err.message : String(err);
         console.error(`Error: Failed to launch TUI — ${message}`);

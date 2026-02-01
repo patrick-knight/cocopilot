@@ -10,9 +10,10 @@ interface LogPaneProps {
   height?: number;
   title?: string;
   autoScroll?: boolean;
+  focused?: boolean;
 }
 
-export function LogPane({ lines, height = 15, title, autoScroll = true }: LogPaneProps): React.ReactElement {
+export function LogPane({ lines, height = 15, title, autoScroll = true, focused = true }: LogPaneProps): React.ReactElement {
   const [scrollOffset, setScrollOffset] = useState(0);
   const [isAutoScroll, setIsAutoScroll] = useState(autoScroll);
 
@@ -27,6 +28,8 @@ export function LogPane({ lines, height = 15, title, autoScroll = true }: LogPan
   }, [lines.length, maxOffset, isAutoScroll]);
 
   useInput((input, key) => {
+    if (!focused) return;
+    
     if (key.upArrow || input === "k") {
       setIsAutoScroll(false);
       setScrollOffset((prev) => Math.max(0, prev - 1));
