@@ -153,12 +153,10 @@ export interface AgentToolDefinition {
 export interface EnroberConfig {
   /** Path to the git repository to monitor. */
   repoPath: string;
+  /** Repository name for scoped agent naming. */
+  repoName: string;
   /** Polling interval in milliseconds. Defaults to 120000 (2 min). */
   pollIntervalMs?: number;
-  /** Agent name for messaging. Defaults to "enrober". */
-  agentName?: string;
-  /** Chocolatier agent name. Defaults to "chocolatier". */
-  chocolatierName?: string;
   /** PR label used to identify CoCoPilot PRs. Defaults to "cocopilot". */
   label?: string;
 }

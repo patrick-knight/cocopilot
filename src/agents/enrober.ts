@@ -33,9 +33,16 @@ const execFile = promisify(execFileCb);
 // ---------------------------------------------------------------------------
 
 const DEFAULT_POLL_INTERVAL_MS = 2 * 60 * 1000; // 2 minutes
-const DEFAULT_AGENT_NAME = "enrober";
-const DEFAULT_CHOCOLATIER_NAME = "chocolatier";
+const AGENT_TYPE = "enrober";
 const DEFAULT_LABEL = "cocopilot";
+
+/**
+ * Build the unique agent name for a repo-specific Enrober.
+ * Used both internally and by API routes that address this agent.
+ */
+export function enroberAgentName(repoName: string): string {
+  return `${AGENT_TYPE}:${repoName}`;
+}
 
 // ---------------------------------------------------------------------------
 // System prompt
@@ -121,7 +128,7 @@ export type ExecFn = (
  */
 export class Enrober {
   private readonly config: Required<
-    Pick<EnroberConfig, "repoPath" | "pollIntervalMs" | "agentName" | "chocolatierName" | "label">
+    Pick<EnroberConfig, "repoPath" | "repoName" | "pollIntervalMs" | "label">
   > & { broker: MessageBroker };
   private readonly trackedPRs: Map<number, TrackedEnroberPR> = new Map();
   private pollTimer: ReturnType<typeof setInterval> | null = null;
@@ -135,14 +142,23 @@ export class Enrober {
   ) {
     this.config = {
       repoPath: config.repoPath,
+      repoName: config.repoName,
       broker: config.broker,
       pollIntervalMs: config.pollIntervalMs ?? DEFAULT_POLL_INTERVAL_MS,
-      agentName: config.agentName ?? DEFAULT_AGENT_NAME,
-      chocolatierName: config.chocolatierName ?? DEFAULT_CHOCOLATIER_NAME,
       label: config.label ?? DEFAULT_LABEL,
     };
     this.broker = config.broker;
     this.execFn = execFn ?? execFile;
+  }
+
+  /** Get the repo-scoped agent name. */
+  get agentName(): string {
+    return enroberAgentName(this.config.repoName);
+  }
+
+  /** Get the repo-scoped chocolatier name for messaging. */
+  get chocolatierName(): string {
+    return `chocolatier:${this.config.repoName}`;
   }
 
   /** Start the Enrober: subscribe to messages and begin polling. */
@@ -152,7 +168,7 @@ export class Enrober {
 
     // Subscribe to incoming messages (e.g., PR_CREATED from Truffles)
     await this.broker.subscribe(
-      this.config.agentName,
+      this.agentName,
       this.handleMessage.bind(this),
     );
 
@@ -170,7 +186,7 @@ export class Enrober {
       clearInterval(this.pollTimer);
       this.pollTimer = null;
     }
-    await this.broker.unsubscribe(this.config.agentName);
+    await this.broker.unsubscribe(this.agentName);
   }
 
   /** Whether the agent is currently running. */
@@ -494,7 +510,7 @@ export class Enrober {
 
     await this.broker.send({
       type: MessageType.BROADCAST,
-      from: this.config.agentName,
+      from: this.agentName,
       to: "*",
       payload: {
         message: `PR #${pr.number} (${pr.title}) has changes requested by: ${requesters}`,
@@ -531,7 +547,7 @@ export class Enrober {
     // Broadcast to the dashboard
     await this.broker.send({
       type: MessageType.BROADCAST,
-      from: this.config.agentName,
+      from: this.agentName,
       to: "*",
       payload: {
         message: `PR #${pr.number} (${pr.title}) is ready to merge — approved and CI passing`,
@@ -549,7 +565,7 @@ export class Enrober {
   ): Promise<void> {
     await this.broker.send({
       type: MessageType.BROADCAST,
-      from: this.config.agentName,
+      from: this.agentName,
       to: "*",
       payload: {
         message: `PR #${pr.number} (${pr.title}) is blocked: ${reason}`,

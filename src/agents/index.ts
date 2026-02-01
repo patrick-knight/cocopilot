@@ -31,6 +31,7 @@ export type {
 
 export {
   Temperer,
+  tempererAgentName,
   type TempererConfig,
   type PRInfo as TempererPRInfo,
   type CheckInfo,
@@ -42,6 +43,7 @@ export {
 
 export {
   Enrober,
+  enroberAgentName,
   ENROBER_SYSTEM_PROMPT,
   type EnroberPRInfo,
   type TrackedEnroberPR,
@@ -75,6 +77,7 @@ export {
 
 export {
   SecurityReviewerAgent,
+  securityReviewerAgentName,
   type SecurityReviewerConfig,
   type SecurityReviewerEvents,
 } from "./security-reviewer.js";

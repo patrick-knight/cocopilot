@@ -270,12 +270,14 @@ export class Concher {
       const mergeAgent = repo.mode === "multiplayer"
         ? new Enrober({
           repoPath: repo.localPath,
+          repoName,
           broker: this.broker,
           pollIntervalMs,
           label,
         })
         : new Temperer({
           repoPath: repo.localPath,
+          repoName,
           broker: this.broker,
           pollIntervalMs,
           label,
@@ -285,7 +287,7 @@ export class Concher {
 
       // Start security reviewer agent
       const securityReviewer = new SecurityReviewerAgent(
-        { repoPath: repo.localPath },
+        { repoPath: repo.localPath, repoName },
         this.broker,
       );
       await securityReviewer.start();

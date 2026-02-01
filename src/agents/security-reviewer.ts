@@ -22,13 +22,26 @@ import type { CocoMessage, SecurityReviewRequestPayload, SecurityIssue } from ".
 const execFileAsync = promisify(execFile);
 
 // ---------------------------------------------------------------------------
+// Constants
+// ---------------------------------------------------------------------------
+
+const AGENT_TYPE = "security-reviewer";
+
+/**
+ * Build the unique agent name for a repo-specific Security Reviewer.
+ * Used both internally and by API routes that address this agent.
+ */
+export function securityReviewerAgentName(repoName: string): string {
+  return `${AGENT_TYPE}:${repoName}`;
+}
+
+// ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
 export interface SecurityReviewerConfig {
   repoPath: string;
-  agentName?: string;
-  tempererName?: string;
+  repoName: string;
 }
 
 export interface SecurityReviewerEvents {
@@ -121,16 +134,18 @@ export class SecurityReviewerAgent extends EventEmitter<SecurityReviewerEvents> 
 
   constructor(config: SecurityReviewerConfig, broker: MessageBroker) {
     super();
-    this.config = {
-      agentName: "security-reviewer",
-      tempererName: "temperer",
-      ...config,
-    };
+    this.config = config;
     this.broker = broker;
   }
 
+  /** Get the repo-scoped agent name. */
   get name(): string {
-    return this.config.agentName ?? "security-reviewer";
+    return securityReviewerAgentName(this.config.repoName);
+  }
+
+  /** Get the repo-scoped temperer name for messaging. */
+  get tempererName(): string {
+    return `temperer:${this.config.repoName}`;
   }
 
   get isRunning(): boolean {
@@ -295,7 +310,7 @@ export class SecurityReviewerAgent extends EventEmitter<SecurityReviewerEvents> 
     await this.broker.send({
       type: MessageType.SECURITY_REVIEW_PASSED,
       from: this.name,
-      to: this.config.tempererName ?? "temperer",
+      to: this.tempererName,
       payload: { prNumber, warnings },
       priority: "high",
       ack_required: false,
@@ -306,7 +321,7 @@ export class SecurityReviewerAgent extends EventEmitter<SecurityReviewerEvents> 
     await this.broker.send({
       type: MessageType.SECURITY_REVIEW_FAILED,
       from: this.name,
-      to: this.config.tempererName ?? "temperer",
+      to: this.tempererName,
       payload: { prNumber, issues },
       priority: "high",
       ack_required: false,

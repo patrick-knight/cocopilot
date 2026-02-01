@@ -28,22 +28,27 @@ import type { CIStatusResult } from "../github/types.js";
 const execFile = promisify(execFileCb);
 
 const DEFAULT_POLL_INTERVAL_MS = 2 * 60 * 1000; // 2 minutes
-const DEFAULT_AGENT_NAME = "temperer";
-const DEFAULT_CHOCOLATIER_NAME = "chocolatier";
+const AGENT_TYPE = "temperer";
 const DEFAULT_LABEL = "cocopilot";
+
+/**
+ * Build the unique agent name for a repo-specific Temperer.
+ * Used both internally and by API routes that address this agent.
+ */
+export function tempererAgentName(repoName: string): string {
+  return `${AGENT_TYPE}:${repoName}`;
+}
 
 /** Configuration for the Temperer agent. */
 export interface TempererConfig {
   /** Path to the git repository to monitor. */
   repoPath: string;
+  /** Repository name for scoped agent naming. */
+  repoName: string;
   /** MessageBroker instance for inter-agent communication. */
   broker: MessageBroker;
   /** Polling interval in milliseconds. Defaults to 120000 (2 min). */
   pollIntervalMs?: number;
-  /** Agent name for messaging. Defaults to "temperer". */
-  agentName?: string;
-  /** Chocolatier agent name. Defaults to "chocolatier". */
-  chocolatierName?: string;
   /** PR label used to identify CoCoPilot PRs. Defaults to "cocopilot". */
   label?: string;
 }
@@ -103,7 +108,7 @@ export type ExecFn = (
  */
 export class Temperer {
   private readonly config: Required<
-    Pick<TempererConfig, "repoPath" | "pollIntervalMs" | "agentName" | "chocolatierName" | "label">
+    Pick<TempererConfig, "repoPath" | "repoName" | "pollIntervalMs" | "label">
   > & { broker: MessageBroker };
   private readonly trackedPRs: Map<number, TrackedPR> = new Map();
   private pollTimer: ReturnType<typeof setInterval> | null = null;
@@ -113,13 +118,27 @@ export class Temperer {
   constructor(config: TempererConfig, execFn?: ExecFn) {
     this.config = {
       repoPath: config.repoPath,
+      repoName: config.repoName,
       broker: config.broker,
       pollIntervalMs: config.pollIntervalMs ?? DEFAULT_POLL_INTERVAL_MS,
-      agentName: config.agentName ?? DEFAULT_AGENT_NAME,
-      chocolatierName: config.chocolatierName ?? DEFAULT_CHOCOLATIER_NAME,
       label: config.label ?? DEFAULT_LABEL,
     };
     this.execFn = execFn ?? execFile;
+  }
+
+  /** Get the repo-scoped agent name. */
+  get agentName(): string {
+    return tempererAgentName(this.config.repoName);
+  }
+
+  /** Get the repo-scoped chocolatier name for messaging. */
+  get chocolatierName(): string {
+    return `chocolatier:${this.config.repoName}`;
+  }
+
+  /** Get the repo-scoped security reviewer name for messaging. */
+  get securityReviewerName(): string {
+    return `security-reviewer:${this.config.repoName}`;
   }
 
   /** Start the Temperer: subscribe to messages and begin polling. */
@@ -129,7 +148,7 @@ export class Temperer {
 
     // Subscribe to incoming messages (e.g., PR_CREATED from Truffles)
     await this.config.broker.subscribe(
-      this.config.agentName,
+      this.agentName,
       this.handleMessage.bind(this),
     );
 
@@ -149,7 +168,7 @@ export class Temperer {
       clearInterval(this.pollTimer);
       this.pollTimer = null;
     }
-    await this.config.broker.unsubscribe(this.config.agentName);
+    await this.config.broker.unsubscribe(this.agentName);
   }
 
   /** Whether the agent is currently running. */
@@ -297,8 +316,8 @@ export class Temperer {
   ): Promise<void> {
     await this.config.broker.send({
       type: MessageType.SECURITY_REVIEW_REQUEST,
-      from: this.config.agentName,
-      to: "security-reviewer",
+      from: this.agentName,
+      to: this.securityReviewerName,
       payload: { prNumber, prUrl, branch, workerName },
       priority: "high",
       ack_required: false,
@@ -343,8 +362,8 @@ export class Temperer {
 
     await this.config.broker.send({
       type: MessageType.SPAWN_FIXUP,
-      from: this.config.agentName,
-      to: this.config.chocolatierName,
+      from: this.agentName,
+      to: this.chocolatierName,
       payload: {
         pr_number: tracked.number,
         pr_url: tracked.url,
@@ -461,8 +480,8 @@ export class Temperer {
       // Notify Chocolatier of the successful merge
       await this.config.broker.send({
         type: MessageType.PR_MERGED,
-        from: this.config.agentName,
-        to: this.config.chocolatierName,
+        from: this.agentName,
+        to: this.chocolatierName,
         payload: {
           pr_number: pr.number,
           pr_url: pr.url,
@@ -493,8 +512,8 @@ export class Temperer {
     // Send CI_FAILED notification
     await this.config.broker.send({
       type: MessageType.CI_FAILED,
-      from: this.config.agentName,
-      to: this.config.chocolatierName,
+      from: this.agentName,
+      to: this.chocolatierName,
       payload: {
         pr_number: pr.number,
         pr_url: pr.url,
@@ -507,8 +526,8 @@ export class Temperer {
     // Request fixup worker via SPAWN_FIXUP
     await this.config.broker.send({
       type: MessageType.SPAWN_FIXUP,
-      from: this.config.agentName,
-      to: this.config.chocolatierName,
+      from: this.agentName,
+      to: this.chocolatierName,
       payload: {
         pr_number: pr.number,
         pr_url: pr.url,
