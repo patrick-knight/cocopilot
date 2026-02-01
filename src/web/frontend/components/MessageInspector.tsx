@@ -1,8 +1,9 @@
 /**
  * MessageInspector — Shows messages to/from a worker.
  *
- * Displays the inter-agent message history for a specific worker,
- * including type badges, priority indicators, and payload details.
+ * Displays the inter-agent message history for a specific worker
+ * in a table format with type badges, priority indicators, and 
+ * expandable payload details.
  */
 
 import React, { useEffect, useState, useCallback } from "react";
@@ -26,10 +27,10 @@ const TYPE_STYLES: Record<string, { bg: string; text: string }> = {
   BROADCAST: { bg: "bg-indigo-100", text: "text-indigo-800" },
 };
 
-const PRIORITY_STYLES: Record<string, string> = {
-  high: "text-red-600",
-  normal: "text-stone-500",
-  low: "text-stone-400",
+const PRIORITY_BADGE: Record<string, { bg: string; text: string }> = {
+  high: { bg: "bg-red-100", text: "text-red-700" },
+  normal: { bg: "bg-stone-100", text: "text-stone-600" },
+  low: { bg: "bg-stone-50", text: "text-stone-400" },
 };
 
 // ---------------------------------------------------------------------------
@@ -111,87 +112,112 @@ export const MessageInspector: React.FC<MessageInspectorProps> = ({
         )}
 
         {messages.length > 0 && (
-          <ul className="space-y-2">
-            {messages.map((msg) => {
-              const typeStyle = TYPE_STYLES[msg.type] ?? {
-                bg: "bg-stone-100",
-                text: "text-stone-700",
-              };
-              const isExpanded = expandedId === msg.id;
-              const direction = msg.to === workerName ? "inbound" : "outbound";
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-stone-200">
+                  <th className="text-left py-2 px-2 text-xs font-medium text-stone-500 w-8"></th>
+                  <th className="text-left py-2 px-2 text-xs font-medium text-stone-500">Type</th>
+                  <th className="text-left py-2 px-2 text-xs font-medium text-stone-500">From/To</th>
+                  <th className="text-left py-2 px-2 text-xs font-medium text-stone-500">Priority</th>
+                  <th className="text-left py-2 px-2 text-xs font-medium text-stone-500">Time</th>
+                  <th className="text-left py-2 px-2 text-xs font-medium text-stone-500 w-8"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {messages.map((msg) => {
+                  const typeStyle = TYPE_STYLES[msg.type] ?? {
+                    bg: "bg-stone-100",
+                    text: "text-stone-700",
+                  };
+                  const priorityStyle = PRIORITY_BADGE[msg.priority] ?? PRIORITY_BADGE.normal;
+                  const isExpanded = expandedId === msg.id;
+                  const direction = msg.to === workerName ? "inbound" : "outbound";
 
-              return (
-                <li
-                  key={msg.id}
-                  className="border border-stone-100 rounded-md overflow-hidden"
-                >
-                  <button
-                    onClick={() => setExpandedId(isExpanded ? null : msg.id)}
-                    className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-stone-50"
-                  >
-                    {/* Direction indicator */}
-                    <span
-                      className={`text-xs ${
-                        direction === "inbound"
-                          ? "text-blue-500"
-                          : "text-stone-400"
-                      }`}
-                    >
-                      {direction === "inbound" ? "\u2190" : "\u2192"}
-                    </span>
-
-                    {/* Type badge */}
-                    <span
-                      className={`inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium ${typeStyle.bg} ${typeStyle.text}`}
-                    >
-                      {msg.type}
-                    </span>
-
-                    {/* From/To */}
-                    <span className="text-xs text-stone-500 truncate">
-                      {direction === "inbound"
-                        ? `from ${msg.from}`
-                        : `to ${msg.to}`}
-                    </span>
-
-                    {/* Priority */}
-                    <span
-                      className={`text-xs ml-auto ${
-                        PRIORITY_STYLES[msg.priority] ?? ""
-                      }`}
-                    >
-                      {msg.priority !== "normal" ? msg.priority : ""}
-                    </span>
-
-                    {/* Timestamp */}
-                    <span className="text-xs text-stone-400 shrink-0">
-                      {new Date(msg.timestamp).toLocaleTimeString()}
-                    </span>
-                  </button>
-
-                  {/* Expanded payload */}
-                  {isExpanded && (
-                    <div className="px-3 pb-3 border-t border-stone-100">
-                      <pre className="mt-2 text-xs font-mono text-stone-600 bg-stone-50 p-2 rounded overflow-x-auto">
-                        {JSON.stringify(msg.payload, null, 2)}
-                      </pre>
-                      <div className="mt-2 flex items-center gap-3 text-xs text-stone-400">
-                        <span>ID: {msg.id}</span>
-                        {msg.ack_required && (
-                          <span>
-                            ACK:{" "}
-                            {msg.ack_received
-                              ? new Date(msg.ack_received).toLocaleTimeString()
-                              : "pending"}
+                  return (
+                    <React.Fragment key={msg.id}>
+                      <tr 
+                        className={`border-b border-stone-100 hover:bg-stone-50 cursor-pointer ${isExpanded ? "bg-stone-50" : ""}`}
+                        onClick={() => setExpandedId(isExpanded ? null : msg.id)}
+                      >
+                        {/* Direction */}
+                        <td className="py-2 px-2">
+                          <span
+                            className={`text-sm ${
+                              direction === "inbound"
+                                ? "text-blue-500"
+                                : "text-stone-400"
+                            }`}
+                            title={direction === "inbound" ? "Received" : "Sent"}
+                          >
+                            {direction === "inbound" ? "←" : "→"}
                           </span>
-                        )}
-                      </div>
-                    </div>
-                  )}
-                </li>
-              );
-            })}
-          </ul>
+                        </td>
+
+                        {/* Type badge */}
+                        <td className="py-2 px-2">
+                          <span
+                            className={`inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium ${typeStyle.bg} ${typeStyle.text}`}
+                          >
+                            {msg.type}
+                          </span>
+                        </td>
+
+                        {/* From/To */}
+                        <td className="py-2 px-2 text-xs text-stone-600 truncate max-w-[120px]">
+                          {direction === "inbound" ? msg.from : msg.to}
+                        </td>
+
+                        {/* Priority */}
+                        <td className="py-2 px-2">
+                          <span className={`text-xs px-1.5 py-0.5 rounded ${priorityStyle.bg} ${priorityStyle.text}`}>
+                            {msg.priority}
+                          </span>
+                        </td>
+
+                        {/* Timestamp */}
+                        <td className="py-2 px-2 text-xs text-stone-400 whitespace-nowrap">
+                          {new Date(msg.timestamp).toLocaleTimeString()}
+                        </td>
+
+                        {/* Expand indicator */}
+                        <td className="py-2 px-2 text-xs text-stone-400">
+                          {isExpanded ? "▼" : "▶"}
+                        </td>
+                      </tr>
+
+                      {/* Expanded payload row */}
+                      {isExpanded && (
+                        <tr className="bg-stone-50">
+                          <td colSpan={6} className="px-4 py-3">
+                            <div className="space-y-2">
+                              <div className="text-xs text-stone-500">
+                                <strong>ID:</strong> {msg.id}
+                              </div>
+                              {msg.ack_required && (
+                                <div className="text-xs text-stone-500">
+                                  <strong>ACK:</strong>{" "}
+                                  {msg.ack_received
+                                    ? new Date(msg.ack_received).toLocaleTimeString()
+                                    : "pending"}
+                                </div>
+                              )}
+                              <div>
+                                <div className="text-xs text-stone-500 mb-1"><strong>Payload:</strong></div>
+                                <pre className="text-xs font-mono text-stone-600 bg-white p-2 rounded border border-stone-200 overflow-x-auto max-h-40">
+                                  {JSON.stringify(msg.payload, null, 2)}
+                                </pre>
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </React.Fragment>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
     </div>

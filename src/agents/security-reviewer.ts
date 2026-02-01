@@ -195,12 +195,12 @@ export class SecurityReviewerAgent extends EventEmitter<SecurityReviewerEvents> 
         this.emit("issueFound", issue);
       }
 
-      // Send result message
+      // Send result message (to both temperer and worker)
       if (blockingIssues.length > 0) {
-        await this.sendReviewFailed(prNumber, blockingIssues);
+        await this.sendReviewFailed(prNumber, blockingIssues, workerName);
         this.emit("reviewFailed", prNumber, blockingIssues);
       } else {
-        await this.sendReviewPassed(prNumber, warnings);
+        await this.sendReviewPassed(prNumber, warnings, workerName);
         this.emit("reviewPassed", prNumber, warnings);
       }
     } catch (error) {
@@ -212,7 +212,7 @@ export class SecurityReviewerAgent extends EventEmitter<SecurityReviewerEvents> 
           file: "unknown",
           description: `Security review failed: ${(error as Error).message}`,
         },
-      ]);
+      ], workerName);
     }
   }
 
@@ -294,7 +294,8 @@ export class SecurityReviewerAgent extends EventEmitter<SecurityReviewerEvents> 
   // Message sending
   // -----------------------------------------------------------------------
 
-  private async sendReviewPassed(prNumber: number, warnings: string[]): Promise<void> {
+  private async sendReviewPassed(prNumber: number, warnings: string[], workerName?: string): Promise<void> {
+    // Send to temperer
     await this.broker.send({
       type: MessageType.SECURITY_REVIEW_PASSED,
       from: this.name,
@@ -303,9 +304,22 @@ export class SecurityReviewerAgent extends EventEmitter<SecurityReviewerEvents> 
       priority: "high",
       ack_required: false,
     });
+
+    // Also notify the worker that submitted the review
+    if (workerName) {
+      await this.broker.send({
+        type: MessageType.SECURITY_REVIEW_PASSED,
+        from: this.name,
+        to: workerName,
+        payload: { prNumber, warnings },
+        priority: "high",
+        ack_required: false,
+      });
+    }
   }
 
-  private async sendReviewFailed(prNumber: number, issues: SecurityIssue[]): Promise<void> {
+  private async sendReviewFailed(prNumber: number, issues: SecurityIssue[], workerName?: string): Promise<void> {
+    // Send to temperer
     await this.broker.send({
       type: MessageType.SECURITY_REVIEW_FAILED,
       from: this.name,
@@ -314,5 +328,17 @@ export class SecurityReviewerAgent extends EventEmitter<SecurityReviewerEvents> 
       priority: "high",
       ack_required: false,
     });
+
+    // Also notify the worker that submitted the review
+    if (workerName) {
+      await this.broker.send({
+        type: MessageType.SECURITY_REVIEW_FAILED,
+        from: this.name,
+        to: workerName,
+        payload: { prNumber, issues },
+        priority: "high",
+        ack_required: false,
+      });
+    }
   }
 }

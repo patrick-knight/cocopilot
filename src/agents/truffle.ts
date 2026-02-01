@@ -187,6 +187,9 @@ export class TruffleAgent extends EventEmitter<TruffleEvents> {
   private _commitCount = 0;
   private _prResult: PRResult | null = null;
   private _worktreeReady = false;
+  /** Track review status for the current PR */
+  private _securityReviewPassed = false;
+  private _codeReviewPassed = false;
 
   constructor(config: TruffleConfig, broker: MessageBroker) {
     super();
@@ -205,6 +208,9 @@ export class TruffleAgent extends EventEmitter<TruffleEvents> {
     }
     this.config = Object.freeze({ ...config });
     this.broker = broker;
+
+    // Subscribe to security and code review responses
+    this.setupReviewHandlers();
   }
 
   // -----------------------------------------------------------------------
@@ -453,8 +459,9 @@ export class TruffleAgent extends EventEmitter<TruffleEvents> {
   }
 
   /**
-   * Create a pull request using the GitHub CLI.
-   * Pushes the branch first, then runs `gh pr create`.
+   * Create a draft pull request using the GitHub CLI.
+   * Pushes the branch first, then runs `gh pr create --draft`.
+   * After creation, requests security and code reviews.
    */
   async createPR(title: string, body: string): Promise<PRResult> {
     this.requireWorktree();
@@ -462,8 +469,8 @@ export class TruffleAgent extends EventEmitter<TruffleEvents> {
     // Push changes first
     await this.push();
 
-    // Build gh pr create arguments
-    const args = ["pr", "create", "--title", title, "--body", body];
+    // Build gh pr create arguments - create as DRAFT first
+    const args = ["pr", "create", "--title", title, "--body", body, "--draft"];
 
     const baseBranch = this.config.baseBranch ?? "main";
     args.push("--base", baseBranch);
@@ -490,10 +497,84 @@ export class TruffleAgent extends EventEmitter<TruffleEvents> {
     this._prResult = pr;
     this.emit("prCreated", pr);
 
-    // Notify merge queue agent
-    await this.notifyPRCreated(pr);
+    // Request security review before notifying merge queue
+    await this.requestSecurityReview(pr);
+
+    // Request code review from reviewer agent
+    await this.requestCodeReview(pr);
 
     return pr;
+  }
+
+  /**
+   * Mark the current PR as ready for review (converts from draft).
+   * Should be called after security and code reviews pass.
+   */
+  async markPRReady(): Promise<void> {
+    if (!this._prResult) {
+      throw new Error("No PR has been created yet");
+    }
+
+    await this.exec(
+      "gh",
+      ["pr", "ready", String(this._prResult.number)],
+      this.config.worktreePath,
+    );
+
+    // Now notify the merge queue that the PR is ready
+    await this.notifyPRCreated(this._prResult);
+  }
+
+  /**
+   * Request security review from the Security Reviewer agent.
+   */
+  private async requestSecurityReview(pr: PRResult): Promise<void> {
+    const securityReviewer = scopedAgentName("security-reviewer", this.config.repoName);
+    await this.broker.send({
+      type: MessageType.SECURITY_REVIEW_REQUEST,
+      from: this.scopedName,
+      to: securityReviewer,
+      payload: {
+        prNumber: pr.number,
+        prUrl: pr.url,
+        workerName: this.config.name,
+        branch: this.config.branch,
+      },
+      priority: "high",
+    });
+
+    // Broadcast that we're waiting for security review
+    await this.broadcastActivity("review_requested", {
+      prNumber: pr.number,
+      reviewType: "security",
+      description: `Requested security review for PR #${pr.number}`,
+    });
+  }
+
+  /**
+   * Request code review from the Reviewer (Enrober) agent.
+   */
+  private async requestCodeReview(pr: PRResult): Promise<void> {
+    const reviewer = scopedAgentName("reviewer", this.config.repoName);
+    await this.broker.send({
+      type: MessageType.CODE_REVIEW_REQUEST,
+      from: this.scopedName,
+      to: reviewer,
+      payload: {
+        prNumber: pr.number,
+        prUrl: pr.url,
+        workerName: this.config.name,
+        branch: this.config.branch,
+      },
+      priority: "high",
+    });
+
+    // Broadcast that we're waiting for code review
+    await this.broadcastActivity("review_requested", {
+      prNumber: pr.number,
+      reviewType: "code",
+      description: `Requested code review for PR #${pr.number}`,
+    });
   }
 
   // -----------------------------------------------------------------------
@@ -588,6 +669,14 @@ export class TruffleAgent extends EventEmitter<TruffleEvents> {
   // -----------------------------------------------------------------------
 
   /**
+   * Set up handlers for security and code review responses.
+   */
+  private setupReviewHandlers(): void {
+    // These handlers will be called when reviews complete
+    // The actual handling is done in handleMessage
+  }
+
+  /**
    * Handle an incoming message from another agent.
    */
   private async handleMessage(message: CocoMessage): Promise<void> {
@@ -606,6 +695,52 @@ export class TruffleAgent extends EventEmitter<TruffleEvents> {
         // Broadcasts are informational; no action needed
         break;
       }
+      case MessageType.SECURITY_REVIEW_PASSED: {
+        const payload = message.payload as { prNumber: number; warnings: string[] };
+        this._securityReviewPassed = true;
+        await this.broadcastActivity("review_passed", {
+          prNumber: payload.prNumber,
+          reviewType: "security",
+          description: `Security review passed for PR #${payload.prNumber}`,
+        });
+        // Check if both reviews passed and mark PR ready
+        await this.checkReviewsComplete();
+        break;
+      }
+      case MessageType.SECURITY_REVIEW_FAILED: {
+        const payload = message.payload as { prNumber: number; issues: Array<{ severity: string; description: string }> };
+        this._securityReviewPassed = false;
+        await this.broadcastActivity("review_failed", {
+          prNumber: payload.prNumber,
+          reviewType: "security",
+          description: `Security review FAILED for PR #${payload.prNumber}: ${payload.issues.length} issues found`,
+        });
+        // Emit event so the worker can address the issues
+        this.emit("nudged", `Security review failed for PR #${payload.prNumber}`, 
+          `Issues found:\n${payload.issues.map(i => `- [${i.severity}] ${i.description}`).join("\n")}`);
+        break;
+      }
+      case MessageType.REVIEW_COMPLETE: {
+        const payload = message.payload as { pr_number: number; verdict: string };
+        if (payload.verdict === "approve") {
+          this._codeReviewPassed = true;
+          await this.broadcastActivity("review_passed", {
+            prNumber: payload.pr_number,
+            reviewType: "code",
+            description: `Code review approved for PR #${payload.pr_number}`,
+          });
+          // Check if both reviews passed and mark PR ready
+          await this.checkReviewsComplete();
+        } else {
+          this._codeReviewPassed = false;
+          await this.broadcastActivity("review_failed", {
+            prNumber: payload.pr_number,
+            reviewType: "code",
+            description: `Code review requested changes for PR #${payload.pr_number}`,
+          });
+        }
+        break;
+      }
       default:
         // Unknown or irrelevant message types are ignored
         break;
@@ -614,6 +749,28 @@ export class TruffleAgent extends EventEmitter<TruffleEvents> {
     // Acknowledge if required
     if (message.ack_required) {
       await this.broker.acknowledge(this.scopedName, message.id);
+    }
+  }
+
+  /**
+   * Check if both security and code reviews have passed.
+   * If so, mark the PR as ready for review (converts from draft).
+   */
+  private async checkReviewsComplete(): Promise<void> {
+    if (this._securityReviewPassed && this._codeReviewPassed && this._prResult) {
+      try {
+        await this.markPRReady();
+        await this.broadcastActivity("pr_created", {
+          prNumber: this._prResult.number,
+          prUrl: this._prResult.url,
+          description: `PR #${this._prResult.number} is now ready for merge`,
+        });
+      } catch (error) {
+        await this.broadcastActivity("status_change", {
+          status: "error",
+          description: `Failed to mark PR as ready: ${(error as Error).message}`,
+        });
+      }
     }
   }
 

@@ -2,7 +2,8 @@
  * ResourceUsage — Container resource utilization display.
  *
  * Shows CPU and memory usage for the worker's Docker container
- * with progress bars and numeric values.
+ * with progress bars and numeric values. Displays historical data
+ * for completed/terminated workers.
  */
 
 import React from "react";
@@ -25,6 +26,11 @@ function progressColor(percent: number): string {
   return "bg-emerald-500";
 }
 
+// Check if worker is in a terminal state
+function isTerminalState(status?: string): boolean {
+  return ["completed", "failed", "terminated"].includes(status ?? "");
+}
+
 // ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
@@ -34,18 +40,34 @@ export interface ResourceUsageProps {
   resources: ContainerResources | null;
   /** Container status string. */
   containerStatus?: string;
+  /** Worker status (working, completed, failed, etc.). */
+  workerStatus?: string;
+  /** Timestamp of when resources were last captured. */
+  resourcesUpdatedAt?: string;
 }
 
 export const ResourceUsage: React.FC<ResourceUsageProps> = ({
   resources,
   containerStatus,
+  workerStatus,
+  resourcesUpdatedAt,
 }) => {
+  const isHistorical = isTerminalState(workerStatus);
+  const headerLabel = isHistorical ? "Final Resource Usage" : "Container Resources";
+
   return (
     <div className="bg-white rounded-lg shadow-sm border border-stone-200">
       <div className="px-4 py-3 border-b border-stone-200">
-        <h2 className="text-sm font-semibold text-stone-700">
-          Container Resources
-        </h2>
+        <div className="flex items-center justify-between">
+          <h2 className="text-sm font-semibold text-stone-700">
+            {headerLabel}
+          </h2>
+          {isHistorical && (
+            <span className="text-xs px-2 py-0.5 bg-stone-100 text-stone-500 rounded">
+              Historical
+            </span>
+          )}
+        </div>
       </div>
 
       <div className="p-4">
@@ -53,7 +75,7 @@ export const ResourceUsage: React.FC<ResourceUsageProps> = ({
         <div className="mb-4">
           <span className="text-xs text-stone-500">Container Status</span>
           <p className="text-sm font-medium text-stone-800">
-            {containerStatus ?? "Unknown"}
+            {containerStatus ?? (isHistorical ? "Stopped" : "Unknown")}
           </p>
         </div>
 
@@ -62,7 +84,9 @@ export const ResourceUsage: React.FC<ResourceUsageProps> = ({
             {/* Memory */}
             <div>
               <div className="flex items-center justify-between mb-1">
-                <span className="text-xs text-stone-500">Memory</span>
+                <span className="text-xs text-stone-500">
+                  {isHistorical ? "Peak Memory" : "Memory"}
+                </span>
                 <span className="text-xs text-stone-600">
                   {formatMb(resources.memoryUsageMb)} /{" "}
                   {formatMb(resources.memoryLimitMb)}
@@ -70,9 +94,11 @@ export const ResourceUsage: React.FC<ResourceUsageProps> = ({
               </div>
               <div className="w-full h-2 bg-stone-100 rounded-full overflow-hidden">
                 <div
-                  className={`h-full rounded-full transition-all ${progressColor(
-                    (resources.memoryUsageMb / resources.memoryLimitMb) * 100,
-                  )}`}
+                  className={`h-full rounded-full transition-all ${
+                    isHistorical ? "bg-stone-400" : progressColor(
+                      (resources.memoryUsageMb / resources.memoryLimitMb) * 100,
+                    )
+                  }`}
                   style={{
                     width: `${Math.min(
                       (resources.memoryUsageMb / resources.memoryLimitMb) * 100,
@@ -86,26 +112,39 @@ export const ResourceUsage: React.FC<ResourceUsageProps> = ({
             {/* CPU */}
             <div>
               <div className="flex items-center justify-between mb-1">
-                <span className="text-xs text-stone-500">CPU</span>
+                <span className="text-xs text-stone-500">
+                  {isHistorical ? "Last CPU" : "CPU"}
+                </span>
                 <span className="text-xs text-stone-600">
                   {resources.cpuPercent.toFixed(1)}%
                 </span>
               </div>
               <div className="w-full h-2 bg-stone-100 rounded-full overflow-hidden">
                 <div
-                  className={`h-full rounded-full transition-all ${progressColor(
-                    resources.cpuPercent,
-                  )}`}
+                  className={`h-full rounded-full transition-all ${
+                    isHistorical ? "bg-stone-400" : progressColor(resources.cpuPercent)
+                  }`}
                   style={{
                     width: `${Math.min(resources.cpuPercent, 100)}%`,
                   }}
                 />
               </div>
             </div>
+
+            {/* Timestamp for historical data */}
+            {isHistorical && resourcesUpdatedAt && (
+              <div className="pt-2 border-t border-stone-100">
+                <span className="text-xs text-stone-400">
+                  Captured: {new Date(resourcesUpdatedAt).toLocaleString()}
+                </span>
+              </div>
+            )}
           </div>
         ) : (
           <p className="text-sm text-stone-400">
-            Resource data unavailable.
+            {isHistorical 
+              ? "No resource data was captured for this worker."
+              : "Resource data unavailable."}
           </p>
         )}
       </div>

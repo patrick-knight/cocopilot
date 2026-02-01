@@ -575,10 +575,102 @@ export class Enrober {
           originalWorker: message.from,
           lastCheckedAt: Date.now(),
         });
+      } else if (message.type === MessageType.CODE_REVIEW_REQUEST) {
+        // Handle code review request from a Truffle worker
+        const payload = message.payload as { prNumber: number; prUrl: string; branch: string; workerName: string };
+        
+        // Track the PR for review
+        this.trackedPRs.set(payload.prNumber, {
+          number: payload.prNumber,
+          url: payload.prUrl,
+          title: `PR #${payload.prNumber}`, // Title will be updated on next poll
+          branch: payload.branch,
+          state: "needs_review",
+          originalWorker: payload.workerName,
+          lastCheckedAt: Date.now(),
+        });
+
+        // Perform the code review immediately
+        await this.performCodeReview(payload.prNumber, message.from);
       }
     } catch (err) {
       // Log but don't crash on malformed messages
       console.error(`[Enrober] Error handling message ${message.type}:`, err);
+    }
+  }
+
+  /**
+   * Perform code review for a PR and send REVIEW_COMPLETE message.
+   */
+  private async performCodeReview(prNumber: number, requestedBy: string): Promise<void> {
+    try {
+      // Check approval state and CI status
+      const approvalState = await this.checkApproval(prNumber);
+      const ciPassing = await this.isCIPassing(prNumber);
+
+      // Determine verdict based on current state
+      let verdict: "approve" | "request_changes" | "comment" = "comment";
+      let summary = "";
+
+      if (approvalState.changesRequested) {
+        verdict = "request_changes";
+        const requesters = approvalState.reviewers
+          .filter((r: ReviewerStatus) => r.state === "CHANGES_REQUESTED")
+          .map((r: ReviewerStatus) => r.login)
+          .join(", ");
+        summary = `Changes have been requested by reviewers: ${requesters}`;
+      } else if (!ciPassing) {
+        verdict = "comment";
+        summary = "CI checks are not passing. Please fix the failing checks.";
+      } else if (approvalState.approved) {
+        verdict = "approve";
+        summary = `PR is approved with ${approvalState.approvalCount} approval(s) and CI is passing.`;
+      } else {
+        verdict = "comment";
+        summary = `Waiting for ${approvalState.requiredApprovals - approvalState.approvalCount} more approval(s). CI is ${ciPassing ? "passing" : "failing"}.`;
+      }
+
+      // Send the review result back to the worker
+      await this.broker.send({
+        type: MessageType.REVIEW_COMPLETE,
+        from: this.config.agentName,
+        to: requestedBy,
+        payload: {
+          pr_number: prNumber,
+          blocking_count: approvalState.changesRequested ? 1 : 0,
+          suggestion_count: 0,
+          verdict,
+          summary,
+        },
+        priority: "high",
+      });
+
+      // Also broadcast the review status
+      await this.broker.send({
+        type: MessageType.BROADCAST,
+        from: this.config.agentName,
+        to: "*",
+        payload: {
+          message: `Code review for PR #${prNumber}: ${verdict.toUpperCase()} - ${summary}`,
+          level: verdict === "approve" ? "info" : "warning",
+        },
+      });
+    } catch (err) {
+      console.error(`[Enrober] Error performing code review for PR #${prNumber}:`, err);
+      // Send a failure response
+      await this.broker.send({
+        type: MessageType.REVIEW_COMPLETE,
+        from: this.config.agentName,
+        to: requestedBy,
+        payload: {
+          pr_number: prNumber,
+          blocking_count: 1,
+          suggestion_count: 0,
+          verdict: "comment" as const,
+          summary: `Code review failed: ${(err as Error).message}`,
+        },
+        priority: "high",
+      });
     }
   }
 

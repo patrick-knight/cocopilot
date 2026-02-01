@@ -400,6 +400,8 @@ export const TruffleInspector: React.FC<TruffleInspectorProps> = ({
                 <ResourceUsage
                   resources={worker.resources ?? null}
                   containerStatus={worker.containerStatus}
+                  workerStatus={worker.status}
+                  resourcesUpdatedAt={worker.updatedAt}
                 />
               </div>
             </section>

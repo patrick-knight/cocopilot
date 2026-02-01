@@ -41,6 +41,8 @@ export enum MessageType {
   SECURITY_REVIEW_FAILED = "SECURITY_REVIEW_FAILED",
   /** Worker broadcasts real-time activity (commits, status changes, etc.). */
   WORKER_ACTIVITY = "WORKER_ACTIVITY",
+  /** Truffle requests code review from Reviewer (Enrober). */
+  CODE_REVIEW_REQUEST = "CODE_REVIEW_REQUEST",
 }
 
 /** Message priority levels. */
@@ -159,8 +161,15 @@ export interface SecurityReviewFailedPayload {
   issues: SecurityIssue[];
 }
 
+export interface CodeReviewRequestPayload {
+  prNumber: number;
+  prUrl: string;
+  branch: string;
+  workerName: string;
+}
+
 /** Worker activity types for real-time updates. */
-export type WorkerActivityType = "commit" | "status_change" | "pr_created" | "push" | "started" | "completed";
+export type WorkerActivityType = "commit" | "status_change" | "pr_created" | "push" | "started" | "completed" | "review_requested" | "review_passed" | "review_failed";
 
 export interface WorkerActivityPayload {
   activityType: WorkerActivityType;
@@ -178,6 +187,8 @@ export interface WorkerActivityPayload {
   /** For pr_created activity */
   prNumber?: number;
   prUrl?: string;
+  /** For review_requested/passed/failed activity */
+  reviewType?: "security" | "code";
   prTitle?: string;
   /** Human-readable description */
   description: string;
@@ -202,6 +213,7 @@ export interface MessagePayloadMap {
   [MessageType.SECURITY_REVIEW_PASSED]: SecurityReviewPassedPayload;
   [MessageType.SECURITY_REVIEW_FAILED]: SecurityReviewFailedPayload;
   [MessageType.WORKER_ACTIVITY]: WorkerActivityPayload;
+  [MessageType.CODE_REVIEW_REQUEST]: CodeReviewRequestPayload;
 }
 
 /** The core message structure for all inter-agent communication. */

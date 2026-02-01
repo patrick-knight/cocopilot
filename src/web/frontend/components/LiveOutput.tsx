@@ -4,9 +4,11 @@
  * Connects to Socket.IO to stream worker output and displays it
  * in a scrollable terminal-style panel. Supports output, tool calls,
  * tool results, and error types.
+ *
+ * Dynamically calculates visible lines based on panel height.
  */
 
-import React, { useEffect, useRef, useState, useCallback } from "react";
+import React, { useEffect, useRef, useState, useCallback, useLayoutEffect } from "react";
 import type { WorkerOutputEvent } from "../inspector-types.js";
 
 // ---------------------------------------------------------------------------
@@ -27,6 +29,9 @@ const TYPE_PREFIX: Record<WorkerOutputEvent["type"], string> = {
   error: "[error] ",
 };
 
+// Line height in pixels (font-size: 12px with line-height ~1.5)
+const LINE_HEIGHT_PX = 20;
+
 // ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
@@ -40,19 +45,49 @@ export interface LiveOutputProps {
     on: (event: string, handler: (...args: unknown[]) => void) => void;
     off: (event: string, handler: (...args: unknown[]) => void) => void;
   } | null;
-  /** Maximum number of output lines to keep in the buffer. */
+  /** Maximum number of output lines to keep in memory buffer. */
   maxLines?: number;
+  /** Panel height in pixels (default: 400). */
+  panelHeight?: number;
 }
 
 export const LiveOutput: React.FC<LiveOutputProps> = ({
   workerName,
   socket,
-  maxLines = 500,
+  maxLines = 1000,
+  panelHeight = 400,
 }) => {
-  const [lines, setLines] = useState<WorkerOutputEvent[]>([]);
+  const [allLines, setAllLines] = useState<WorkerOutputEvent[]>([]);
   const [autoScroll, setAutoScroll] = useState(true);
+  const [visibleLineCount, setVisibleLineCount] = useState(20);
   const containerRef = useRef<HTMLDivElement>(null);
   const endRef = useRef<HTMLDivElement>(null);
+
+  // Calculate visible lines based on container height
+  useLayoutEffect(() => {
+    const calculateVisibleLines = () => {
+      if (containerRef.current) {
+        const height = containerRef.current.clientHeight || panelHeight;
+        // Account for padding (16px top + 16px bottom = 32px)
+        const availableHeight = height - 32;
+        const lines = Math.floor(availableHeight / LINE_HEIGHT_PX);
+        setVisibleLineCount(Math.max(lines, 10));
+      }
+    };
+
+    calculateVisibleLines();
+    
+    // Recalculate on resize
+    const resizeObserver = new ResizeObserver(calculateVisibleLines);
+    if (containerRef.current) {
+      resizeObserver.observe(containerRef.current);
+    }
+
+    return () => resizeObserver.disconnect();
+  }, [panelHeight]);
+
+  // Get the last N lines to display
+  const displayLines = allLines.slice(-visibleLineCount);
 
   // Join/leave the worker stream room
   useEffect(() => {
@@ -71,7 +106,7 @@ export const LiveOutput: React.FC<LiveOutputProps> = ({
       const outputEvent = event as WorkerOutputEvent;
       if (outputEvent.workerName !== workerName) return;
 
-      setLines((prev) => {
+      setAllLines((prev) => {
         const next = [...prev, outputEvent];
         // Trim to maxLines to avoid memory buildup
         return next.length > maxLines ? next.slice(-maxLines) : next;
@@ -94,7 +129,7 @@ export const LiveOutput: React.FC<LiveOutputProps> = ({
     if (autoScroll && endRef.current) {
       endRef.current.scrollIntoView({ behavior: "smooth" });
     }
-  }, [lines, autoScroll]);
+  }, [displayLines, autoScroll]);
 
   // Detect manual scroll to disable auto-scroll
   const handleScroll = useCallback(() => {
@@ -105,7 +140,7 @@ export const LiveOutput: React.FC<LiveOutputProps> = ({
   }, []);
 
   const clearOutput = useCallback(() => {
-    setLines([]);
+    setAllLines([]);
   }, []);
 
   return (
@@ -131,7 +166,11 @@ export const LiveOutput: React.FC<LiveOutputProps> = ({
           >
             Clear
           </button>
-          <span className="text-xs text-stone-400">{lines.length} lines</span>
+          <span className="text-xs text-stone-400">
+            {allLines.length > visibleLineCount 
+              ? `${visibleLineCount} of ${allLines.length} lines`
+              : `${allLines.length} lines`}
+          </span>
         </div>
       </div>
 
@@ -140,15 +179,15 @@ export const LiveOutput: React.FC<LiveOutputProps> = ({
         ref={containerRef}
         onScroll={handleScroll}
         className="bg-stone-900 text-stone-300 font-mono text-xs p-4 overflow-y-auto"
-        style={{ height: "400px" }}
+        style={{ height: `${panelHeight}px` }}
       >
-        {lines.length === 0 ? (
+        {displayLines.length === 0 ? (
           <p className="text-stone-600 italic">
             Waiting for output from {workerName}...
           </p>
         ) : (
-          lines.map((line, i) => (
-            <div key={i} className={`whitespace-pre-wrap ${TYPE_STYLES[line.type]}`}>
+          displayLines.map((line, i) => (
+            <div key={allLines.length - displayLines.length + i} className={`whitespace-pre-wrap ${TYPE_STYLES[line.type]}`}>
               <span className="text-stone-600 select-none">
                 {TYPE_PREFIX[line.type]}
               </span>
