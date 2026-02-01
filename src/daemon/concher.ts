@@ -85,15 +85,6 @@ export class Concher {
     // Register signal handlers for graceful shutdown
     this.registerSignalHandlers();
 
-    // Reconcile state with actual Docker containers
-    // TODO: Implement reconcile() for new StateManager
-    logger.info("Reconciling state with Docker...");
-    logger.info("State is consistent with Docker");
-
-    // Start periodic health check
-    // TODO: Re-implement health check for new StateManager
-    // this.startHealthCheck();
-
     // Start web server
     try {
       // The broker is not yet part of Concher's constructor, so we create
@@ -350,71 +341,6 @@ export class Concher {
       logger.error("Unhandled rejection", reason);
     });
   }
-
-  /**
-   * Reconcile persisted state with actual Docker container status.
-   * Marks containers as stopped if they're no longer running.
-   * TODO: Implement for new StateManager
-   */
-  /*
-  private async reconcile(): Promise<void> {
-    logger.info("Reconciling state with Docker...");
-    const liveContainers = this.containers.listDockerContainers();
-    const tracked = this.state.getRunningContainers();
-
-    let reconciled = 0;
-    for (const container of tracked) {
-      if (!liveContainers.includes(container.name)) {
-        logger.warn(`Container ${container.name} no longer running, marking stopped`);
-        this.state.updateContainer(container.id, {
-          status: "stopped",
-          stoppedAt: new Date().toISOString(),
-        });
-        reconciled++;
-      }
-    }
-
-    if (reconciled > 0) {
-      logger.info(`Reconciled ${reconciled} stale container(s)`);
-    } else {
-      logger.info("State is consistent with Docker");
-    }
-  }
-  */
-
-  /**
-   * Periodic health check for running containers.
-   * TODO: Implement for new StateManager
-   */
-  /*
-  private startHealthCheck(): void {
-    const intervalMs = this.parseInterval(this.config.supervisorNudgeInterval);
-
-    this.healthCheckTimer = setInterval(async () => {
-      if (this.isShuttingDown) return;
-
-      const running = this.state.getRunningContainers();
-      if (running.length === 0) return;
-
-      logger.debug(`Health check: ${running.length} container(s) tracked`);
-
-      // Check if tracked containers are still alive in Docker
-      const live = this.containers.listDockerContainers();
-      for (const container of running) {
-        if (!live.includes(container.name)) {
-          logger.warn(`Container ${container.name} disappeared, marking failed`);
-          this.state.updateContainer(container.id, {
-            status: "failed",
-            stoppedAt: new Date().toISOString(),
-          });
-        }
-      }
-    }, intervalMs);
-
-    // Don't prevent process exit
-    this.healthCheckTimer.unref();
-  }
-  */
 
   /**
    * Parse a human-readable interval string like "5m" or "2h" into milliseconds.
