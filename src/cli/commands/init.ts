@@ -7,6 +7,7 @@ import { Command } from "commander";
 import { detectFork, configureMultiplayer } from "../../github/fork-detection.js";
 import { StateManager } from "../../state/state-manager.js";
 import type { RepoConfig, RepoMode } from "../../state/schemas.js";
+import { scopedAgentName } from "../../agents/scoped-name.js";
 import type { ForkInfo } from "../../github/types.js";
 
 const execFileAsync = promisify(execFile);
@@ -175,7 +176,7 @@ export async function initializeRepository(
 
   // Register the Chocolatier (supervisor) — always present
   await stateManager.setAgent(name, {
-    name: "chocolatier",
+    name: scopedAgentName("chocolatier", name),
     type: "supervisor",
     status: "starting",
   });
@@ -183,13 +184,13 @@ export async function initializeRepository(
   // Register the mode-appropriate merge agent
   if (mode === "multiplayer") {
     await stateManager.setAgent(name, {
-      name: "enrober",
+      name: scopedAgentName("enrober", name),
       type: "pr-shepherd",
       status: "starting",
     });
   } else {
     await stateManager.setAgent(name, {
-      name: "temperer",
+      name: scopedAgentName("temperer", name),
       type: "merge-queue",
       status: "starting",
     });

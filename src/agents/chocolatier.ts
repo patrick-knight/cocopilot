@@ -39,19 +39,18 @@ import type {
   HealthCheckReport,
   AgentToolDefinition,
 } from "./types.js";
+import { scopedAgentName, scopedWorkerName } from "./scoped-name.js";
 
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
-
-const AGENT_TYPE = "chocolatier";
 
 /**
  * Build the unique agent name for a repo-specific Chocolatier.
  * Used both internally and by API routes that address this agent.
  */
 export function chocolatierAgentName(repoName: string): string {
-  return `${AGENT_TYPE}:${repoName}`;
+  return scopedAgentName("chocolatier", repoName);
 }
 const DEFAULT_HEALTH_CHECK_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
 const DEFAULT_STUCK_THRESHOLD_MS = 15 * 60 * 1000; // 15 minutes
@@ -304,7 +303,7 @@ export class Chocolatier extends EventEmitter {
         cpus: this.config.containerCpuLimit,
       },
       env: {
-        COCOPILOT_AGENT_NAME: worker.name,
+        COCOPILOT_AGENT_NAME: scopedWorkerName(worker.name, repoName),
         COCOPILOT_REPO: repoName,
         COCOPILOT_SUPERVISOR: this.agentName,
         COCOPILOT_TASK: options.task,
@@ -335,7 +334,7 @@ export class Chocolatier extends EventEmitter {
       await this.broker.send({
         type: MessageType.TASK_ASSIGNED,
         from: this.agentName,
-        to: worker.name,
+        to: scopedWorkerName(worker.name, repoName),
         payload: {
           task: options.task,
           branch: worker.branch,
@@ -384,6 +383,8 @@ export class Chocolatier extends EventEmitter {
       "- create_pr(title, body)\n" +
       "- mark_complete(summary, prUrl?)";
 
+    const mergeQueueType = repo.mode === "multiplayer" ? "enrober" : "temperer";
+
     const truffle = new TruffleAgent(
       {
         name: worker.name,
@@ -398,6 +399,7 @@ export class Chocolatier extends EventEmitter {
         customPrompt,
         pushTo: options.pushTo,
         supervisorName: this.agentName,
+        mergeQueueName: scopedAgentName(mergeQueueType, repoName),
       },
       this.broker,
     );
@@ -471,7 +473,7 @@ export class Chocolatier extends EventEmitter {
     await this.broker.send({
       type: MessageType.NUDGE,
       from: this.agentName,
-      to: workerName,
+      to: scopedWorkerName(workerName, this.config.repoName),
       payload: { hint, context },
       priority: "high",
     });

@@ -13,6 +13,7 @@ import { Chocolatier } from "../agents/chocolatier.js";
 import { Temperer } from "../agents/temperer.js";
 import { Enrober } from "../agents/enrober.js";
 import { SecurityReviewerAgent } from "../agents/security-reviewer.js";
+import { scopedAgentName } from "../agents/scoped-name.js";
 import { ContainerManager as AgentContainerManager } from "../docker/index.js";
 import { DEFAULT_AGENT_IMAGE } from "../docker/index.js";
 
@@ -261,12 +262,14 @@ export class Concher {
       const mergeAgent = repo.mode === "multiplayer"
         ? new Enrober({
           repoPath: repo.localPath,
+          repoName,
           broker: this.broker,
           pollIntervalMs,
           label,
         })
         : new Temperer({
           repoPath: repo.localPath,
+          repoName,
           broker: this.broker,
           pollIntervalMs,
           label,
@@ -276,7 +279,7 @@ export class Concher {
 
       // Start security reviewer agent
       const securityReviewer = new SecurityReviewerAgent(
-        { repoPath: repo.localPath },
+        { repoPath: repo.localPath, repoName },
         this.broker,
       );
       await securityReviewer.start();
@@ -285,19 +288,19 @@ export class Concher {
       this.repoAgents.set(repoName, { chocolatier, mergeAgent, securityReviewer });
 
       await this.state.setAgent(repoName, {
-        name: "chocolatier",
+        name: scopedAgentName("chocolatier", repoName),
         type: "supervisor",
         status: "healthy",
       });
 
       await this.state.setAgent(repoName, {
-        name: repo.mode === "multiplayer" ? "enrober" : "temperer",
+        name: repo.mode === "multiplayer" ? scopedAgentName("enrober", repoName) : scopedAgentName("temperer", repoName),
         type: repo.mode === "multiplayer" ? "pr-shepherd" : "merge-queue",
         status: "healthy",
       });
 
       await this.state.setAgent(repoName, {
-        name: "security-reviewer",
+        name: scopedAgentName("security-reviewer", repoName),
         type: "security",
         status: "healthy",
       });
@@ -318,10 +321,12 @@ export class Concher {
     await agents.chocolatier.stop().catch(() => {});
     await agents.mergeAgent.stop().catch(() => {});
     await agents.securityReviewer.stop().catch(() => {});
-    await this.state.updateAgentStatus(repoName, "chocolatier", "stopped").catch(() => {});
-    const mergeName = agents.mergeAgent instanceof Enrober ? "enrober" : "temperer";
+    await this.state.updateAgentStatus(repoName, scopedAgentName("chocolatier", repoName), "stopped").catch(() => {});
+    const mergeName = agents.mergeAgent instanceof Enrober
+      ? scopedAgentName("enrober", repoName)
+      : scopedAgentName("temperer", repoName);
     await this.state.updateAgentStatus(repoName, mergeName, "stopped").catch(() => {});
-    await this.state.updateAgentStatus(repoName, "security-reviewer", "stopped").catch(() => {});
+    await this.state.updateAgentStatus(repoName, scopedAgentName("security-reviewer", repoName), "stopped").catch(() => {});
     this.repoAgents.delete(repoName);
   }
 

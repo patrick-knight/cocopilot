@@ -24,26 +24,29 @@ import {
   type CIExecFn,
 } from "../github/index.js";
 import type { CIStatusResult } from "../github/types.js";
+import { scopedAgentName } from "./scoped-name.js";
 
 const execFile = promisify(execFileCb);
 
 const DEFAULT_POLL_INTERVAL_MS = 2 * 60 * 1000; // 2 minutes
-const DEFAULT_AGENT_NAME = "temperer";
-const DEFAULT_CHOCOLATIER_NAME = "chocolatier";
 const DEFAULT_LABEL = "cocopilot";
 
 /** Configuration for the Temperer agent. */
 export interface TempererConfig {
   /** Path to the git repository to monitor. */
   repoPath: string;
+  /** The repository name (used for scoped agent naming). */
+  repoName: string;
   /** MessageBroker instance for inter-agent communication. */
   broker: MessageBroker;
   /** Polling interval in milliseconds. Defaults to 120000 (2 min). */
   pollIntervalMs?: number;
-  /** Agent name for messaging. Defaults to "temperer". */
+  /** Agent name for messaging. Derived from repoName if not set. */
   agentName?: string;
-  /** Chocolatier agent name. Defaults to "chocolatier". */
+  /** Chocolatier agent name. Derived from repoName if not set. */
   chocolatierName?: string;
+  /** Security reviewer agent name. Derived from repoName if not set. */
+  securityReviewerName?: string;
   /** PR label used to identify CoCoPilot PRs. Defaults to "cocopilot". */
   label?: string;
 }
@@ -103,7 +106,7 @@ export type ExecFn = (
  */
 export class Temperer {
   private readonly config: Required<
-    Pick<TempererConfig, "repoPath" | "pollIntervalMs" | "agentName" | "chocolatierName" | "label">
+    Pick<TempererConfig, "repoPath" | "pollIntervalMs" | "agentName" | "chocolatierName" | "securityReviewerName" | "label">
   > & { broker: MessageBroker };
   private readonly trackedPRs: Map<number, TrackedPR> = new Map();
   private pollTimer: ReturnType<typeof setInterval> | null = null;
@@ -115,8 +118,9 @@ export class Temperer {
       repoPath: config.repoPath,
       broker: config.broker,
       pollIntervalMs: config.pollIntervalMs ?? DEFAULT_POLL_INTERVAL_MS,
-      agentName: config.agentName ?? DEFAULT_AGENT_NAME,
-      chocolatierName: config.chocolatierName ?? DEFAULT_CHOCOLATIER_NAME,
+      agentName: config.agentName ?? scopedAgentName("temperer", config.repoName),
+      chocolatierName: config.chocolatierName ?? scopedAgentName("chocolatier", config.repoName),
+      securityReviewerName: config.securityReviewerName ?? scopedAgentName("security-reviewer", config.repoName),
       label: config.label ?? DEFAULT_LABEL,
     };
     this.execFn = execFn ?? execFile;
@@ -298,7 +302,7 @@ export class Temperer {
     await this.config.broker.send({
       type: MessageType.SECURITY_REVIEW_REQUEST,
       from: this.config.agentName,
-      to: "security-reviewer",
+      to: this.config.securityReviewerName,
       payload: { prNumber, prUrl, branch, workerName },
       priority: "high",
       ack_required: false,

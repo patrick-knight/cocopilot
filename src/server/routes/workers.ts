@@ -18,6 +18,7 @@ import type { MessageBroker } from "../../messaging/index.js";
 import { MessageType } from "../../messaging/index.js";
 import { getWorktreePath } from "../../git/worktree.js";
 import { chocolatierAgentName } from "../../agents/chocolatier.js";
+import { scopedWorkerName } from "../../agents/scoped-name.js";
 import { createApiError } from "../middleware/error-handler.js";
 
 interface RepoParams {
@@ -157,10 +158,10 @@ export function workerRoutes(
 
   // GET /repositories/:repoName/workers/:workerName/messages -- Get message history
   router.get("/:workerName/messages", async (req, res, next) => {
-    const { workerName } = req.params as unknown as WorkerParams;
+    const { repoName, workerName } = req.params as unknown as WorkerParams;
 
     try {
-      const messages = await broker.getHistory(workerName);
+      const messages = await broker.getHistory(scopedWorkerName(workerName, repoName));
       res.json({ messages });
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
@@ -208,7 +209,7 @@ export function workerRoutes(
       await broker.send({
         type: MessageType.NUDGE,
         from: "api",
-        to: workerName,
+        to: scopedWorkerName(workerName, repoName),
         payload: { hint, context },
       });
       res.json({ ok: true, worker: workerName, hint });

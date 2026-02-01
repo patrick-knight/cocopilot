@@ -78,3 +78,9 @@ export {
   type SecurityReviewerConfig,
   type SecurityReviewerEvents,
 } from "./security-reviewer.js";
+
+export {
+  scopedAgentName,
+  scopedWorkerName,
+  isScopedName,
+} from "./scoped-name.js";

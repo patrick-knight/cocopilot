@@ -74,6 +74,12 @@ export class MessageBroker {
    * both direct messages and broadcasts.
    */
   async subscribe(agentName: string, handler: MessageHandler): Promise<void> {
+    if (!agentName.includes(":")) {
+      console.warn(
+        `[MessageBroker] Warning: subscribing with unscoped name "${agentName}". ` +
+        `Use scopedAgentName() or scopedWorkerName() to avoid cross-repo collisions.`,
+      );
+    }
     this.agentHandlers.set(agentName, handler);
     await this.bus.subscribe(agentName, handler);
   }

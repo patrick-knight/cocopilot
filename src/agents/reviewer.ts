@@ -27,6 +27,7 @@ import {
   MessageBroker,
   MessageType,
 } from "../messaging/index.js";
+import { scopedAgentName } from "./scoped-name.js";
 import type {
   ReviewerConfig,
   ReviewerEvents,
@@ -98,8 +99,8 @@ export class ReviewerAgent extends EventEmitter<ReviewerEvents> {
   constructor(config: ReviewerConfig, broker: MessageBroker) {
     super();
     this.config = {
-      agentName: "reviewer",
-      mergeQueueName: "temperer",
+      agentName: scopedAgentName("reviewer", config.repoName),
+      mergeQueueName: scopedAgentName("temperer", config.repoName),
       autoComplete: true,
       ...config,
     };

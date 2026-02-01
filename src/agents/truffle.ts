@@ -26,6 +26,7 @@ import {
   type CocoMessage,
   type CreateMessageOptions,
 } from "../messaging/index.js";
+import { scopedWorkerName, scopedAgentName } from "./scoped-name.js";
 import type { WorkerStatus } from "../state/schemas.js";
 
 const execFileAsync = promisify(execFile);
@@ -154,6 +155,15 @@ export class TruffleAgent extends EventEmitter<TruffleEvents> {
     return this.config.branch;
   }
 
+  get supervisorName(): string {
+    return this.config.supervisorName ?? scopedAgentName("chocolatier", this.config.repoName);
+  }
+
+  /** Broker-scoped identity: "workerName:repoName". */
+  private get scopedName(): string {
+    return scopedWorkerName(this.config.name, this.config.repoName);
+  }
+
   get status(): WorkerStatus {
     return this._status;
   }
@@ -206,7 +216,7 @@ export class TruffleAgent extends EventEmitter<TruffleEvents> {
    */
   async init(): Promise<void> {
     await this.setupWorktree();
-    await this.broker.subscribe(this.config.name, (msg) =>
+    await this.broker.subscribe(this.scopedName, (msg) =>
       this.handleMessage(msg),
     );
     this.setStatus("working");
@@ -217,7 +227,7 @@ export class TruffleAgent extends EventEmitter<TruffleEvents> {
    * worktree (call `cleanupWorktree()` explicitly if desired).
    */
   async stop(): Promise<void> {
-    await this.broker.unsubscribe(this.config.name);
+    await this.broker.unsubscribe(this.scopedName);
     if (this._status === "working") {
       this.setStatus("terminated");
     }
@@ -404,10 +414,10 @@ export class TruffleAgent extends EventEmitter<TruffleEvents> {
    * Signal successful task completion to the Chocolatier.
    */
   async signalComplete(summary: string, prUrl?: string): Promise<void> {
-    const supervisor = this.config.supervisorName ?? "chocolatier";
+    const supervisor = this.supervisorName;
     await this.broker.send({
       type: MessageType.TASK_COMPLETE,
-      from: this.config.name,
+      from: this.scopedName,
       to: supervisor,
       payload: {
         summary,
@@ -428,10 +438,10 @@ export class TruffleAgent extends EventEmitter<TruffleEvents> {
     error: string,
     recoverable: boolean = false,
   ): Promise<void> {
-    const supervisor = this.config.supervisorName ?? "chocolatier";
+    const supervisor = this.supervisorName;
     await this.broker.send({
       type: MessageType.TASK_FAILED,
-      from: this.config.name,
+      from: this.scopedName,
       to: supervisor,
       payload: {
         error,
@@ -450,10 +460,10 @@ export class TruffleAgent extends EventEmitter<TruffleEvents> {
    * status to "stuck".
    */
   async requestHelp(message: string): Promise<void> {
-    const supervisor = this.config.supervisorName ?? "chocolatier";
+    const supervisor = this.supervisorName;
     await this.broker.send({
       type: MessageType.TASK_FAILED,
-      from: this.config.name,
+      from: this.scopedName,
       to: supervisor,
       payload: {
         error: message,
@@ -472,7 +482,7 @@ export class TruffleAgent extends EventEmitter<TruffleEvents> {
   async respondStatus(requestId: string, requester: string): Promise<void> {
     await this.broker.send({
       type: MessageType.STATUS_RESPONSE,
-      from: this.config.name,
+      from: this.scopedName,
       to: requester,
       payload: {
         request_id: requestId,
@@ -513,7 +523,7 @@ export class TruffleAgent extends EventEmitter<TruffleEvents> {
 
     // Acknowledge if required
     if (message.ack_required) {
-      await this.broker.acknowledge(this.config.name, message.id);
+      await this.broker.acknowledge(this.scopedName, message.id);
     }
   }
 
@@ -525,10 +535,10 @@ export class TruffleAgent extends EventEmitter<TruffleEvents> {
    * Notify the Temperer (merge queue) that a PR has been created.
    */
   private async notifyPRCreated(pr: PRResult): Promise<void> {
-    const mergeQueue = this.config.mergeQueueName ?? "temperer";
+    const mergeQueue = this.config.mergeQueueName ?? scopedAgentName("temperer", this.config.repoName);
     await this.broker.send({
       type: MessageType.PR_CREATED,
-      from: this.config.name,
+      from: this.scopedName,
       to: mergeQueue,
       payload: {
         pr_number: pr.number,

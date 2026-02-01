@@ -87,6 +87,7 @@ function createTemperer(
   const temperer = new Temperer(
     {
       repoPath: "/tmp/test-repo",
+      repoName: "test-repo",
       broker: mockBroker as unknown as MessageBroker,
       pollIntervalMs: 60000,
       label: "cocopilot",
@@ -311,7 +312,7 @@ describe("Temperer", () => {
         (m) => m.type === MessageType.PR_MERGED,
       );
       expect(mergeMsg).toBeDefined();
-      expect(mergeMsg!.to).toBe("chocolatier");
+      expect(mergeMsg!.to).toBe("chocolatier:test-repo");
       expect(mergeMsg!.payload).toEqual({
         pr_number: 10,
         pr_url: "https://github.com/org/repo/pull/10",
@@ -361,7 +362,7 @@ describe("Temperer", () => {
       // Should have sent CI_FAILED
       const ciMsg = broker.sent.find((m) => m.type === MessageType.CI_FAILED);
       expect(ciMsg).toBeDefined();
-      expect(ciMsg!.to).toBe("chocolatier");
+      expect(ciMsg!.to).toBe("chocolatier:test-repo");
       expect(ciMsg!.priority).toBe("high");
       expect((ciMsg!.payload as { pr_number: number }).pr_number).toBe(20);
       expect((ciMsg!.payload as { pr_url: string }).pr_url).toBe("https://github.com/org/repo/pull/20");
@@ -374,7 +375,7 @@ describe("Temperer", () => {
         (m) => m.type === MessageType.SPAWN_FIXUP,
       );
       expect(fixupMsg).toBeDefined();
-      expect(fixupMsg!.to).toBe("chocolatier");
+      expect(fixupMsg!.to).toBe("chocolatier:test-repo");
       expect((fixupMsg!.payload as { pr_number: number }).pr_number).toBe(20);
       expect((fixupMsg!.payload as { pr_url: string }).pr_url).toBe("https://github.com/org/repo/pull/20");
       expect((fixupMsg!.payload as { failure_summary: string }).failure_summary).toContain("1 CI check(s) failed:");
@@ -689,7 +690,7 @@ describe("Temperer", () => {
       const { temperer } = createTemperer(execFn, mockBroker);
 
       await temperer.start();
-      expect(mockBroker.subscribedAgent).toBe("temperer");
+      expect(mockBroker.subscribedAgent).toBe("temperer:test-repo");
 
       await temperer.stop();
       expect(mockBroker.subscribedAgent).toBeNull();

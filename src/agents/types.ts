@@ -153,6 +153,8 @@ export interface AgentToolDefinition {
 export interface EnroberConfig {
   /** Path to the git repository to monitor. */
   repoPath: string;
+  /** The repository name (used for scoped agent naming). */
+  repoName: string;
   /** Polling interval in milliseconds. Defaults to 120000 (2 min). */
   pollIntervalMs?: number;
   /** Agent name for messaging. Defaults to "enrober". */
@@ -239,7 +241,9 @@ export interface EnroberEvents {
 export interface ReviewerConfig {
   /** Path to the git repository to review. */
   repoPath: string;
-  /** Agent name for messaging. Defaults to "reviewer". */
+  /** The repository name (used for scoped agent naming). */
+  repoName: string;
+  /** Agent name for messaging. Derived from repoName if not set. */
   agentName?: string;
   /** Merge queue agent name to notify. Defaults to "temperer". */
   mergeQueueName?: string;

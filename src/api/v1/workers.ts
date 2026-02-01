@@ -49,7 +49,7 @@ export function extWorkerRoutes(
       await broker.send({
         type: MessageType.SPAWN_WORKER,
         from: "api",
-        to: "chocolatier",
+        to: chocolatierAgentName(repoName),
         payload: {
           task,
           repoName,

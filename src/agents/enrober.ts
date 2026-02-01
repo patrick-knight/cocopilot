@@ -25,6 +25,7 @@ import type {
   ReviewerStatus,
   ApprovalState,
 } from "./types.js";
+import { scopedAgentName } from "./scoped-name.js";
 
 const execFile = promisify(execFileCb);
 
@@ -33,8 +34,6 @@ const execFile = promisify(execFileCb);
 // ---------------------------------------------------------------------------
 
 const DEFAULT_POLL_INTERVAL_MS = 2 * 60 * 1000; // 2 minutes
-const DEFAULT_AGENT_NAME = "enrober";
-const DEFAULT_CHOCOLATIER_NAME = "chocolatier";
 const DEFAULT_LABEL = "cocopilot";
 
 // ---------------------------------------------------------------------------
@@ -137,8 +136,8 @@ export class Enrober {
       repoPath: config.repoPath,
       broker: config.broker,
       pollIntervalMs: config.pollIntervalMs ?? DEFAULT_POLL_INTERVAL_MS,
-      agentName: config.agentName ?? DEFAULT_AGENT_NAME,
-      chocolatierName: config.chocolatierName ?? DEFAULT_CHOCOLATIER_NAME,
+      agentName: config.agentName ?? scopedAgentName("enrober", config.repoName),
+      chocolatierName: config.chocolatierName ?? scopedAgentName("chocolatier", config.repoName),
       label: config.label ?? DEFAULT_LABEL,
     };
     this.broker = config.broker;
