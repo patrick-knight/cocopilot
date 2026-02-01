@@ -13,6 +13,15 @@ export function getErrorMessage(err: unknown): string {
   if (typeof err === "string") {
     return err;
   }
+  if (err !== null && typeof err === "object") {
+    const anyErr = err as { message?: unknown; name?: unknown };
+    if (typeof anyErr.message === "string") {
+      if (typeof anyErr.name === "string" && anyErr.name) {
+        return `${anyErr.name}: ${anyErr.message}`;
+      }
+      return anyErr.message;
+    }
+  }
   return String(err);
 }
 
