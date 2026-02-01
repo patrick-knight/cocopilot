@@ -102,7 +102,7 @@ export function FactoryFloor() {
         setLoading(false);
       })
       .catch((err) => {
-        setError(err.message);
+        setError(err instanceof Error ? err.message : String(err));
         setLoading(false);
       });
   };
@@ -113,7 +113,7 @@ export function FactoryFloor() {
       .then((data) => setSystemStatus(data))
       .catch((err) => {
         // Log status fetch errors but don't block the UI
-        console.warn("[FactoryFloor] Failed to fetch status:", err.message);
+        console.warn("[FactoryFloor] Failed to fetch status:", err instanceof Error ? err.message : String(err));
         // Set a minimal status to indicate connectivity issue
         setSystemStatus({
           daemon: { up: false },
