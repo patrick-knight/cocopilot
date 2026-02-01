@@ -1367,4 +1367,45 @@ export function registerCommands(program: Command): void {
         process.exitCode = 1;
       }
     });
+
+  // -------------------------------------------------------------------------
+  // tui - Terminal User Interface
+  // -------------------------------------------------------------------------
+  program
+    .command("tui")
+    .description("Launch the Terminal User Interface dashboard")
+    .option("--port <port>", "Connect to daemon on specified port", "3000")
+    .option("--repo <name>", "Jump directly to repository detail")
+    .option("--status", "Start on status screen")
+    .option("--metrics", "Start on metrics screen")
+    .option("--no-color", "Disable colors")
+    .action(async (options: { port?: string; repo?: string; status?: boolean; metrics?: boolean; color?: boolean }) => {
+      // Build args for the TUI process
+      const args: string[] = [];
+      if (options.port) {
+        args.push("--port", options.port);
+      }
+      if (options.repo) {
+        args.push("--repo", options.repo);
+      }
+      if (options.status) {
+        args.push("--status");
+      }
+      if (options.metrics) {
+        args.push("--metrics");
+      }
+      if (options.color === false) {
+        args.push("--no-color");
+      }
+
+      // Dynamically import and run the TUI
+      try {
+        // The TUI module handles its own rendering via ink
+        await import("../../tui/index.js");
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : String(err);
+        console.error(`Error: Failed to launch TUI — ${message}`);
+        process.exitCode = 1;
+      }
+    });
 }
