@@ -564,17 +564,22 @@ export class Enrober {
 
   /** Handle incoming messages (e.g., PR_CREATED from Truffles). */
   private async handleMessage(message: CocoMessage): Promise<void> {
-    if (message.type === MessageType.PR_CREATED) {
-      const payload = message.payload as PRCreatedPayload;
-      this.trackedPRs.set(payload.pr_number, {
-        number: payload.pr_number,
-        url: payload.pr_url,
-        title: payload.title,
-        branch: payload.branch,
-        state: "needs_review",
-        originalWorker: message.from,
-        lastCheckedAt: Date.now(),
-      });
+    try {
+      if (message.type === MessageType.PR_CREATED) {
+        const payload = message.payload as PRCreatedPayload;
+        this.trackedPRs.set(payload.pr_number, {
+          number: payload.pr_number,
+          url: payload.pr_url,
+          title: payload.title,
+          branch: payload.branch,
+          state: "needs_review",
+          originalWorker: message.from,
+          lastCheckedAt: Date.now(),
+        });
+      }
+    } catch (err) {
+      // Log but don't crash on malformed messages
+      console.error(`[Enrober] Error handling message ${message.type}:`, err);
     }
   }
 

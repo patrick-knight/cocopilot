@@ -20,6 +20,7 @@ const STATUS_STYLES: Record<WorkerStatus, { bg: string; text: string; label: str
   completed: { bg: "bg-emerald-100", text: "text-emerald-800", label: "Completed" },
   failed: { bg: "bg-red-100", text: "text-red-800", label: "Failed" },
   terminated: { bg: "bg-gray-100", text: "text-gray-800", label: "Terminated" },
+  merged: { bg: "bg-purple-100", text: "text-purple-800", label: "Merged" },
 };
 
 // ---------------------------------------------------------------------------

@@ -242,44 +242,49 @@ export class Temperer {
 
   /** Handle incoming messages (e.g., PR_CREATED from Truffles). */
   private async handleMessage(message: CocoMessage): Promise<void> {
-    if (message.type === MessageType.PR_CREATED) {
-      const payload = message.payload as PRCreatedPayload;
-      this.trackedPRs.set(payload.pr_number, {
-        number: payload.pr_number,
-        url: payload.pr_url,
-        title: payload.title,
-        branch: payload.branch,
-        state: "awaiting_security_review",
-        originalWorker: message.from,
-        securityReviewPassed: false,
-      });
-      // Request security review
-      await this.requestSecurityReview(payload.pr_number, payload.pr_url, payload.branch, message.from);
-    }
-
-    if (message.type === MessageType.SECURITY_REVIEW_PASSED) {
-      const payload = message.payload as { prNumber: number; warnings: string[] };
-      const tracked = this.trackedPRs.get(payload.prNumber);
-      if (tracked) {
-        tracked.securityReviewPassed = true;
-        tracked.securityWarnings = payload.warnings;
-        tracked.state = "watching";
+    try {
+      if (message.type === MessageType.PR_CREATED) {
+        const payload = message.payload as PRCreatedPayload;
+        this.trackedPRs.set(payload.pr_number, {
+          number: payload.pr_number,
+          url: payload.pr_url,
+          title: payload.title,
+          branch: payload.branch,
+          state: "awaiting_security_review",
+          originalWorker: message.from,
+          securityReviewPassed: false,
+        });
+        // Request security review
+        await this.requestSecurityReview(payload.pr_number, payload.pr_url, payload.branch, message.from);
       }
-    }
 
-    if (message.type === MessageType.SECURITY_REVIEW_FAILED) {
-      const payload = message.payload as { prNumber: number; issues: Array<{ severity: string; file: string; line?: number; description: string; cwe?: string }> };
-      const tracked = this.trackedPRs.get(payload.prNumber);
-      if (tracked) {
-        tracked.securityReviewPassed = false;
-        tracked.state = "security_blocked";
-        // Post comment with security issues
-        await this.postSecurityComment(payload.prNumber, payload.issues);
-        // Request fixup from original worker
-        if (tracked.originalWorker) {
-          await this.requestSecurityFixup(tracked, payload.issues);
+      if (message.type === MessageType.SECURITY_REVIEW_PASSED) {
+        const payload = message.payload as { prNumber: number; warnings: string[] };
+        const tracked = this.trackedPRs.get(payload.prNumber);
+        if (tracked) {
+          tracked.securityReviewPassed = true;
+          tracked.securityWarnings = payload.warnings;
+          tracked.state = "watching";
         }
       }
+
+      if (message.type === MessageType.SECURITY_REVIEW_FAILED) {
+        const payload = message.payload as { prNumber: number; issues: Array<{ severity: string; file: string; line?: number; description: string; cwe?: string }> };
+        const tracked = this.trackedPRs.get(payload.prNumber);
+        if (tracked) {
+          tracked.securityReviewPassed = false;
+          tracked.state = "security_blocked";
+          // Post comment with security issues
+          await this.postSecurityComment(payload.prNumber, payload.issues);
+          // Request fixup from original worker
+          if (tracked.originalWorker) {
+            await this.requestSecurityFixup(tracked, payload.issues);
+          }
+        }
+      }
+    } catch (err) {
+      // Log but don't crash on malformed messages
+      console.error(`[Temperer] Error handling message ${message.type}:`, err);
     }
   }
 

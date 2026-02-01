@@ -65,6 +65,13 @@ export function FactoryFloor() {
   const [initLoading, setInitLoading] = useState(false);
   const [initError, setInitError] = useState<string | null>(null);
 
+  // Action feedback state (for delete/repair operations)
+  const [actionFeedback, setActionFeedback] = useState<{
+    type: "success" | "error";
+    message: string;
+  } | null>(null);
+  const [actionLoading, setActionLoading] = useState<string | null>(null); // repoName being acted on
+
   // Onboard modal state
   const [showOnboardModal, setShowOnboardModal] = useState(false);
 
@@ -75,6 +82,14 @@ export function FactoryFloor() {
     github: { authenticated: boolean; user: string | null; error: string | null };
     copilot: { installed: boolean; version: string | null; error: string | null };
   } | null>(null);
+
+  // Clear action feedback after 5 seconds
+  useEffect(() => {
+    if (actionFeedback) {
+      const timer = setTimeout(() => setActionFeedback(null), 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [actionFeedback]);
 
   const fetchRepos = () => {
     fetch("/api/v1/repositories")
@@ -96,7 +111,17 @@ export function FactoryFloor() {
     fetch("/api/v1/status")
       .then((res) => res.json())
       .then((data) => setSystemStatus(data))
-      .catch(() => {/* ignore status fetch errors */});
+      .catch((err) => {
+        // Log status fetch errors but don't block the UI
+        console.warn("[FactoryFloor] Failed to fetch status:", err.message);
+        // Set a minimal status to indicate connectivity issue
+        setSystemStatus({
+          daemon: { up: false },
+          redis: { connected: false },
+          github: { authenticated: false, user: null, error: "Failed to fetch status" },
+          copilot: { installed: false, version: null, error: "Failed to fetch status" },
+        });
+      });
   };
 
   useEffect(() => {
@@ -199,6 +224,8 @@ export function FactoryFloor() {
     if (!confirm(`Are you sure you want to remove "${repoName}" from CoCoPilot?`)) {
       return;
     }
+    setActionLoading(repoName);
+    setActionFeedback(null);
     try {
       const res = await fetch(`/api/v1/repositories/${encodeURIComponent(repoName)}`, {
         method: "DELETE",
@@ -207,9 +234,12 @@ export function FactoryFloor() {
         const data = await res.json().catch(() => ({}));
         throw new Error(data.error || `HTTP ${res.status}`);
       }
+      setActionFeedback({ type: "success", message: `Repository "${repoName}" removed successfully` });
       fetchRepos();
     } catch (err) {
-      alert(`Failed to delete repository: ${err instanceof Error ? err.message : err}`);
+      setActionFeedback({ type: "error", message: `Failed to delete repository: ${err instanceof Error ? err.message : err}` });
+    } finally {
+      setActionLoading(null);
     }
   };
 
@@ -218,6 +248,8 @@ export function FactoryFloor() {
     if (!confirm(`Clean up orphaned workers for "${repoName}"?`)) {
       return;
     }
+    setActionLoading(repoName);
+    setActionFeedback(null);
     try {
       const res = await fetch(`/api/v1/repositories/${encodeURIComponent(repoName)}/repair`, {
         method: "POST",
@@ -227,10 +259,12 @@ export function FactoryFloor() {
         throw new Error(data.error || `HTTP ${res.status}`);
       }
       const data = await res.json();
-      alert(data.message || "Repair completed");
+      setActionFeedback({ type: "success", message: data.message || "Repair completed" });
       fetchRepos();
     } catch (err) {
-      alert(`Failed to repair repository: ${err instanceof Error ? err.message : err}`);
+      setActionFeedback({ type: "error", message: `Failed to repair repository: ${err instanceof Error ? err.message : err}` });
+    } finally {
+      setActionLoading(null);
     }
   };
 
@@ -320,6 +354,24 @@ export function FactoryFloor() {
             </div>
           </div>
         </header>
+
+        {/* Action feedback toast */}
+        {actionFeedback && (
+          <div className={`fixed top-4 left-1/2 -translate-x-1/2 z-50 px-6 py-3 rounded-lg shadow-lg flex items-center gap-3 ${
+            actionFeedback.type === "success"
+              ? "bg-chart-2/90 text-white"
+              : "bg-destructive/90 text-white"
+          }`}>
+            <span>{actionFeedback.type === "success" ? "✓" : "✗"}</span>
+            <span>{actionFeedback.message}</span>
+            <button
+              onClick={() => setActionFeedback(null)}
+              className="ml-2 hover:opacity-70"
+            >
+              ×
+            </button>
+          </div>
+        )}
 
         {/* Repository Grid */}
         {repos.length === 0 ? (
@@ -562,16 +614,25 @@ export function FactoryFloor() {
                             <div className="inline-flex items-center gap-2">
                               <button
                                 onClick={(e) => handleRepairRepo(repo.name, e)}
-                                className="p-1.5 rounded hover:bg-amber-500/10 text-amber-500 transition-colors"
+                                disabled={actionLoading === repo.name}
+                                className="p-1.5 rounded hover:bg-amber-500/10 text-amber-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                                 title="Repair - clean up orphaned workers"
                               >
-                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                  <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>
-                                </svg>
+                                {actionLoading === repo.name ? (
+                                  <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none">
+                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                                  </svg>
+                                ) : (
+                                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                    <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>
+                                  </svg>
+                                )}
                               </button>
                               <button
                                 onClick={(e) => handleDeleteRepo(repo.name, e)}
-                                className="p-1.5 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
+                                disabled={actionLoading === repo.name}
+                                className="p-1.5 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                                 title="Remove repository"
                               >
                                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

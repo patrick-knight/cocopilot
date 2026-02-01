@@ -504,28 +504,37 @@ export class Chocolatier extends EventEmitter {
    * Dispatch incoming messages to the appropriate handler.
    */
   async handleMessage(message: CocoMessage): Promise<void> {
-    switch (message.type) {
-      case MessageType.STATUS_REQUEST:
-        await this.handleStatusRequest(message);
-        break;
-      case MessageType.TASK_COMPLETE:
-        await this.handleTaskComplete(message);
-        break;
-      case MessageType.TASK_FAILED:
-        await this.handleTaskFailed(message);
-        break;
-      case MessageType.CI_FAILED:
-        await this.handleCIFailed(message);
-        break;
-      case MessageType.SPAWN_FIXUP:
-        await this.handleSpawnFixup(message);
-        break;
-      case MessageType.SPAWN_WORKER:
-        await this.handleSpawnWorker(message);
-        break;
-      default:
-        // Acknowledge any message we receive but don't handle
-        break;
+    try {
+      switch (message.type) {
+        case MessageType.STATUS_REQUEST:
+          await this.handleStatusRequest(message);
+          break;
+        case MessageType.TASK_COMPLETE:
+          await this.handleTaskComplete(message);
+          break;
+        case MessageType.TASK_FAILED:
+          await this.handleTaskFailed(message);
+          break;
+        case MessageType.CI_FAILED:
+          await this.handleCIFailed(message);
+          break;
+        case MessageType.SPAWN_FIXUP:
+          await this.handleSpawnFixup(message);
+          break;
+        case MessageType.SPAWN_WORKER:
+          await this.handleSpawnWorker(message);
+          break;
+        case MessageType.PR_MERGED:
+          await this.handlePRMerged(message);
+          break;
+        default:
+          // Acknowledge any message we receive but don't handle
+          break;
+      }
+    } catch (err) {
+      // Log but don't crash on malformed messages
+      const errorMsg = err instanceof Error ? err.message : String(err);
+      this.emit("error", new Error(`Error handling message ${message.type}: ${errorMsg}`));
     }
 
     // Acknowledge receipt
@@ -647,6 +656,47 @@ export class Chocolatier extends EventEmitter {
       `CI failed on PR #${payload.pr_number}: ${payload.failure_summary}`,
       "warning",
     );
+  }
+
+  /**
+   * Handle a PR_MERGED notification from the Temperer.
+   * Updates worker state to "merged" and broadcasts the success.
+   */
+  private async handlePRMerged(message: CocoMessage): Promise<void> {
+    const payload = message.payload as {
+      pr_number: number;
+      pr_url: string;
+      merge_sha: string;
+    };
+
+    // Find the worker that created this PR and update its status
+    try {
+      const workers = await this.listWorkers();
+      const worker = workers.find((w) => w.prUrl === payload.pr_url);
+
+      if (worker) {
+        await this.stateManager.updateWorkerStatus(
+          this.config.repoName,
+          worker.name,
+          "merged",
+          { prUrl: payload.pr_url },
+        );
+
+        this.emit(
+          "workerMerged",
+          this.config.repoName,
+          worker.name,
+          payload.pr_url,
+        );
+      }
+
+      await this.broadcast(
+        `PR #${payload.pr_number} merged successfully (${payload.merge_sha.slice(0, 7)})`,
+        "info",
+      );
+    } catch {
+      // Worker may have already been removed
+    }
   }
 
   /**

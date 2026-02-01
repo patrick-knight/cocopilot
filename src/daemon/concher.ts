@@ -12,6 +12,7 @@ import { MessageBroker } from "../messaging/index.js";
 import { Chocolatier } from "../agents/chocolatier.js";
 import { Temperer } from "../agents/temperer.js";
 import { Enrober } from "../agents/enrober.js";
+import { SecurityReviewerAgent } from "../agents/security-reviewer.js";
 import { ContainerManager as AgentContainerManager } from "../docker/index.js";
 import { DEFAULT_AGENT_IMAGE } from "../docker/index.js";
 
@@ -33,6 +34,7 @@ export class Concher {
   private repoAgents: Map<string, {
     chocolatier: Chocolatier;
     mergeAgent: Temperer | Enrober;
+    securityReviewer: SecurityReviewerAgent;
   }> = new Map();
   private shutdownPromise: Promise<void> | null = null;
   private isShuttingDown = false;
@@ -281,8 +283,15 @@ export class Concher {
 
       await mergeAgent.start();
 
+      // Start security reviewer agent
+      const securityReviewer = new SecurityReviewerAgent(
+        { repoPath: repo.localPath },
+        this.broker,
+      );
+      await securityReviewer.start();
+
       // Set the map entry BEFORE state updates to prevent re-entry from stateChanged events
-      this.repoAgents.set(repoName, { chocolatier, mergeAgent });
+      this.repoAgents.set(repoName, { chocolatier, mergeAgent, securityReviewer });
 
       await this.state.setAgent(repoName, {
         name: "chocolatier",
@@ -293,6 +302,12 @@ export class Concher {
       await this.state.setAgent(repoName, {
         name: repo.mode === "multiplayer" ? "enrober" : "temperer",
         type: repo.mode === "multiplayer" ? "pr-shepherd" : "merge-queue",
+        status: "healthy",
+      });
+
+      await this.state.setAgent(repoName, {
+        name: "security-reviewer",
+        type: "security",
         status: "healthy",
       });
 
@@ -311,9 +326,11 @@ export class Concher {
     if (!agents) return;
     await agents.chocolatier.stop().catch(() => {});
     await agents.mergeAgent.stop().catch(() => {});
+    await agents.securityReviewer.stop().catch(() => {});
     await this.state.updateAgentStatus(repoName, "chocolatier", "stopped").catch(() => {});
     const mergeName = agents.mergeAgent instanceof Enrober ? "enrober" : "temperer";
     await this.state.updateAgentStatus(repoName, mergeName, "stopped").catch(() => {});
+    await this.state.updateAgentStatus(repoName, "security-reviewer", "stopped").catch(() => {});
     this.repoAgents.delete(repoName);
   }
 
