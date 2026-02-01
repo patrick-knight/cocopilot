@@ -367,6 +367,7 @@ export function FactoryFloor() {
             <button
               onClick={() => setActionFeedback(null)}
               className="ml-2 hover:opacity-70"
+              aria-label="Close notification"
             >
               ×
             </button>
