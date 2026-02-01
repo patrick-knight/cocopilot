@@ -882,8 +882,11 @@ export class Chocolatier extends EventEmitter {
 
       const isActiveStatus =
         worker.status === "working" || worker.status === "starting";
+      const isLocalWorker =
+        worker.containerId != null && worker.containerId.startsWith("local:");
       const containerMissing =
         isActiveStatus &&
+        !isLocalWorker &&
         worker.containerId != null &&
         (!container || container.status !== ContainerStatus.RUNNING);
       const isStuck =
