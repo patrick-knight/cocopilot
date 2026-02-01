@@ -338,7 +338,7 @@ export const TruffleInspector: React.FC<TruffleInspectorProps> = ({
           <div className="lg:col-span-2 space-y-6">
             {/* Live Output */}
             <section className="bg-card border border-border rounded-lg overflow-hidden shadow-sm">
-              <div className="bg-muted/50 px-4 py-3 border-b border-border">
+              <div className="bg-muted/50 px-4 py-3 border-b border-border flex items-center justify-between">
                 <h2 className="text-lg font-semibold text-foreground flex items-center gap-2">
                   <span>📺</span> Live Output
                 </h2>
@@ -347,6 +347,8 @@ export const TruffleInspector: React.FC<TruffleInspectorProps> = ({
                 <LiveOutput
                   workerName={worker.name}
                   socket={socket}
+                  minimal={true}
+                  panelHeight={350}
                 />
               </div>
             </section>

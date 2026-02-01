@@ -159,7 +159,11 @@ export class TuiApiClient {
   // Repositories
   async getRepositories(): Promise<Repository[]> {
     try {
-      const data = await this.fetch<{ repositories: Repository[] }>("/api/v1/repositories");
+      const data = await this.fetch<{ repositories?: Repository[] } | Repository[]>("/api/v1/repositories");
+      // Handle both response formats: array or { repositories: [...] }
+      if (Array.isArray(data)) {
+        return data;
+      }
       return data.repositories ?? [];
     } catch (err) {
       // Fallback: read directly from state file when daemon is unavailable

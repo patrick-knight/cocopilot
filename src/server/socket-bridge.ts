@@ -101,7 +101,11 @@ export function createSocketBridge(
 
   // Worker events
   addListener("workerAdded", (repoName: string, worker: WorkerState) => {
+    // Emit globally for activity feed
     io.emit("worker_spawned", { repository: repoName, worker });
+    
+    // Emit to repo room for real-time active workers update
+    io.to(`repo:${repoName}`).emit("worker:update", worker);
 
     if (eventStore) {
       const event = eventStore.add({
@@ -116,7 +120,11 @@ export function createSocketBridge(
   });
 
   addListener("workerUpdated", (repoName: string, worker: WorkerState) => {
+    // Emit globally for activity feed
     io.emit("worker_updated", { repository: repoName, worker });
+    
+    // Emit to repo room for real-time active workers update
+    io.to(`repo:${repoName}`).emit("worker:update", worker);
 
     // Emit PR pipeline update when a worker with a PR changes status
     const w = worker as WorkerState;
@@ -153,7 +161,11 @@ export function createSocketBridge(
   });
 
   addListener("workerRemoved", (repoName: string, workerName: string) => {
+    // Emit globally for activity feed
     io.emit("worker_removed", { repository: repoName, worker: workerName });
+    
+    // Emit to repo room for real-time active workers update
+    io.to(`repo:${repoName}`).emit("worker:removed", workerName);
   });
 
   // Repository events

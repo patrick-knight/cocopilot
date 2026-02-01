@@ -49,6 +49,8 @@ export interface LiveOutputProps {
   maxLines?: number;
   /** Panel height in pixels (default: 400). */
   panelHeight?: number;
+  /** If true, show only the terminal without header chrome (default: false). */
+  minimal?: boolean;
 }
 
 export const LiveOutput: React.FC<LiveOutputProps> = ({
@@ -56,6 +58,7 @@ export const LiveOutput: React.FC<LiveOutputProps> = ({
   socket,
   maxLines = 1000,
   panelHeight = 400,
+  minimal = false,
 }) => {
   const [allLines, setAllLines] = useState<WorkerOutputEvent[]>([]);
   const [autoScroll, setAutoScroll] = useState(true);
@@ -124,10 +127,10 @@ export const LiveOutput: React.FC<LiveOutputProps> = ({
     };
   }, [socket, handleOutput]);
 
-  // Auto-scroll to bottom when new lines arrive
+  // Auto-scroll: scroll the container itself, not via scrollIntoView (which scrolls page)
   useEffect(() => {
-    if (autoScroll && endRef.current) {
-      endRef.current.scrollIntoView({ behavior: "smooth" });
+    if (autoScroll && containerRef.current) {
+      containerRef.current.scrollTop = containerRef.current.scrollHeight;
     }
   }, [displayLines, autoScroll]);
 
@@ -143,43 +146,71 @@ export const LiveOutput: React.FC<LiveOutputProps> = ({
     setAllLines([]);
   }, []);
 
+  // Minimal mode: just the terminal
+  if (minimal) {
+    return (
+      <div
+        ref={containerRef}
+        onScroll={handleScroll}
+        className="bg-stone-900 text-stone-300 font-mono text-xs p-4 overflow-y-auto rounded-lg"
+        style={{ height: `${panelHeight}px`, maxHeight: `${panelHeight}px` }}
+      >
+        {displayLines.length === 0 ? (
+          <p className="text-stone-600 italic">
+            Waiting for output from {workerName}...
+          </p>
+        ) : (
+          displayLines.map((line, i) => (
+            <div key={allLines.length - displayLines.length + i} className={`whitespace-pre-wrap ${TYPE_STYLES[line.type]}`}>
+              <span className="text-stone-600 select-none">
+                {TYPE_PREFIX[line.type]}
+              </span>
+              {line.content}
+            </div>
+          ))
+        )}
+        <div ref={endRef} />
+      </div>
+    );
+  }
+
+  // Full mode with header
   return (
-    <div className="bg-white rounded-lg shadow-sm border border-stone-200">
-      {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-stone-200">
-        <h2 className="text-sm font-semibold text-stone-700">Live Output</h2>
-        <div className="flex items-center gap-2">
-          {!autoScroll && (
-            <button
-              onClick={() => {
-                setAutoScroll(true);
-                endRef.current?.scrollIntoView({ behavior: "smooth" });
-              }}
-              className="text-xs px-2 py-1 bg-stone-100 hover:bg-stone-200 text-stone-600 rounded"
-            >
-              Scroll to bottom
-            </button>
-          )}
+    <div>
+      {/* Header controls */}
+      <div className="flex items-center justify-end gap-2 mb-2">
+        {!autoScroll && (
           <button
-            onClick={clearOutput}
-            className="text-xs px-2 py-1 bg-stone-100 hover:bg-stone-200 text-stone-600 rounded"
+            onClick={() => {
+              setAutoScroll(true);
+              if (containerRef.current) {
+                containerRef.current.scrollTop = containerRef.current.scrollHeight;
+              }
+            }}
+            className="text-xs px-2 py-1 bg-muted hover:bg-muted/80 text-muted-foreground rounded transition-colors"
           >
-            Clear
+            ↓ Follow
           </button>
-          <span className="text-xs text-stone-400">
-            {allLines.length > visibleLineCount 
-              ? `${visibleLineCount} of ${allLines.length} lines`
-              : `${allLines.length} lines`}
-          </span>
-        </div>
+        )}
+        <button
+          onClick={clearOutput}
+          className="text-xs px-2 py-1 bg-muted hover:bg-muted/80 text-muted-foreground rounded transition-colors"
+        >
+          Clear
+        </button>
+        <span className="text-xs text-muted-foreground">
+          {allLines.length > visibleLineCount 
+            ? `${visibleLineCount} of ${allLines.length} lines`
+            : `${allLines.length} lines`}
+        </span>
       </div>
 
       {/* Terminal output */}
       <div
         ref={containerRef}
         onScroll={handleScroll}
-        className="bg-stone-900 text-stone-300 font-mono text-xs p-4 overflow-y-auto"
-        style={{ height: `${panelHeight}px` }}
+        className="bg-stone-900 text-stone-300 font-mono text-xs p-4 overflow-y-auto rounded-lg"
+        style={{ height: `${panelHeight}px`, maxHeight: `${panelHeight}px` }}
       >
         {displayLines.length === 0 ? (
           <p className="text-stone-600 italic">
