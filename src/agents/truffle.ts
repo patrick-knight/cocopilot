@@ -192,7 +192,16 @@ export class TruffleAgent extends EventEmitter<TruffleEvents> {
     super();
     // Validate branch name to prevent injection attacks
     if (!isValidBranchName(config.branch)) {
-      throw new Error(`Invalid branch name: ${config.branch}. Branch names must be alphanumeric with dashes, underscores, or slashes.`);
+      const rawBranch = String(config.branch);
+      const safeBranchJson = JSON.stringify(rawBranch);
+      const MAX_BRANCH_DISPLAY_LENGTH = 200;
+      const safeBranch =
+        safeBranchJson.length > MAX_BRANCH_DISPLAY_LENGTH
+          ? `${safeBranchJson.slice(0, MAX_BRANCH_DISPLAY_LENGTH)}...`
+          : safeBranchJson;
+      throw new Error(
+        `Invalid branch name: ${safeBranch}. Branch names must be alphanumeric with dashes, underscores, or slashes.`
+      );
     }
     this.config = Object.freeze({ ...config });
     this.broker = broker;
