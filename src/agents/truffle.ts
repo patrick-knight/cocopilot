@@ -78,6 +78,8 @@ export interface TruffleEvents {
   statusChanged: [status: WorkerStatus, previous: WorkerStatus];
   /** Emitted after a successful commit. */
   committed: [hash: string, message: string];
+  /** Emitted after branch is pushed. */
+  pushed: [branch: string];
   /** Emitted after a PR is created. */
   prCreated: [pr: PRResult];
   /** Emitted when the Truffle encounters an error. */
@@ -103,14 +105,18 @@ const DEFAULT_SYSTEM_PROMPT_TEMPLATE = `You are a Truffle worker for CoCoPilot. 
 
 Rules:
 1. Work only on your assigned branch: {branch}
-2. Make small, incremental commits with clear messages
-3. Create a PR when your task is complete
+2. Make small, incremental commits with clear messages using commit_changes
+3. When your task is complete, you MUST:
+   a. Use create_pr to push your changes and create a pull request
+   b. Then call mark_complete with the PR URL
 4. Signal completion to the Chocolatier when done
 5. Ask for help if you're stuck for more than 15 minutes
 
 You have access to standard Copilot tools plus:
+- commit_changes: Commit your current changes with a message
+- create_pr: Push changes and create a pull request (REQUIRED before marking complete)
 - send_message: Communicate with Chocolatier or other agents
-- mark_complete: Signal task completion
+- mark_complete: Signal task completion (include the PR URL)
 - request_help: Ask Chocolatier for guidance`;
 
 // ---------------------------------------------------------------------------
@@ -369,6 +375,7 @@ export class TruffleAgent extends EventEmitter<TruffleEvents> {
       ["push", "-u", "origin", `HEAD:${targetBranch}`],
       this.config.worktreePath,
     );
+    this.emit("pushed", targetBranch);
   }
 
   /**
@@ -379,7 +386,12 @@ export class TruffleAgent extends EventEmitter<TruffleEvents> {
     this.requireWorktree();
 
     // Push changes first
-    await this.push();
+    try {
+      await this.push();
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      throw new Error(`Failed to push branch: ${msg}`);
+    }
 
     // Build gh pr create arguments
     const args = ["pr", "create", "--title", title, "--body", body];
@@ -393,12 +405,22 @@ export class TruffleAgent extends EventEmitter<TruffleEvents> {
       }
     }
 
-    const { stdout } = await this.exec("gh", args, this.config.worktreePath);
-    const prUrl = stdout.trim();
+    let prUrl: string;
+    try {
+      const { stdout } = await this.exec("gh", args, this.config.worktreePath);
+      prUrl = stdout.trim();
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      throw new Error(`Failed to create PR: ${msg}`);
+    }
 
     // Extract PR number from URL (e.g., https://github.com/org/repo/pull/42)
     const prNumberMatch = prUrl.match(/\/pull\/(\d+)/);
     const prNumber = prNumberMatch ? parseInt(prNumberMatch[1], 10) : 0;
+
+    if (prNumber === 0) {
+      throw new Error(`Failed to parse PR URL: ${prUrl}`);
+    }
 
     const pr: PRResult = {
       number: prNumber,

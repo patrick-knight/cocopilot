@@ -73,7 +73,15 @@ export class LocalTruffleRuntime {
       const session = await this.client.createSession(sessionOptions);
       this.session = session;
 
-      const kickoff = `Begin the task now.\n\nTask: ${this.truffle.task}\n\nWhen finished, call mark_complete with a concise summary. If you get stuck, call request_help with details.`;
+      const kickoff = `Begin the task now.
+
+Task: ${this.truffle.task}
+
+IMPORTANT: When your task is complete:
+1. First, call create_pr with a descriptive title and body to push and create a pull request
+2. Then, call mark_complete with a summary and the PR URL
+
+If you get stuck, call request_help with details.`;
       await session.send(kickoff as any);
     } catch (err) {
       // Clean up client if session creation fails
