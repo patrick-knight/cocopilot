@@ -31,7 +31,7 @@ import { createSocketBridge } from "./socket-bridge.js";
 import { createStreamBridge } from "./stream-bridge.js";
 
 export interface ServerDeps {
-  stateManager: any;
+  stateManager: StateManager;
   broker: MessageBroker;
   redisBus?: RedisMessageBus;
   eventStore?: EventStore;
@@ -119,7 +119,7 @@ export function createServer(deps: ServerDeps): CocoServer {
   });
 
   // Wire up bridges
-  const cleanupSocketBridge = createSocketBridge(io, stateManager, broker, eventStore);
+  const cleanupSocketBridge = createSocketBridge(io, stateManager, broker, eventStore, redisBus);
   let cleanupStreamBridge: (() => void) | undefined;
   if (redisBus) {
     cleanupStreamBridge = createStreamBridge(io, redisBus);

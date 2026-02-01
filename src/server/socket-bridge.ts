@@ -8,17 +8,20 @@
  * Socket.IO events for the Batch Log timeline.
  */
 
-import type { Server as SocketIOServer } from "socket.io";
+import type { Server as SocketIOServer, Socket } from "socket.io";
 import type { StateManager } from "../state/index.js";
 import type { EventStore } from "../state/index.js";
 import type { WorkerState, WorkerStatus } from "../state/index.js";
 import type { MessageBroker } from "../messaging/index.js";
+import type { RedisMessageBus } from "../messaging/index.js";
 import { MessageType, type CocoMessage } from "../messaging/index.js";
+import { streamChannel } from "../messaging/types.js";
 
 export interface SocketBridgeDeps {
   io: SocketIOServer;
   stateManager: StateManager;
   broker: MessageBroker;
+  redisBus?: RedisMessageBus;
   eventStore?: EventStore;
 }
 
@@ -31,6 +34,7 @@ export function createSocketBridge(
   stateManager: StateManager,
   broker: MessageBroker,
   eventStore?: EventStore,
+  redisBus?: RedisMessageBus,
 ): () => void {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const listeners: Array<{ event: string; handler: (...args: any[]) => void }> = [];
@@ -88,6 +92,11 @@ export function createSocketBridge(
         }
       }
     });
+
+    // Agent output streaming via Redis
+    if (redisBus) {
+      setupAgentStreamHandlers(socket, redisBus);
+    }
   });
 
   // Worker events
@@ -241,6 +250,53 @@ export function createSocketBridge(
     listeners.length = 0;
     broker.unsubscribe(brokerAgentName).catch(() => {});
   };
+}
+
+/**
+ * Set up agent:join / agent:leave handlers on a socket so the frontend can
+ * subscribe to live output from any agent via the default namespace.
+ *
+ * When a client emits `agent:join <agentName>`, we subscribe to the Redis
+ * stream channel for that agent and forward every message as `agent:output`.
+ * On `agent:leave` (or disconnect), we unsubscribe.
+ */
+function setupAgentStreamHandlers(socket: Socket, redisBus: RedisMessageBus): void {
+  // Track current subscription so we can clean up on leave/disconnect
+  let currentAgent: string | null = null;
+  let currentHandler: ((message: unknown) => void) | null = null;
+
+  const leave = (): void => {
+    if (currentAgent && currentHandler) {
+      const channel = streamChannel(currentAgent);
+      redisBus.unsubscribeChannel(channel).catch(() => {});
+    }
+    currentAgent = null;
+    currentHandler = null;
+  };
+
+  socket.on("agent:join", (agentName: string) => {
+    // Leave previous agent if any
+    leave();
+
+    currentAgent = agentName;
+    const channel = streamChannel(agentName);
+
+    currentHandler = (message: unknown): void => {
+      socket.emit("agent:output", message);
+    };
+
+    redisBus.subscribeChannel(channel, currentHandler as never).catch(() => {
+      // Redis may not be ready — non-fatal
+    });
+  });
+
+  socket.on("agent:leave", () => {
+    leave();
+  });
+
+  socket.on("disconnect", () => {
+    leave();
+  });
 }
 
 /**
