@@ -43,7 +43,7 @@ export const WorkerHeader: React.FC<WorkerHeaderProps> = ({ worker }) => {
         <div className="flex items-center gap-3">
           <h1 className="text-2xl font-bold text-stone-900">{worker.name}</h1>
           <span
-            className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${status.bg} ${status.text}`}
+            className={`inline-flex items-center justify-center px-2.5 py-0.5 rounded-full text-xs font-medium ${status.bg} ${status.text}`}
           >
             {status.label}
           </span>
