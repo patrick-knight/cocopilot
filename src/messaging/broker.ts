@@ -79,8 +79,10 @@ export class MessageBroker {
         sessionId: message.id,
         eventType: payload.activityType,
       };
-      // Fire-and-forget; don't block the message send
-      this.bus.publishRaw(channel, JSON.stringify(streamEvent)).catch(() => {});
+      // Fire-and-forget; don't block the message send, but log errors
+      this.bus.publishRaw(channel, JSON.stringify(streamEvent)).catch(err => {
+        console.error('[MessageBroker] Failed to publish stream event:', err instanceof Error ? err.message : err);
+      });
     }
 
     return message;

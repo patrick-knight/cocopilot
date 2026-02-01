@@ -423,7 +423,9 @@ export class Chocolatier extends EventEmitter {
     });
 
     truffle.on("nudged", (hint, context) => {
-      runtime.sendNudge(hint, context).catch(() => {});
+      runtime.sendNudge(hint, context).catch(err => {
+        console.error(`[Chocolatier] Failed to send nudge to worker ${worker.name}:`, err instanceof Error ? err.message : err);
+      });
     });
 
     truffle.on("prCreated", (pr) => {
@@ -432,11 +434,15 @@ export class Chocolatier extends EventEmitter {
           prNumber: pr.number,
           prUrl: pr.url,
         })
-        .catch(() => {});
+        .catch(err => {
+          console.error(`[Chocolatier] Failed to update PR status for ${worker.name}:`, err instanceof Error ? err.message : err);
+        });
     });
 
     truffle.on("done", () => {
-      runtime.stop().catch(() => {});
+      runtime.stop().catch(err => {
+        console.error(`[Chocolatier] Failed to stop runtime for ${worker.name}:`, err instanceof Error ? err.message : err);
+      });
       this.localWorkers.delete(worker.name);
     });
 
@@ -875,11 +881,15 @@ export class Chocolatier extends EventEmitter {
    */
   private startHealthCheckLoop(): void {
     // Run an initial check immediately
-    this.runHealthCheck().catch(() => {});
+    this.runHealthCheck().catch(err => {
+      console.error('[Chocolatier] Health check failed:', err instanceof Error ? err.message : err);
+    });
 
     this.healthCheckTimer = setInterval(() => {
       if (!this.running) return;
-      this.runHealthCheck().catch(() => {});
+      this.runHealthCheck().catch(err => {
+        console.error('[Chocolatier] Health check failed:', err instanceof Error ? err.message : err);
+      });
     }, this.config.healthCheckIntervalMs);
 
     // Don't prevent process exit
@@ -986,7 +996,9 @@ export class Chocolatier extends EventEmitter {
         await this.broadcast(
           `Worker ${issue.name} container disappeared unexpectedly`,
           "error",
-        ).catch(() => {});
+        ).catch(err => {
+          console.error('[Chocolatier] Failed to broadcast container missing:', err instanceof Error ? err.message : err);
+        });
       } else if (issue.isStuck) {
         // Worker appears stuck — update status and send nudge
         try {
@@ -1005,14 +1017,18 @@ export class Chocolatier extends EventEmitter {
           issue.name,
           `You appear to be stuck (no activity for ${minutes} minutes). ` +
             `Are you blocked on something? Try breaking the problem into smaller steps.`,
-        ).catch(() => {});
+        ).catch(err => {
+          console.error('[Chocolatier] Failed to nudge stuck worker:', err instanceof Error ? err.message : err);
+        });
       }
     }
 
     // Update agent last activity
     await this.stateManager
       .updateAgentStatus(repoName, this.agentName, "healthy")
-      .catch(() => {});
+      .catch(err => {
+        console.error('[Chocolatier] Failed to update agent status:', err instanceof Error ? err.message : err);
+      });
 
     this.emit("healthCheck", report);
     return report;
