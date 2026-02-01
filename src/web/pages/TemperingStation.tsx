@@ -52,13 +52,23 @@ export function TemperingStation({
   onSpawnWorker,
 }: TemperingStationProps): React.ReactElement {
   const { repo, agents, workers, loading, error } = useRepoState(repoName);
-  const prs = usePRPipeline();
-  const messages = useMessageQueue();
+  const prs = usePRPipeline(repoName);
+  const messages = useMessageQueue(repoName, workers);
   const { socket } = useSocket();
 
-  // Live output panel state
+  // Live output panel state - auto-select first available agent/worker
   const [selectedAgent, setSelectedAgent] = useState<string | null>(null);
-  const { lines, clear: clearOutput } = useAgentStream(selectedAgent);
+  const { lines, clear: clearOutput } = useAgentStream(selectedAgent, repoName);
+
+  // Auto-select first agent or worker when available and none selected
+  React.useEffect(() => {
+    if (selectedAgent) return;
+    if (agents.length > 0) {
+      setSelectedAgent(agents[0].name);
+    } else if (workers.length > 0) {
+      setSelectedAgent(workers[0].name);
+    }
+  }, [selectedAgent, agents, workers]);
 
   // Collapsible section state
   const [showAgents, setShowAgents] = useState(true);
@@ -262,7 +272,7 @@ export function TemperingStation({
         </header>
 
         {/* Main content */}
-        <main className="space-y-12">
+        <main className="flex flex-col gap-10">
           {/* Agent Cards Section */}
           <section id="section-agents" aria-label="Agents" className="bg-card border border-border rounded-lg overflow-hidden shadow-sm">
             <button

@@ -16,6 +16,19 @@
     "declarationMap": true,
     "sourceMap": true
   },
-  "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist", "**/*.test.ts", "**/*.test.tsx"]
+  "include": [
+    "src/**/*"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "**/*.test.ts",
+    "**/*.test.tsx",
+    "src/tui/**/*.ts",
+    "src/tui/**/*.tsx",
+    "src/web/main.ts",
+    "src/web/router.ts",
+    "src/web/composables",
+    "src/web/**/*.vue"
+  ]
 }

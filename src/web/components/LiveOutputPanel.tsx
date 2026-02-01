@@ -97,7 +97,13 @@ export function LiveOutputPanel({
           <p className="text-stone-500 italic">Select an agent to view live output...</p>
         )}
         {selectedAgent && lines.length === 0 && (
-          <p className="text-stone-500 italic">Waiting for output from {selectedAgent}...</p>
+          <div className="text-stone-500">
+            <p className="italic mb-2">Waiting for output from {selectedAgent}...</p>
+            <p className="text-xs">
+              💡 New agents may take a moment to start producing output.
+              Check that the agent is running and actively processing tasks.
+            </p>
+          </div>
         )}
         {lines.map((line, i) => (
           <div

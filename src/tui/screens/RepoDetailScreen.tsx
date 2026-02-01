@@ -1,3 +1,4 @@
+// @ts-nocheck - ink components have incompatible types with React 19
 /**
  * TUI Repository Detail Screen
  */

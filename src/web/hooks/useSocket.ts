@@ -360,16 +360,53 @@ export interface UseAgentStreamResult {
  * Subscribes to live streaming output from a specific agent.
  * Maintains a buffer of recent lines (capped at `maxLines`).
  * Handles both individual and batched output events.
+ * Fetches historical logs on agent selection.
  */
-export function useAgentStream(agentName: string | null, maxLines = 500): UseAgentStreamResult {
+export function useAgentStream(
+  agentName: string | null,
+  repoName?: string,
+  maxLines = 500,
+): UseAgentStreamResult {
   const { socket } = useSocket();
   const [lines, setLines] = useState<AgentOutputLine[]>([]);
 
   const clear = useCallback(() => setLines([]), []);
 
+  // Fetch historical logs when agent is selected
+  useEffect(() => {
+    if (!agentName || !repoName) {
+      setLines([]);
+      return;
+    }
+
+    const fetchLogs = async () => {
+      try {
+        // Try worker logs first
+        const res = await fetch(
+          `/api/v1/repositories/${encodeURIComponent(repoName)}/workers/${encodeURIComponent(agentName)}/logs?limit=50`
+        );
+        if (res.ok) {
+          const data = await res.json();
+          if (data.logs && Array.isArray(data.logs)) {
+            const historicalLines: AgentOutputLine[] = data.logs.map((log: any) => ({
+              agent: agentName,
+              timestamp: new Date(log.timestamp || Date.now()).getTime(),
+              text: log.content || log.text || log.message || "",
+              stream: log.stream || "stdout",
+            }));
+            setLines(historicalLines.slice(-maxLines));
+          }
+        }
+      } catch {
+        // Silently fail - will get live updates via socket
+      }
+    };
+
+    fetchLogs();
+  }, [agentName, repoName, maxLines]);
+
   useEffect(() => {
     if (!socket || !agentName) {
-      setLines([]);
       return;
     }
 
@@ -414,9 +451,28 @@ export function useAgentStream(agentName: string | null, maxLines = 500): UseAge
 // usePRPipeline – subscribe to PR pipeline updates
 // ---------------------------------------------------------------------------
 
-export function usePRPipeline(): PRPipelineEntry[] {
+export function usePRPipeline(repoName?: string): PRPipelineEntry[] {
   const { socket } = useSocket();
   const [prs, setPrs] = useState<PRPipelineEntry[]>([]);
+
+  // Fetch initial PR state from API
+  useEffect(() => {
+    if (!repoName) return;
+
+    const fetchPRs = async () => {
+      try {
+        const res = await fetch(`/api/v1/repositories/${encodeURIComponent(repoName)}/prs`);
+        if (res.ok) {
+          const data = await res.json();
+          setPrs(Array.isArray(data) ? data : []);
+        }
+      } catch {
+        // Silently fail - will get updates via socket
+      }
+    };
+
+    fetchPRs();
+  }, [repoName]);
 
   useEffect(() => {
     if (!socket) return;
@@ -468,9 +524,56 @@ export function usePRPipeline(): PRPipelineEntry[] {
 // useMessageQueue – subscribe to message queue updates
 // ---------------------------------------------------------------------------
 
-export function useMessageQueue(): MessageEntry[] {
+export function useMessageQueue(repoName?: string, workers?: WorkerState[]): MessageEntry[] {
   const { socket } = useSocket();
   const [messages, setMessages] = useState<MessageEntry[]>([]);
+
+  // Fetch initial messages from API when we have workers
+  useEffect(() => {
+    if (!repoName || !workers || workers.length === 0) return;
+
+    const fetchMessages = async () => {
+      try {
+        // Fetch messages for each worker and combine
+        const allMessages: MessageEntry[] = [];
+        
+        for (const worker of workers.slice(0, 5)) { // Limit to 5 workers for performance
+          try {
+            const res = await fetch(
+              `/api/v1/repositories/${encodeURIComponent(repoName)}/workers/${encodeURIComponent(worker.name)}/messages`
+            );
+            if (res.ok) {
+              const data = await res.json();
+              if (data.messages && Array.isArray(data.messages)) {
+                for (const msg of data.messages) {
+                  allMessages.push({
+                    id: msg.id,
+                    type: msg.type,
+                    from: msg.from,
+                    to: msg.to,
+                    priority: msg.priority || "normal",
+                    timestamp: new Date(msg.timestamp || Date.now()).getTime(),
+                    acked: msg.acked ?? false,
+                    payloadPreview: JSON.stringify(msg.payload || {}).slice(0, 200),
+                  });
+                }
+              }
+            }
+          } catch {
+            // Skip this worker's messages on error
+          }
+        }
+
+        // Sort by timestamp descending and take most recent
+        allMessages.sort((a, b) => b.timestamp - a.timestamp);
+        setMessages(allMessages.slice(0, 50));
+      } catch {
+        // Silently fail - will get updates via socket
+      }
+    };
+
+    fetchMessages();
+  }, [repoName, workers?.length]);
 
   useEffect(() => {
     if (!socket) return;

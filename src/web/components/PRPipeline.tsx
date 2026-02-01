@@ -41,7 +41,12 @@ export function PRPipeline({ prs }: PRPipelineProps): React.ReactElement {
     return (
       <section aria-label="PR Pipeline">
         <h2 className="text-lg font-semibold text-stone-800">PR Pipeline</h2>
-        <p className="mt-2 text-sm text-stone-500 italic">No pull requests in the pipeline.</p>
+        <div className="mt-2 text-sm text-stone-500">
+          <p className="italic">No pull requests in the pipeline.</p>
+          <p className="text-xs mt-1">
+            💡 PRs appear here when workers create them. Spawn a worker with a task to see the pipeline in action.
+          </p>
+        </div>
       </section>
     );
   }

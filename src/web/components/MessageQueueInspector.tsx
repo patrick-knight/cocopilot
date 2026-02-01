@@ -26,7 +26,12 @@ export function MessageQueueInspector({
       </div>
 
       {messages.length === 0 ? (
-        <p className="mt-2 text-sm text-stone-500 italic">No messages in the queue.</p>
+        <div className="mt-2 text-sm text-stone-500">
+          <p className="italic">No messages in the queue.</p>
+          <p className="text-xs mt-1">
+            💡 Messages appear when agents communicate. Start a worker to see task assignments, nudges, and status updates.
+          </p>
+        </div>
       ) : (
         <div className="mt-2 max-h-64 overflow-y-auto rounded-lg border border-stone-300 bg-white">
           <table className="w-full text-sm">
