@@ -32,6 +32,61 @@ import type { WorkerStatus } from "../state/schemas.js";
 const execFileAsync = promisify(execFile);
 
 // ---------------------------------------------------------------------------
+// Validation
+// ---------------------------------------------------------------------------
+
+/** Valid branch name pattern - alphanumeric, dash, underscore, slash (no spaces, special chars) */
+const VALID_BRANCH_PATTERN = /^[a-zA-Z0-9][a-zA-Z0-9_\-\/]*[a-zA-Z0-9]$|^[a-zA-Z0-9]$/;
+const MAX_BRANCH_LENGTH = 250;
+
+/**
+ * Validate a git branch name for safety.
+ *
+ * This is intended for any user-controlled ref-like value that will be passed
+ * to git (e.g., `branch`, `baseBranch`, `pushTo`). Callers should reject or
+ * sanitize values for which this returns false.
+ */
+function isValidBranchName(branch: string): boolean {
+  if (!branch || branch.length > MAX_BRANCH_LENGTH) return false;
+  if (!VALID_BRANCH_PATTERN.test(branch)) return false;
+  // Disallow dangerous patterns and anything that could be interpreted as a git option
+  if (branch.includes("..")) return false;
+  if (branch.includes("@{")) return false;
+  if (branch.startsWith("-")) return false;
+  return true;
+}
+
+/**
+ * Ensure a branch name is valid, throwing an Error if not.
+ *
+ * This helper should be used before passing `branch`, `baseBranch`, or
+ * `pushTo` into any `git` command to prevent option-injection and other
+ * unsafe ref usages.
+ */
+function ensureValidBranchName(branch: string, fieldName: string = "branch"): string {
+  if (!isValidBranchName(branch)) {
+    throw new Error(`Invalid git ${fieldName} name: "${branch}"`);
+  }
+  return branch;
+}
+
+/**
+ * Convert a validated branch name into a safe refspec for git commands.
+ *
+ * Note: Callers should still pass this after a `--` option terminator when
+ * constructing git CLI argument arrays, e.g.:
+ *   ["fetch", "origin", "--", toSafeBranchRef(pushTo)]
+ */
+function toSafeBranchRef(branch: string): string {
+  // Ensure the branch name itself is valid first.
+  const safeBranch = ensureValidBranchName(branch);
+  // If the caller already provided a fully qualified ref, leave it as-is.
+  if (safeBranch.startsWith("refs/")) {
+    return safeBranch;
+  }
+  return `refs/heads/${safeBranch}`;
+}
+// ---------------------------------------------------------------------------
 // Configuration
 // ---------------------------------------------------------------------------
 
@@ -135,6 +190,19 @@ export class TruffleAgent extends EventEmitter<TruffleEvents> {
 
   constructor(config: TruffleConfig, broker: MessageBroker) {
     super();
+    // Validate branch name to prevent injection attacks
+    if (!isValidBranchName(config.branch)) {
+      const rawBranch = String(config.branch);
+      const safeBranchJson = JSON.stringify(rawBranch);
+      const MAX_BRANCH_DISPLAY_LENGTH = 200;
+      const safeBranch =
+        safeBranchJson.length > MAX_BRANCH_DISPLAY_LENGTH
+          ? `${safeBranchJson.slice(0, MAX_BRANCH_DISPLAY_LENGTH)}...`
+          : safeBranchJson;
+      throw new Error(
+        `Invalid branch name: ${safeBranch}. Branch names must be alphanumeric with dashes, underscores, or slashes.`
+      );
+    }
     this.config = Object.freeze({ ...config });
     this.broker = broker;
   }
