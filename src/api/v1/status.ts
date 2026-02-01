@@ -22,7 +22,6 @@ export interface StatusDeps {
 async function checkGitHubAuth(): Promise<{ authenticated: boolean; user?: string; error?: string }> {
   return new Promise((resolve) => {
     const child = spawn("gh", ["auth", "status"], {
-      shell: true,
       stdio: ["ignore", "pipe", "pipe"],
     });
 
@@ -59,7 +58,6 @@ async function checkGitHubAuth(): Promise<{ authenticated: boolean; user?: strin
 async function checkCopilotCli(): Promise<{ installed: boolean; version?: string; error?: string }> {
   return new Promise((resolve) => {
     const child = spawn("coco", ["--version"], {
-      shell: true,
       stdio: ["ignore", "pipe", "pipe"],
     });
 

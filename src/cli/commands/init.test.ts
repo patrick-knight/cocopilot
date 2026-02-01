@@ -145,11 +145,11 @@ describe("initializeRepository", () => {
     );
 
     const repo = stateManager.getRepo("widgets");
-    expect(repo!.agents["chocolatier"]).toBeDefined();
-    expect(repo!.agents["chocolatier"].type).toBe("supervisor");
-    expect(repo!.agents["temperer"]).toBeDefined();
-    expect(repo!.agents["temperer"].type).toBe("merge-queue");
-    expect(repo!.agents["enrober"]).toBeUndefined();
+    expect(repo!.agents["chocolatier:widgets"]).toBeDefined();
+    expect(repo!.agents["chocolatier:widgets"].type).toBe("supervisor");
+    expect(repo!.agents["temperer:widgets"]).toBeDefined();
+    expect(repo!.agents["temperer:widgets"].type).toBe("merge-queue");
+    expect(repo!.agents["enrober:widgets"]).toBeUndefined();
   });
 
   it("returns single-player result for non-forks", async () => {
@@ -241,11 +241,11 @@ describe("initializeRepository", () => {
     );
 
     const repo = stateManager.getRepo("original");
-    expect(repo!.agents["chocolatier"]).toBeDefined();
-    expect(repo!.agents["chocolatier"].type).toBe("supervisor");
-    expect(repo!.agents["enrober"]).toBeDefined();
-    expect(repo!.agents["enrober"].type).toBe("pr-shepherd");
-    expect(repo!.agents["temperer"]).toBeUndefined();
+    expect(repo!.agents["chocolatier:original"]).toBeDefined();
+    expect(repo!.agents["chocolatier:original"].type).toBe("supervisor");
+    expect(repo!.agents["enrober:original"]).toBeDefined();
+    expect(repo!.agents["enrober:original"].type).toBe("pr-shepherd");
+    expect(repo!.agents["temperer:original"]).toBeUndefined();
   });
 
   it("adds upstream remote for forks", async () => {
@@ -372,8 +372,8 @@ describe("initializeRepository", () => {
 
     const repo = stateManager.getRepo("widgets");
     expect(repo!.mode).toBe("single-player");
-    expect(repo!.agents["temperer"]).toBeDefined();
-    expect(repo!.agents["enrober"]).toBeUndefined();
+    expect(repo!.agents["temperer:widgets"]).toBeDefined();
+    expect(repo!.agents["enrober:widgets"]).toBeUndefined();
   });
 
   // --- Default branch ---

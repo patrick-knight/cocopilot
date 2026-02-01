@@ -25,6 +25,7 @@ import type {
   ReviewerStatus,
   ApprovalState,
 } from "./types.js";
+import { scopedAgentName } from "./scoped-name.js";
 
 const execFile = promisify(execFileCb);
 

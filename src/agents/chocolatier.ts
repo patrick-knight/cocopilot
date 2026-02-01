@@ -39,19 +39,18 @@ import type {
   HealthCheckReport,
   AgentToolDefinition,
 } from "./types.js";
+import { scopedAgentName, scopedWorkerName, bareNameFromScoped } from "./scoped-name.js";
 
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
-
-const AGENT_TYPE = "chocolatier";
 
 /**
  * Build the unique agent name for a repo-specific Chocolatier.
  * Used both internally and by API routes that address this agent.
  */
 export function chocolatierAgentName(repoName: string): string {
-  return `${AGENT_TYPE}:${repoName}`;
+  return scopedAgentName("chocolatier", repoName);
 }
 const DEFAULT_HEALTH_CHECK_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
 const DEFAULT_STUCK_THRESHOLD_MS = 15 * 60 * 1000; // 15 minutes
@@ -151,8 +150,19 @@ export class Chocolatier extends EventEmitter {
     // Subscribe to incoming messages
     await this.broker.subscribe(this.agentName, (msg) => this.handleMessage(msg));
 
-    // Replay any messages that arrived before we started
-    await this.broker.replay(this.agentName);
+    // Replay pending messages, but skip stale SPAWN_WORKER requests from
+    // previous daemon sessions — they should be re-submitted by the user.
+    const pending = await this.broker.getPending(this.agentName);
+    for (const msg of pending) {
+      if (msg.type === MessageType.SPAWN_WORKER || msg.type === MessageType.SPAWN_FIXUP) {
+        console.log(
+          `[Chocolatier:${this.config.repoName}] Skipping stale ${msg.type} from previous session`,
+        );
+        await this.broker.acknowledge(this.agentName, msg.id);
+        continue;
+      }
+      await this.handleMessage(msg);
+    }
 
     // Start periodic health checks
     this.startHealthCheckLoop();
@@ -304,7 +314,7 @@ export class Chocolatier extends EventEmitter {
         cpus: this.config.containerCpuLimit,
       },
       env: {
-        COCOPILOT_AGENT_NAME: worker.name,
+        COCOPILOT_AGENT_NAME: scopedWorkerName(worker.name, repoName),
         COCOPILOT_REPO: repoName,
         COCOPILOT_SUPERVISOR: this.agentName,
         COCOPILOT_TASK: options.task,
@@ -335,7 +345,7 @@ export class Chocolatier extends EventEmitter {
       await this.broker.send({
         type: MessageType.TASK_ASSIGNED,
         from: this.agentName,
-        to: worker.name,
+        to: scopedWorkerName(worker.name, repoName),
         payload: {
           task: options.task,
           branch: worker.branch,
@@ -384,6 +394,8 @@ export class Chocolatier extends EventEmitter {
       "- create_pr(title, body)\n" +
       "- mark_complete(summary, prUrl?)";
 
+    const mergeQueueType = repo.mode === "multiplayer" ? "enrober" : "temperer";
+
     const truffle = new TruffleAgent(
       {
         name: worker.name,
@@ -398,6 +410,7 @@ export class Chocolatier extends EventEmitter {
         customPrompt,
         pushTo: options.pushTo,
         supervisorName: this.agentName,
+        mergeQueueName: scopedAgentName(mergeQueueType, repoName),
       },
       this.broker,
     );
@@ -471,7 +484,7 @@ export class Chocolatier extends EventEmitter {
     await this.broker.send({
       type: MessageType.NUDGE,
       from: this.agentName,
-      to: workerName,
+      to: scopedWorkerName(workerName, this.config.repoName),
       payload: { hint, context },
       priority: "high",
     });
@@ -579,11 +592,12 @@ export class Chocolatier extends EventEmitter {
       files_changed?: number;
       commits?: number;
     };
+    const workerName = bareNameFromScoped(message.from);
 
     try {
       await this.stateManager.updateWorkerStatus(
         this.config.repoName,
-        message.from,
+        workerName,
         "completed",
         {
           prUrl: payload.pr_url,
@@ -593,13 +607,13 @@ export class Chocolatier extends EventEmitter {
       this.emit(
         "workerCompleted",
         this.config.repoName,
-        message.from,
+        workerName,
         payload.summary,
       );
 
       // Broadcast the completion event
       await this.broadcast(
-        `Worker ${message.from} completed: ${payload.summary}`,
+        `Worker ${workerName} completed: ${payload.summary}`,
       );
     } catch {
       // Worker may have already been removed
@@ -616,11 +630,12 @@ export class Chocolatier extends EventEmitter {
       task: string;
       recoverable: boolean;
     };
+    const workerName = bareNameFromScoped(message.from);
 
     try {
       await this.stateManager.updateWorkerStatus(
         this.config.repoName,
-        message.from,
+        workerName,
         "failed",
         { error: payload.error },
       );
@@ -628,12 +643,12 @@ export class Chocolatier extends EventEmitter {
       this.emit(
         "workerFailed",
         this.config.repoName,
-        message.from,
+        workerName,
         payload.error,
       );
 
       await this.broadcast(
-        `Worker ${message.from} failed: ${payload.error}`,
+        `Worker ${workerName} failed: ${payload.error}`,
         "error",
       );
     } catch {
@@ -761,6 +776,8 @@ export class Chocolatier extends EventEmitter {
         pushTo: payload.pushTo,
       });
 
+      console.log(`[Chocolatier:${this.config.repoName}] Spawned worker ${worker.name} for task: ${payload.task.slice(0, 80)}`);
+
       // Send confirmation back to requester
       await this.broker.send({
         type: MessageType.STATUS_RESPONSE,
@@ -775,6 +792,7 @@ export class Chocolatier extends EventEmitter {
       });
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : String(err);
+      console.error(`[Chocolatier:${this.config.repoName}] Failed to spawn worker: ${errorMsg}`);
       await this.broker.send({
         type: MessageType.TASK_FAILED,
         from: this.agentName,
@@ -863,8 +881,11 @@ export class Chocolatier extends EventEmitter {
 
       const isActiveStatus =
         worker.status === "working" || worker.status === "starting";
+      const isLocalWorker =
+        worker.containerId != null && worker.containerId.startsWith("local:");
       const containerMissing =
         isActiveStatus &&
+        !isLocalWorker &&
         worker.containerId != null &&
         (!container || container.status !== ContainerStatus.RUNNING);
       const isStuck =

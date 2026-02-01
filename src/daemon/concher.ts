@@ -34,6 +34,7 @@ export class Concher {
   private repoAgents: Map<string, {
     chocolatier: Chocolatier;
     mergeAgent: Temperer | Enrober;
+    reviewer: ReviewerAgent;
     securityReviewer: SecurityReviewerAgent;
   }> = new Map();
   private shutdownPromise: Promise<void> | null = null;
@@ -87,15 +88,6 @@ export class Concher {
     // Register signal handlers for graceful shutdown
     this.registerSignalHandlers();
 
-    // Reconcile state with actual Docker containers
-    // TODO: Implement reconcile() for new StateManager
-    logger.info("Reconciling state with Docker...");
-    logger.info("State is consistent with Docker");
-
-    // Start periodic health check
-    // TODO: Re-implement health check for new StateManager
-    // this.startHealthCheck();
-
     // Start web server
     try {
       // The broker is not yet part of Concher's constructor, so we create
@@ -119,6 +111,7 @@ export class Concher {
         broker: this.broker,
         redisBus: this.broker.redisBus,
         eventStore,
+        onRecoverRepository: (repoName) => this.recoverRepository(repoName),
       });
       await startServer(this.server, this.config.webPort);
       logger.info(`Web server listening on port ${this.config.webPort}`);
@@ -138,12 +131,86 @@ export class Concher {
   private async resetAgentStatusesAfterRestart(): Promise<void> {
     const repos = this.state.getRepos();
     for (const [repoName, repo] of Object.entries(repos)) {
+      // Reset crashed system agents - they'll be restarted by ensureRepoAgentsRunning
       for (const agent of Object.values(repo.agents)) {
         if (agent.status === "crashed" && agent.error?.includes("Daemon restarted")) {
-          await this.state.updateAgentStatus(repoName, agent.name, "stopped", "Daemon restarted; agent runtime not restarted");
+          await this.state.updateAgentStatus(repoName, agent.name, "stopped", "Recovering after daemon restart");
+        }
+      }
+
+      // Mark orphaned local workers as failed — their runtimes died with the daemon
+      for (const [workerName, worker] of Object.entries(repo.workers ?? {})) {
+        if (worker.status === "starting" || worker.status === "working" || worker.status === "stuck") {
+          const isLocal = !worker.containerId || worker.containerId.startsWith("local:");
+          if (isLocal) {
+            logger.info(`Marking orphaned local worker ${workerName} as failed in ${repoName}`);
+            await this.state.updateWorkerStatus(repoName, workerName, "failed", {
+              error: "Local worker process lost — daemon restarted",
+            });
+          }
         }
       }
     }
+  }
+
+  /**
+   * Recover a repository by cleaning up orphaned workers and restarting agents.
+   * Called by auto-recovery on daemon restart and by `coco repair` command.
+   */
+  async recoverRepository(repoName: string): Promise<{
+    agentsRestarted: number;
+    workersCleanedUp: number;
+    errors: string[];
+  }> {
+    const repo = this.state.getRepo(repoName);
+    if (!repo) {
+      throw new Error(`Repository "${repoName}" not found`);
+    }
+
+    const result = {
+      agentsRestarted: 0,
+      workersCleanedUp: 0,
+      errors: [] as string[],
+    };
+
+    // Clean up orphaned workers (failed, stuck, terminated, completed)
+    const workers = repo.workers ?? {};
+    const orphanedStatuses = ["failed", "stuck", "terminated", "completed"];
+
+    for (const [workerName, worker] of Object.entries(workers)) {
+      if (orphanedStatuses.includes(worker.status)) {
+        try {
+          // Clean up worktree if exists
+          if (repo.localPath) {
+            const { cleanupWorktree } = await import("../git/index.js");
+            await cleanupWorktree(repo.localPath, workerName).catch(() => {});
+          }
+          // Remove from state
+          await this.state.removeWorker(repoName, workerName);
+          result.workersCleanedUp++;
+          logger.info(`Cleaned up worker ${workerName} in ${repoName}`);
+        } catch (err) {
+          const msg = `Failed to clean up worker ${workerName}: ${err instanceof Error ? err.message : String(err)}`;
+          result.errors.push(msg);
+          logger.warn(msg);
+        }
+      }
+    }
+
+    // Restart system agents if not running
+    if (!this.repoAgents.has(repoName) && repo.localPath) {
+      try {
+        await this.startRepoAgentsForRepo(repoName, repo);
+        result.agentsRestarted = 4; // chocolatier, merge-agent, reviewer, security-reviewer
+        logger.info(`Restarted agents for ${repoName}`);
+      } catch (err) {
+        const msg = `Failed to restart agents: ${err instanceof Error ? err.message : String(err)}`;
+        result.errors.push(msg);
+        logger.error(msg);
+      }
+    }
+
+    return result;
   }
 
   /**
@@ -296,13 +363,13 @@ export class Concher {
       this.repoAgents.set(repoName, { chocolatier, mergeAgent, securityReviewer });
 
       await this.state.setAgent(repoName, {
-        name: "chocolatier",
+        name: scopedAgentName("chocolatier", repoName),
         type: "supervisor",
         status: "healthy",
       });
 
       await this.state.setAgent(repoName, {
-        name: repo.mode === "multiplayer" ? "enrober" : "temperer",
+        name: repo.mode === "multiplayer" ? scopedAgentName("enrober", repoName) : scopedAgentName("temperer", repoName),
         type: repo.mode === "multiplayer" ? "pr-shepherd" : "merge-queue",
         status: "healthy",
       });
@@ -369,71 +436,6 @@ export class Concher {
       logger.error("Unhandled rejection", reason);
     });
   }
-
-  /**
-   * Reconcile persisted state with actual Docker container status.
-   * Marks containers as stopped if they're no longer running.
-   * TODO: Implement for new StateManager
-   */
-  /*
-  private async reconcile(): Promise<void> {
-    logger.info("Reconciling state with Docker...");
-    const liveContainers = this.containers.listDockerContainers();
-    const tracked = this.state.getRunningContainers();
-
-    let reconciled = 0;
-    for (const container of tracked) {
-      if (!liveContainers.includes(container.name)) {
-        logger.warn(`Container ${container.name} no longer running, marking stopped`);
-        this.state.updateContainer(container.id, {
-          status: "stopped",
-          stoppedAt: new Date().toISOString(),
-        });
-        reconciled++;
-      }
-    }
-
-    if (reconciled > 0) {
-      logger.info(`Reconciled ${reconciled} stale container(s)`);
-    } else {
-      logger.info("State is consistent with Docker");
-    }
-  }
-  */
-
-  /**
-   * Periodic health check for running containers.
-   * TODO: Implement for new StateManager
-   */
-  /*
-  private startHealthCheck(): void {
-    const intervalMs = this.parseInterval(this.config.supervisorNudgeInterval);
-
-    this.healthCheckTimer = setInterval(async () => {
-      if (this.isShuttingDown) return;
-
-      const running = this.state.getRunningContainers();
-      if (running.length === 0) return;
-
-      logger.debug(`Health check: ${running.length} container(s) tracked`);
-
-      // Check if tracked containers are still alive in Docker
-      const live = this.containers.listDockerContainers();
-      for (const container of running) {
-        if (!live.includes(container.name)) {
-          logger.warn(`Container ${container.name} disappeared, marking failed`);
-          this.state.updateContainer(container.id, {
-            status: "failed",
-            stoppedAt: new Date().toISOString(),
-          });
-        }
-      }
-    }, intervalMs);
-
-    // Don't prevent process exit
-    this.healthCheckTimer.unref();
-  }
-  */
 
   /**
    * Parse a human-readable interval string like "5m" or "2h" into milliseconds.

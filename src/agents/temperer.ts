@@ -24,6 +24,7 @@ import {
   type CIExecFn,
 } from "../github/index.js";
 import type { CIStatusResult } from "../github/types.js";
+import { scopedAgentName } from "./scoped-name.js";
 
 const execFile = promisify(execFileCb);
 
@@ -108,7 +109,7 @@ export type ExecFn = (
  */
 export class Temperer {
   private readonly config: Required<
-    Pick<TempererConfig, "repoPath" | "repoName" | "pollIntervalMs" | "label">
+    Pick<TempererConfig, "repoPath" | "pollIntervalMs" | "agentName" | "chocolatierName" | "securityReviewerName" | "label">
   > & { broker: MessageBroker };
   private readonly trackedPRs: Map<number, TrackedPR> = new Map();
   private pollTimer: ReturnType<typeof setInterval> | null = null;
@@ -121,6 +122,9 @@ export class Temperer {
       repoName: config.repoName,
       broker: config.broker,
       pollIntervalMs: config.pollIntervalMs ?? DEFAULT_POLL_INTERVAL_MS,
+      agentName: config.agentName ?? scopedAgentName("temperer", config.repoName),
+      chocolatierName: config.chocolatierName ?? scopedAgentName("chocolatier", config.repoName),
+      securityReviewerName: config.securityReviewerName ?? scopedAgentName("security-reviewer", config.repoName),
       label: config.label ?? DEFAULT_LABEL,
     };
     this.execFn = execFn ?? execFile;

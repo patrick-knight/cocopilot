@@ -120,7 +120,7 @@ export class LocalTruffleRuntime {
           to: {
             type: "string",
             description:
-              "Target agent name. Use '*' to broadcast. Defaults to 'chocolatier'.",
+              "Target agent name. Use '*' to broadcast. Defaults to supervisor.",
           },
           message: {
             type: "string",
@@ -137,7 +137,7 @@ export class LocalTruffleRuntime {
       handler: async (params: { to?: string; message: string; level?: "info" | "warning" | "error" }) => {
         const to = typeof params.to === "string" && params.to.length > 0
           ? params.to
-          : "chocolatier";
+          : this.truffle.supervisorName;
         const message = String(params.message ?? "");
         const level = (params.level as "info" | "warning" | "error") ?? "info";
 

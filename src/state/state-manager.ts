@@ -247,9 +247,10 @@ export class StateManager extends EventEmitter {
     this.isReloadingState = true;
     try {
       await writeJsonFile(this.statePath, state ?? this.state);
+      // Brief delay after write completes to ensure fs.watch event passes
+      await new Promise(resolve => setTimeout(resolve, 150));
     } finally {
-      // Clear flag after a brief delay to ensure fs.watch doesn't trigger
-      setTimeout(() => { this.isReloadingState = false; }, 150);
+      this.isReloadingState = false;
     }
   }
 

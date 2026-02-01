@@ -110,6 +110,7 @@ function createEnrober(
   const enrober = new Enrober(
     {
       repoPath: "/tmp/test-repo",
+      repoName: "test-repo",
       broker: mockBroker as unknown as MessageBroker,
       pollIntervalMs: 60000,
       label: "cocopilot",
@@ -829,7 +830,7 @@ describe("Enrober", () => {
       const { enrober } = createEnrober(execFn, mockBroker);
 
       await enrober.start();
-      expect(mockBroker.subscribedAgent).toBe("enrober");
+      expect(mockBroker.subscribedAgent).toBe("enrober:test-repo");
 
       await enrober.stop();
       expect(mockBroker.subscribedAgent).toBeNull();

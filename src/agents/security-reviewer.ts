@@ -17,6 +17,7 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 
 import { MessageBroker, MessageType } from "../messaging/index.js";
+import { scopedAgentName } from "./scoped-name.js";
 import type { CocoMessage, SecurityReviewRequestPayload, SecurityIssue } from "../messaging/types.js";
 
 const execFileAsync = promisify(execFile);
@@ -41,7 +42,10 @@ export function securityReviewerAgentName(repoName: string): string {
 
 export interface SecurityReviewerConfig {
   repoPath: string;
+  /** The repository name (used for scoped agent naming). */
   repoName: string;
+  agentName?: string;
+  tempererName?: string;
 }
 
 export interface SecurityReviewerEvents {
@@ -134,7 +138,11 @@ export class SecurityReviewerAgent extends EventEmitter<SecurityReviewerEvents> 
 
   constructor(config: SecurityReviewerConfig, broker: MessageBroker) {
     super();
-    this.config = config;
+    this.config = {
+      agentName: scopedAgentName("security-reviewer", config.repoName),
+      tempererName: scopedAgentName("temperer", config.repoName),
+      ...config,
+    };
     this.broker = broker;
   }
 

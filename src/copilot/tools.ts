@@ -65,6 +65,8 @@ export interface AgentToolDependencies {
   agentName: string;
   /** The MessageBroker instance for sending messages. */
   broker: MessageBroker;
+  /** Name of the supervisor agent to report to (defaults to "chocolatier"). */
+  supervisorName?: string;
   /**
    * Optional raw Redis publish function for channels not managed by the broker.
    * Used by mark_complete to publish to the cocopilot:completions channel.
@@ -143,7 +145,7 @@ export function createSendMessageTool(
 export function createMarkCompleteTool(
   deps: AgentToolDependencies,
 ): CopilotToolDefinition<MarkCompleteParams, MarkCompleteResult> {
-  const { agentName, broker, redisPublish } = deps;
+  const { agentName, broker, supervisorName = "chocolatier", redisPublish } = deps;
 
   return defineTool<MarkCompleteParams, MarkCompleteResult>("mark_complete", {
     description: "Signal that your task is complete",
@@ -168,7 +170,7 @@ export function createMarkCompleteTool(
       await broker.send({
         type: MessageType.TASK_COMPLETE,
         from: agentName,
-        to: "chocolatier",
+        to: supervisorName,
         payload: { summary, pr_url },
         priority: "high",
       });
@@ -200,7 +202,7 @@ export function createMarkCompleteTool(
 export function createRequestHelpTool(
   deps: AgentToolDependencies,
 ): CopilotToolDefinition<RequestHelpParams, RequestHelpResult> {
-  const { agentName, broker } = deps;
+  const { agentName, broker, supervisorName = "chocolatier" } = deps;
 
   return defineTool<RequestHelpParams, RequestHelpResult>("request_help", {
     description: "Ask the Chocolatier (supervisor) for guidance when stuck",
@@ -224,7 +226,7 @@ export function createRequestHelpTool(
       await broker.send({
         type: MessageType.NUDGE,
         from: agentName,
-        to: "chocolatier",
+        to: supervisorName,
         payload: {
           hint: question,
           context,
@@ -233,7 +235,7 @@ export function createRequestHelpTool(
         ack_required: true,
       });
 
-      return { sent: true, to: "chocolatier", timestamp };
+      return { sent: true, to: supervisorName, timestamp };
     },
   });
 }

@@ -210,7 +210,7 @@ describe("TruffleAgent", () => {
 
       // Should subscribe to messages
       expect(broker.subscribe).toHaveBeenCalledWith(
-        "Snickers",
+        "Snickers:my-app",
         expect.any(Function),
       );
 
@@ -256,7 +256,7 @@ describe("TruffleAgent", () => {
       await agent.init();
       await agent.stop();
 
-      expect(broker.unsubscribe).toHaveBeenCalledWith("Snickers");
+      expect(broker.unsubscribe).toHaveBeenCalledWith("Snickers:my-app");
       expect(agent.status).toBe("terminated");
     });
 
@@ -376,8 +376,8 @@ describe("TruffleAgent", () => {
       expect(broker.send).toHaveBeenCalledWith(
         expect.objectContaining({
           type: MessageType.PR_CREATED,
-          from: "Snickers",
-          to: "temperer",
+          from: "Snickers:my-app",
+          to: "temperer:my-app",
           payload: expect.objectContaining({
             pr_number: 42,
             pr_url: "https://github.com/org/my-app/pull/42",
@@ -444,8 +444,8 @@ describe("TruffleAgent", () => {
       expect(broker.send).toHaveBeenCalledWith(
         expect.objectContaining({
           type: MessageType.TASK_COMPLETE,
-          from: "Snickers",
-          to: "chocolatier",
+          from: "Snickers:my-app",
+          to: "chocolatier:my-app",
           payload: expect.objectContaining({
             summary: "Added 10 unit tests",
             files_changed: 2,
@@ -531,8 +531,8 @@ describe("TruffleAgent", () => {
       expect(broker.send).toHaveBeenCalledWith(
         expect.objectContaining({
           type: MessageType.TASK_FAILED,
-          from: "Snickers",
-          to: "chocolatier",
+          from: "Snickers:my-app",
+          to: "chocolatier:my-app",
           payload: expect.objectContaining({
             error: "Cannot find module 'foo'",
             task: "Add unit tests for the user service",
@@ -571,8 +571,8 @@ describe("TruffleAgent", () => {
       expect(broker.send).toHaveBeenCalledWith(
         expect.objectContaining({
           type: MessageType.TASK_FAILED,
-          from: "Snickers",
-          to: "chocolatier",
+          from: "Snickers:my-app",
+          to: "chocolatier:my-app",
           payload: expect.objectContaining({
             error: "I'm stuck on the database schema",
             recoverable: true,
@@ -623,8 +623,8 @@ describe("TruffleAgent", () => {
       await handler({
         id: "status-req-1",
         type: MessageType.STATUS_REQUEST,
-        from: "chocolatier",
-        to: "Snickers",
+        from: "chocolatier:my-app",
+        to: "Snickers:my-app",
         payload: { request_id: "req-123" },
         priority: "normal",
         timestamp: Date.now(),
@@ -634,8 +634,8 @@ describe("TruffleAgent", () => {
       expect(broker.send).toHaveBeenCalledWith(
         expect.objectContaining({
           type: MessageType.STATUS_RESPONSE,
-          from: "Snickers",
-          to: "chocolatier",
+          from: "Snickers:my-app",
+          to: "chocolatier:my-app",
           payload: expect.objectContaining({
             request_id: "req-123",
             status: "working",
@@ -662,7 +662,7 @@ describe("TruffleAgent", () => {
         ack_required: true,
       } as CocoMessage);
 
-      expect(broker.acknowledge).toHaveBeenCalledWith("Snickers", "ack-msg-1");
+      expect(broker.acknowledge).toHaveBeenCalledWith("Snickers:my-app", "ack-msg-1");
     });
 
     it("does not acknowledge messages when ack_required is false", async () => {
@@ -803,7 +803,7 @@ describe("TruffleAgent", () => {
       await agent.signalComplete("done");
 
       expect(broker.send).toHaveBeenCalledWith(
-        expect.objectContaining({ to: "chocolatier" }),
+        expect.objectContaining({ to: "chocolatier:my-app" }),
       );
     });
 
@@ -818,7 +818,7 @@ describe("TruffleAgent", () => {
       expect(broker.send).toHaveBeenCalledWith(
         expect.objectContaining({
           type: MessageType.PR_CREATED,
-          to: "temperer",
+          to: "temperer:my-app",
         }),
       );
     });

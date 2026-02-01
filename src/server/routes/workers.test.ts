@@ -168,7 +168,7 @@ describe("POST /api/v1/repositories/:repoName/workers/:workerName/nudge", () => 
     expect(broker.send).toHaveBeenCalledWith(
       expect.objectContaining({
         type: "NUDGE",
-        to: "Snickers",
+        to: "Snickers:my-app",
         payload: { hint: "Check the tests", context: "CI failed" },
       }),
     );

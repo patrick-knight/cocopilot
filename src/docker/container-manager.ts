@@ -10,6 +10,7 @@ import Docker from "dockerode";
 import {
   ContainerConfig,
   ContainerInfo,
+  ContainerStats,
   ContainerStatus,
   ContainerType,
   DEFAULT_RESOURCE_LIMITS,
@@ -281,6 +282,40 @@ export class ContainerManager {
     } catch {
       return false;
     }
+  }
+
+  /**
+   * Get resource usage statistics for a container.
+   * Returns CPU and memory usage.
+   */
+  async stats(idOrName: string): Promise<ContainerStats> {
+    const container = this.docker.getContainer(idOrName);
+    const statsData = await container.stats({ stream: false });
+
+    // Calculate memory usage
+    const memoryUsage = statsData.memory_stats?.usage ?? 0;
+    const memoryLimit = statsData.memory_stats?.limit ?? 1;
+
+    // Calculate CPU percentage
+    // Docker stats provides cumulative CPU usage, so we need to compute the delta
+    const cpuDelta =
+      (statsData.cpu_stats?.cpu_usage?.total_usage ?? 0) -
+      (statsData.precpu_stats?.cpu_usage?.total_usage ?? 0);
+    const systemDelta =
+      (statsData.cpu_stats?.system_cpu_usage ?? 0) -
+      (statsData.precpu_stats?.system_cpu_usage ?? 0);
+    const numCpus = statsData.cpu_stats?.online_cpus ?? 1;
+
+    let cpuPercent = 0;
+    if (systemDelta > 0 && cpuDelta > 0) {
+      cpuPercent = (cpuDelta / systemDelta) * numCpus * 100;
+    }
+
+    return {
+      memoryUsage,
+      memoryLimit,
+      cpuPercent,
+    };
   }
 
   /** Get Docker daemon info. */

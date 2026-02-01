@@ -26,6 +26,7 @@ import {
   type CocoMessage,
   type CreateMessageOptions,
 } from "../messaging/index.js";
+import { scopedWorkerName, scopedAgentName } from "./scoped-name.js";
 import type { WorkerStatus } from "../state/schemas.js";
 
 const execFileAsync = promisify(execFile);
@@ -154,6 +155,15 @@ export class TruffleAgent extends EventEmitter<TruffleEvents> {
     return this.config.branch;
   }
 
+  get supervisorName(): string {
+    return this.config.supervisorName ?? scopedAgentName("chocolatier", this.config.repoName);
+  }
+
+  /** Broker-scoped identity: "workerName:repoName". */
+  private get scopedName(): string {
+    return scopedWorkerName(this.config.name, this.config.repoName);
+  }
+
   get status(): WorkerStatus {
     return this._status;
   }
@@ -206,7 +216,7 @@ export class TruffleAgent extends EventEmitter<TruffleEvents> {
    */
   async init(): Promise<void> {
     await this.setupWorktree();
-    await this.broker.subscribe(this.config.name, (msg) =>
+    await this.broker.subscribe(this.scopedName, (msg) =>
       this.handleMessage(msg),
     );
     this.setStatus("working");
@@ -217,7 +227,7 @@ export class TruffleAgent extends EventEmitter<TruffleEvents> {
    * worktree (call `cleanupWorktree()` explicitly if desired).
    */
   async stop(): Promise<void> {
-    await this.broker.unsubscribe(this.config.name);
+    await this.broker.unsubscribe(this.scopedName);
     if (this._status === "working") {
       this.setStatus("terminated");
     }
@@ -239,12 +249,16 @@ export class TruffleAgent extends EventEmitter<TruffleEvents> {
     // Ensure parent directory exists
     await fs.promises.mkdir(path.dirname(worktreePath), { recursive: true });
 
+    // Clean up stale worktree entries and existing directories
+    await this.pruneStaleWorktrees(repoPath, worktreePath);
+
     if (pushTo) {
       // Iterating on existing PR: fetch and checkout the existing branch
       await this.git(["fetch", "origin", pushTo], repoPath);
-      await this.git(
-        ["worktree", "add", worktreePath, `origin/${pushTo}`],
+      await this.tryAddWorktree(
+        ["worktree", "add", "-f", worktreePath, `origin/${pushTo}`],
         repoPath,
+        worktreePath,
       );
       // Create local tracking branch
       await this.git(
@@ -255,11 +269,16 @@ export class TruffleAgent extends EventEmitter<TruffleEvents> {
       // New work: create the worktree on a new branch (or reuse if it exists)
       const branchExists = await this.localBranchExists(repoPath, branch);
       if (branch === baseBranch || branchExists) {
-        await this.git(["worktree", "add", worktreePath, branch], repoPath);
-      } else {
-        await this.git(
-          ["worktree", "add", "-b", branch, worktreePath, baseBranch],
+        await this.tryAddWorktree(
+          ["worktree", "add", "-f", worktreePath, branch],
           repoPath,
+          worktreePath,
+        );
+      } else {
+        await this.tryAddWorktree(
+          ["worktree", "add", "-f", "-b", branch, worktreePath, baseBranch],
+          repoPath,
+          worktreePath,
         );
       }
     }
@@ -404,10 +423,10 @@ export class TruffleAgent extends EventEmitter<TruffleEvents> {
    * Signal successful task completion to the Chocolatier.
    */
   async signalComplete(summary: string, prUrl?: string): Promise<void> {
-    const supervisor = this.config.supervisorName ?? "chocolatier";
+    const supervisor = this.supervisorName;
     await this.broker.send({
       type: MessageType.TASK_COMPLETE,
-      from: this.config.name,
+      from: this.scopedName,
       to: supervisor,
       payload: {
         summary,
@@ -428,10 +447,10 @@ export class TruffleAgent extends EventEmitter<TruffleEvents> {
     error: string,
     recoverable: boolean = false,
   ): Promise<void> {
-    const supervisor = this.config.supervisorName ?? "chocolatier";
+    const supervisor = this.supervisorName;
     await this.broker.send({
       type: MessageType.TASK_FAILED,
-      from: this.config.name,
+      from: this.scopedName,
       to: supervisor,
       payload: {
         error,
@@ -450,10 +469,10 @@ export class TruffleAgent extends EventEmitter<TruffleEvents> {
    * status to "stuck".
    */
   async requestHelp(message: string): Promise<void> {
-    const supervisor = this.config.supervisorName ?? "chocolatier";
+    const supervisor = this.supervisorName;
     await this.broker.send({
       type: MessageType.TASK_FAILED,
-      from: this.config.name,
+      from: this.scopedName,
       to: supervisor,
       payload: {
         error: message,
@@ -472,7 +491,7 @@ export class TruffleAgent extends EventEmitter<TruffleEvents> {
   async respondStatus(requestId: string, requester: string): Promise<void> {
     await this.broker.send({
       type: MessageType.STATUS_RESPONSE,
-      from: this.config.name,
+      from: this.scopedName,
       to: requester,
       payload: {
         request_id: requestId,
@@ -513,7 +532,7 @@ export class TruffleAgent extends EventEmitter<TruffleEvents> {
 
     // Acknowledge if required
     if (message.ack_required) {
-      await this.broker.acknowledge(this.config.name, message.id);
+      await this.broker.acknowledge(this.scopedName, message.id);
     }
   }
 
@@ -525,10 +544,10 @@ export class TruffleAgent extends EventEmitter<TruffleEvents> {
    * Notify the Temperer (merge queue) that a PR has been created.
    */
   private async notifyPRCreated(pr: PRResult): Promise<void> {
-    const mergeQueue = this.config.mergeQueueName ?? "temperer";
+    const mergeQueue = this.config.mergeQueueName ?? scopedAgentName("temperer", this.config.repoName);
     await this.broker.send({
       type: MessageType.PR_CREATED,
-      from: this.config.name,
+      from: this.scopedName,
       to: mergeQueue,
       payload: {
         pr_number: pr.number,
@@ -583,6 +602,52 @@ export class TruffleAgent extends EventEmitter<TruffleEvents> {
       maxBuffer: 10 * 1024 * 1024, // 10MB
       timeout: 120_000, // 2 minutes
     });
+  }
+
+  private async pruneStaleWorktrees(
+    repoPath: string,
+    worktreePath: string,
+  ): Promise<void> {
+    try {
+      await this.git(["worktree", "prune"], repoPath);
+    } catch {
+      // Best-effort; ignore
+    }
+
+    try {
+      if (fs.existsSync(worktreePath)) {
+        await fs.promises.rm(worktreePath, { recursive: true, force: true });
+      }
+    } catch {
+      // Best-effort; ignore
+    }
+
+    try {
+      await this.git(["worktree", "prune"], repoPath);
+    } catch {
+      // Best-effort; ignore
+    }
+  }
+
+  private async tryAddWorktree(
+    args: string[],
+    repoPath: string,
+    worktreePath: string,
+  ): Promise<void> {
+    try {
+      await this.git(args, repoPath);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      if (
+        message.includes("already exists") ||
+        message.includes("already registered worktree")
+      ) {
+        await this.pruneStaleWorktrees(repoPath, worktreePath);
+        await this.git(args, repoPath);
+        return;
+      }
+      throw err;
+    }
   }
 
   /** Check if a local branch exists. */
