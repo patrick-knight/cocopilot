@@ -143,24 +143,39 @@ export function extStatusRoutes(deps: StatusDeps): Router {
       checkCopilotCli(),
     ]);
 
+    const redisIsConnected = redisConnected ? redisConnected() : false;
+    const githubIsAuth = githubAuth.authenticated;
+    const copilotIsInstalled = copilotCli.installed;
+
     res.json({
       daemon: {
         up: daemonState.status === "running",
         status: daemonState.status,
+        uptime: uptimeSeconds,
         pid: daemonState.pid ?? null,
         uptimeSeconds,
         startedAt: daemonState.startedAt ?? null,
       },
       redis: {
-        connected: redisConnected ? redisConnected() : false,
+        status: redisIsConnected ? "healthy" : "unhealthy",
+        connected: redisIsConnected,
       },
       github: {
-        authenticated: githubAuth.authenticated,
+        status: githubIsAuth ? "healthy" : "unhealthy",
+        authenticated: githubIsAuth,
         user: githubAuth.user ?? null,
         error: githubAuth.error ?? null,
       },
+      copilotCli: {
+        status: copilotIsInstalled ? "healthy" : "unhealthy",
+        installed: copilotIsInstalled,
+        version: copilotCli.version ?? null,
+        error: copilotCli.error ?? null,
+      },
+      // Legacy alias for copilotCli
       copilot: {
-        installed: copilotCli.installed,
+        status: copilotIsInstalled ? "healthy" : "unhealthy",
+        installed: copilotIsInstalled,
         version: copilotCli.version ?? null,
         error: copilotCli.error ?? null,
       },
