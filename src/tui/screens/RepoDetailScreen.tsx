@@ -3,7 +3,7 @@
  * TUI Repository Detail Screen
  */
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Box, Text, useInput } from "ink";
 import Spinner from "ink-spinner";
 import TextInput from "ink-text-input";
@@ -11,6 +11,7 @@ import { useRepository, useWorkers, usePRs } from "../hooks/index.js";
 import { Header, StatusIndicator, PRPipeline } from "../components/index.js";
 import { useRouter } from "../router.js";
 import { symbols, getStatusColor } from "../utils/colors.js";
+import { useInputLock } from "../input-lock.js";
 
 interface RepoDetailScreenProps {
   repoName: string;
@@ -31,6 +32,12 @@ export function RepoDetailScreen({ repoName }: RepoDetailScreenProps): React.Rea
   const [spawnBranch, setSpawnBranch] = useState("");
   const [spawnStep, setSpawnStep] = useState<"task" | "branch">("task");
   const [actionError, setActionError] = useState<string | null>(null);
+  const { setInputLocked } = useInputLock();
+  const isEditing = mode === "spawn";
+
+  useEffect(() => {
+    setInputLocked(isEditing);
+  }, [isEditing, setInputLocked]);
 
   const agents = Object.values(repository?.agents ?? {});
   const currentList = tab === "workers" ? workers : tab === "agents" ? agents : [];
@@ -167,6 +174,7 @@ export function RepoDetailScreen({ repoName }: RepoDetailScreenProps): React.Rea
                 onChange={setSpawnTask}
                 onSubmit={handleSpawnSubmit}
                 placeholder="Describe the task..."
+                focus
               />
             </>
           ) : (
@@ -177,6 +185,7 @@ export function RepoDetailScreen({ repoName }: RepoDetailScreenProps): React.Rea
                 onChange={setSpawnBranch}
                 onSubmit={handleSpawnSubmit}
                 placeholder={repository.defaultBranch}
+                focus
               />
             </>
           )}

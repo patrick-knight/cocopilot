@@ -39,7 +39,7 @@ export function Header({ showBanner = false }: { showBanner?: boolean }): React.
       </Box>
       <Box>
         <Text dimColor>
-          {canGoBack ? "Esc: Back | " : ""}q: Quit | ?: Help | ^S: Status | ^M: Metrics | r: Refresh
+          {canGoBack ? "Esc: Back | " : ""}q: Quit | ?: Help | s: Status | m: Metrics | r: Refresh
         </Text>
       </Box>
       <Box marginTop={0}>

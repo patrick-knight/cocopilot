@@ -3,13 +3,14 @@
  * TUI Repositories Screen - Main dashboard
  */
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Box, Text, useInput } from "ink";
 import Spinner from "ink-spinner";
 import TextInput from "ink-text-input";
 import { useRepositories } from "../hooks/index.js";
 import { Header, ConfirmDialog } from "../components/index.js";
 import { useRouter } from "../router.js";
+import { useInputLock } from "../input-lock.js";
 import { symbols } from "../utils/colors.js";
 import type { Repository } from "../api/client.js";
 
@@ -25,6 +26,12 @@ export function RepositoriesScreen(): React.ReactElement {
   const [actionError, setActionError] = useState<string | null>(null);
   const [filter, setFilter] = useState("");
   const [isFiltering, setIsFiltering] = useState(false);
+  const { setInputLocked } = useInputLock();
+  const isEditing = mode === "add" || isFiltering;
+
+  useEffect(() => {
+    setInputLocked(isEditing);
+  }, [isEditing, setInputLocked]);
 
   const filteredRepos = filter
     ? repositories.filter((r) => r.name.toLowerCase().includes(filter.toLowerCase()))
@@ -134,6 +141,7 @@ export function RepositoriesScreen(): React.ReactElement {
             onChange={setNewRepoUrl}
             onSubmit={handleAddRepo}
             placeholder="https://github.com/owner/repo"
+            focus
           />
         </Box>
         {actionError && <Text color="red">{symbols.error} {actionError}</Text>}
@@ -191,6 +199,7 @@ export function RepositoriesScreen(): React.ReactElement {
             value={filter}
             onChange={setFilter}
             placeholder="type to filter..."
+            focus
           />
         </Box>
       )}

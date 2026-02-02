@@ -15,6 +15,7 @@ import { fileURLToPath } from "url";
 import { normalize } from "path";
 import { render, useInput, useApp } from "ink";
 import { RouterProvider, useRouter, Screen } from "./router.js";
+import { InputLockProvider, useInputLock } from "./input-lock.js";
 import {
   StatusScreen,
   RepositoriesScreen,
@@ -34,8 +35,10 @@ interface AppProps {
 function AppContent(): React.ReactElement {
   const { screen, navigate, goBack, canGoBack } = useRouter();
   const { exit } = useApp();
+  const { inputLocked } = useInputLock();
 
   useInput((input, key) => {
+    if (inputLocked) return;
     // Global shortcuts - use Ctrl modifiers to avoid conflicts with text input
     if (input === "q" || (key.ctrl && input === "c")) {
       getClient().disconnect();
@@ -48,9 +51,9 @@ function AppContent(): React.ReactElement {
       }
     } else if (key.escape && canGoBack) {
       goBack();
-    } else if (key.ctrl && input === "s" && screen.type !== "status") {
+    } else if ((input === "s" || (key.ctrl && input === "s")) && screen.type !== "status") {
       navigate({ type: "status" });
-    } else if (key.ctrl && input === "m" && screen.type !== "metrics") {
+    } else if ((input === "m" || (key.ctrl && input === "m")) && screen.type !== "metrics") {
       navigate({ type: "metrics" });
     }
   });
@@ -79,7 +82,9 @@ function AppContent(): React.ReactElement {
 function App({ initialScreen }: AppProps): React.ReactElement {
   return (
     <RouterProvider initialScreen={initialScreen}>
-      <AppContent />
+      <InputLockProvider>
+        <AppContent />
+      </InputLockProvider>
     </RouterProvider>
   );
 }
