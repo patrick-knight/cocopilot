@@ -30,11 +30,12 @@ describe("MessageType enum", () => {
     expect(MessageType.CODE_REVIEW_REQUEST).toBe("CODE_REVIEW_REQUEST");
     expect(MessageType.README_UPDATED).toBe("README_UPDATED");
     expect(MessageType.README_UPDATE_REQUEST).toBe("README_UPDATE_REQUEST");
+    expect(MessageType.WORKER_CONTROL).toBe("WORKER_CONTROL");
   });
 
-  it("has exactly 20 message types", () => {
+  it("has exactly 21 message types", () => {
     const values = Object.values(MessageType);
-    expect(values).toHaveLength(20);
+    expect(values).toHaveLength(21);
   });
 });
 

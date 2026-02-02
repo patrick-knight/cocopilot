@@ -11,13 +11,13 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import { fileURLToPath } from "node:url";
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const _esmDirname = path.dirname(fileURLToPath(import.meta.url));
 
 export function openapiRoutes(): Router {
   const router = Router();
 
   // Load OpenAPI spec
-  const specPath = path.join(__dirname, "..", "openapi.yaml");
+  const specPath = path.join(_esmDirname, "..", "openapi.yaml");
   let specYaml = "";
   let specJson = {};
 
