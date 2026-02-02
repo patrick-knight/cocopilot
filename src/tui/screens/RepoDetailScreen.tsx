@@ -7,8 +7,8 @@ import React, { useState } from "react";
 import { Box, Text, useInput } from "ink";
 import Spinner from "ink-spinner";
 import TextInput from "ink-text-input";
-import { useRepository, useWorkers } from "../hooks/index.js";
-import { Header, StatusIndicator } from "../components/index.js";
+import { useRepository, useWorkers, usePRs } from "../hooks/index.js";
+import { Header, StatusIndicator, PRPipeline } from "../components/index.js";
 import { useRouter } from "../router.js";
 import { symbols, getStatusColor } from "../utils/colors.js";
 
@@ -17,11 +17,12 @@ interface RepoDetailScreenProps {
 }
 
 type Mode = "view" | "spawn";
-type Tab = "workers" | "agents";
+type Tab = "workers" | "agents" | "prs";
 
 export function RepoDetailScreen({ repoName }: RepoDetailScreenProps): React.ReactElement {
   const { repository, loading: repoLoading, error: repoError } = useRepository(repoName);
   const { workers, spawnWorker, stopWorker, refresh } = useWorkers(repoName);
+  const { prs } = usePRs(repoName);
   const { navigate } = useRouter();
   const [mode, setMode] = useState<Mode>("view");
   const [tab, setTab] = useState<Tab>("workers");
@@ -32,7 +33,7 @@ export function RepoDetailScreen({ repoName }: RepoDetailScreenProps): React.Rea
   const [actionError, setActionError] = useState<string | null>(null);
 
   const agents = Object.values(repository?.agents ?? {});
-  const currentList = tab === "workers" ? workers : agents;
+  const currentList = tab === "workers" ? workers : tab === "agents" ? agents : [];
 
   useInput((input, key) => {
     if (mode !== "view") {
@@ -53,30 +54,40 @@ export function RepoDetailScreen({ repoName }: RepoDetailScreenProps): React.Rea
     } else if (input === "l") {
       // Navigate to messages
       navigate({ type: "messages", repoName });
+    } else if (input === "p") {
+      // Switch to PRs tab
+      setTab("prs");
     } else if (key.tab || input === "t") {
-      // Toggle between tabs
-      setTab((prev) => prev === "workers" ? "agents" : "workers");
+      // Cycle through tabs
+      setTab((prev) => {
+        if (prev === "workers") return "agents";
+        if (prev === "agents") return "prs";
+        return "workers";
+      });
       setSelectedIndex(0);
-    } else if (key.upArrow || input === "k") {
-      setSelectedIndex((prev) => Math.max(0, prev - 1));
-    } else if (key.downArrow || input === "j") {
-      setSelectedIndex((prev) => Math.min(currentList.length - 1, prev + 1));
-    } else if (key.return && currentList[selectedIndex]) {
-      if (tab === "workers") {
-        navigate({
-          type: "worker-detail",
-          repoName,
-          workerName: (currentList[selectedIndex] as typeof workers[0]).name,
-        });
-      } else {
-        navigate({
-          type: "agent-detail",
-          repoName,
-          agentName: (currentList[selectedIndex] as typeof agents[0]).name,
-        });
+    } else if (tab !== "prs") {
+      // Navigation only for workers/agents tabs
+      if (key.upArrow || input === "k") {
+        setSelectedIndex((prev) => Math.max(0, prev - 1));
+      } else if (key.downArrow || input === "j") {
+        setSelectedIndex((prev) => Math.min(currentList.length - 1, prev + 1));
+      } else if (key.return && currentList[selectedIndex]) {
+        if (tab === "workers") {
+          navigate({
+            type: "worker-detail",
+            repoName,
+            workerName: (currentList[selectedIndex] as typeof workers[0]).name,
+          });
+        } else {
+          navigate({
+            type: "agent-detail",
+            repoName,
+            agentName: (currentList[selectedIndex] as typeof agents[0]).name,
+          });
+        }
+      } else if (input === "x" && tab === "workers" && workers[selectedIndex]) {
+        handleStopWorker(workers[selectedIndex].name);
       }
-    } else if (input === "x" && tab === "workers" && workers[selectedIndex]) {
-      handleStopWorker(workers[selectedIndex].name);
     }
   });
 
@@ -204,6 +215,13 @@ export function RepoDetailScreen({ repoName }: RepoDetailScreenProps): React.Rea
         >
           {" "}Agents ({agents.length}) {" "}
         </Text>
+        <Text> | </Text>
+        <Text
+          backgroundColor={tab === "prs" ? "blue" : undefined}
+          color={tab === "prs" ? "white" : "gray"}
+        >
+          {" "}PR Pipeline ({prs.length}) {" "}
+        </Text>
       </Box>
 
       {/* Content based on tab */}
@@ -232,7 +250,7 @@ export function RepoDetailScreen({ repoName }: RepoDetailScreenProps): React.Rea
               })
             )}
           </>
-        ) : (
+        ) : tab === "agents" ? (
           <>
             <Text bold underline>Agents</Text>
             {agents.length === 0 ? (
@@ -256,6 +274,23 @@ export function RepoDetailScreen({ repoName }: RepoDetailScreenProps): React.Rea
               })
             )}
           </>
+        ) : (
+          <>
+            <Text bold underline>PR Pipeline</Text>
+            {prs.length === 0 ? (
+              <Text dimColor>No PRs tracked. Workers will create PRs when they push changes.</Text>
+            ) : (
+              <PRPipeline
+                prs={prs.map(pr => ({
+                  number: pr.number,
+                  title: pr.title,
+                  branch: pr.branch,
+                  stage: pr.stage,
+                  workerName: pr.workerName,
+                }))}
+              />
+            )}
+          </>
         )}
       </Box>
 
@@ -268,7 +303,7 @@ export function RepoDetailScreen({ repoName }: RepoDetailScreenProps): React.Rea
       {/* Help */}
       <Box marginTop={1}>
         <Text dimColor>
-          Tab/t: switch | ↑/↓: navigate | Enter: inspect | l: messages | n: spawn | x: stop | r: refresh
+          Tab/t: cycle tabs | p: PRs | ↑/↓: navigate | Enter: inspect | l: messages | n: spawn | x: stop | r: refresh
         </Text>
       </Box>
     </Box>

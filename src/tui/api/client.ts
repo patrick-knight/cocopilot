@@ -104,6 +104,20 @@ export interface MetricsResponse {
   tokenUsage: { model: string; tokens: number }[];
 }
 
+export type PRStage = "draft" | "ready" | "ci_running" | "ci_passed" | "ci_failed" | "merged";
+
+export interface PRPipelineEntry {
+  number: number;
+  title: string;
+  url: string;
+  branch: string;
+  author: string;
+  stage: PRStage;
+  workerName?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export class TuiApiClient {
   private baseUrl: string;
   private socket: Socket | null = null;
@@ -222,6 +236,36 @@ export class TuiApiClient {
     await this.fetch(`/api/v1/repositories/${encodeURIComponent(name)}/repair`, {
       method: "POST",
     });
+  }
+
+  // PRs
+  async getPRs(repoName: string): Promise<PRPipelineEntry[]> {
+    try {
+      const data = await this.fetch<{ prs: PRPipelineEntry[] }>(
+        `/api/v1/repositories/${encodeURIComponent(repoName)}/prs`
+      );
+      return data.prs ?? [];
+    } catch {
+      // Fallback: extract PRs from workers in state file
+      const state = readStateFile();
+      if (state && state.repositories && state.repositories[repoName]) {
+        const workers = Object.values(state.repositories[repoName].workers);
+        return workers
+          .filter((w: any) => w.prNumber != null)
+          .map((w: any) => ({
+            number: w.prNumber,
+            title: w.task,
+            url: w.prUrl ?? "",
+            branch: w.branch,
+            author: "cocopilot",
+            stage: workerStatusToStage(w.status),
+            workerName: w.name,
+            createdAt: w.createdAt,
+            updatedAt: w.updatedAt,
+          }));
+      }
+      return [];
+    }
   }
 
   // Workers
@@ -384,4 +428,22 @@ export function getClient(port?: number): TuiApiClient {
     );
   }
   return client;
+}
+
+/** Convert worker status to PR stage. */
+function workerStatusToStage(status: string): PRStage {
+  switch (status) {
+    case "merged":
+      return "merged";
+    case "completed":
+      return "ci_passed";
+    case "failed":
+      return "ci_failed";
+    case "working":
+      return "ci_running";
+    case "starting":
+      return "draft";
+    default:
+      return "ready";
+  }
 }

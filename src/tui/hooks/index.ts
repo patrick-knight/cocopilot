@@ -3,7 +3,7 @@
  */
 
 import { useState, useEffect, useCallback } from "react";
-import { getClient, StatusResponse, Repository, Worker, MetricsResponse } from "../api/client.js";
+import { getClient, StatusResponse, Repository, Worker, MetricsResponse, PRPipelineEntry } from "../api/client.js";
 
 export function useStatus(refreshInterval = 5000) {
   const [status, setStatus] = useState<StatusResponse | null>(null);
@@ -360,4 +360,55 @@ export function useStreaming(workerName?: string) {
   const clear = useCallback(() => setOutput([]), []);
 
   return { output, clear };
+}
+
+export function usePRs(repoName: string) {
+  const [prs, setPrs] = useState<PRPipelineEntry[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<Error | null>(null);
+
+  const refresh = useCallback(async () => {
+    try {
+      const data = await getClient().getPRs(repoName);
+      setPrs(data);
+      setError(null);
+    } catch (err) {
+      setError(err instanceof Error ? err : new Error(String(err)));
+    } finally {
+      setLoading(false);
+    }
+  }, [repoName]);
+
+  useEffect(() => {
+    let mounted = true;
+    
+    const refreshIfMounted = async () => {
+      if (!mounted) return;
+      try {
+        const data = await getClient().getPRs(repoName);
+        if (mounted) {
+          setPrs(data);
+          setError(null);
+        }
+      } catch (err) {
+        if (mounted) {
+          setError(err instanceof Error ? err : new Error(String(err)));
+        }
+      } finally {
+        if (mounted) {
+          setLoading(false);
+        }
+      }
+    };
+
+    refreshIfMounted();
+    const interval = setInterval(refreshIfMounted, 10000);
+    
+    return () => {
+      mounted = false;
+      clearInterval(interval);
+    };
+  }, [repoName]);
+
+  return { prs, loading, error, refresh };
 }
