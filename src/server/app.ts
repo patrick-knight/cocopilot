@@ -71,11 +71,30 @@ export function createServer(deps: ServerDeps): CocoServer {
     allowedOrigins.push(codespaceUrl);
   }
   
+  // CORS origin validator - allows any GitHub Codespace
+  const corsOriginValidator = (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
+    // Allow requests with no origin (like mobile apps or curl)
+    if (!origin) return callback(null, true);
+    
+    // Check if origin is in allowed list
+    if (allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+    
+    // Allow any GitHub Codespace (*.app.github.dev)
+    if (origin.match(/^https:\/\/[a-z0-9-]+-3000\.app\.github\.dev$/)) {
+      return callback(null, true);
+    }
+    
+    // Reject other origins
+    callback(new Error('Not allowed by CORS'));
+  };
+  
   app.use(helmet({
     contentSecurityPolicy: false,
   }));
   app.use(cors({
-    origin: allowedOrigins,
+    origin: corsOriginValidator,
   }));
   app.use(express.json());
 
@@ -134,7 +153,7 @@ export function createServer(deps: ServerDeps): CocoServer {
 
   // Socket.IO
   const io = new SocketIOServer(httpServer, {
-    cors: { origin: allowedOrigins },
+    cors: { origin: corsOriginValidator },
   });
 
   // Wire up bridges
