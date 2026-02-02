@@ -1,7 +1,3 @@
-<p align="center">
-  <img src="docs/assets/logo.png" alt="CoCoPilot Logo" width="120" />
-</p>
-
 <h1 align="center">🍫 CoCoPilot</h1>
 
 <p align="center">
