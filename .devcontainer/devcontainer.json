@@ -19,7 +19,24 @@
         "dbaeumer.vscode-eslint",
         "esbenp.prettier-vscode",
         "ms-vscode.vscode-typescript-next"
-      ]
+      ],
+      "settings": {
+        "terminal.integrated.profiles.linux": {
+          "CoCoPilot Docker Exec": {
+            "path": "docker",
+            "args": [
+              "exec",
+              "-e",
+              "HOME=/root",
+              "-it",
+              "cocopilot-cocopilot-app-1",
+              "sh",
+              "-l"
+            ]
+          }
+        },
+        "terminal.integrated.defaultProfile.linux": "CoCoPilot Docker Exec"
+      }
     }
   }
 }
