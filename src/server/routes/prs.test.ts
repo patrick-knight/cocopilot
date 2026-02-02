@@ -111,9 +111,9 @@ describe("GET /api/v1/repositories/:repoName/prs", () => {
 
     const res = await request(app).get("/api/v1/repositories/my-app/prs");
     expect(res.status).toBe(200);
-    expect(res.body).toHaveLength(2);
-    expect(res.body[0].number).toBe(43); // sorted descending
-    expect(res.body[1].number).toBe(42);
+    expect(res.body.prs).toHaveLength(2);
+    expect(res.body.prs[0].number).toBe(43); // sorted descending
+    expect(res.body.prs[1].number).toBe(42);
   });
 
   it("filters out workers without prNumber", async () => {
@@ -128,8 +128,8 @@ describe("GET /api/v1/repositories/:repoName/prs", () => {
 
     const res = await request(app).get("/api/v1/repositories/my-app/prs");
     expect(res.status).toBe(200);
-    expect(res.body).toHaveLength(1);
-    expect(res.body[0].number).toBe(42);
+    expect(res.body.prs).toHaveLength(1);
+    expect(res.body.prs[0].number).toBe(42);
   });
 
   it("returns empty array when no workers have PRs", async () => {
@@ -143,7 +143,7 @@ describe("GET /api/v1/repositories/:repoName/prs", () => {
 
     const res = await request(app).get("/api/v1/repositories/my-app/prs");
     expect(res.status).toBe(200);
-    expect(res.body).toEqual([]);
+    expect(res.body).toEqual({ prs: [] });
   });
 
   it("returns empty array when repo has no workers", async () => {
@@ -153,7 +153,7 @@ describe("GET /api/v1/repositories/:repoName/prs", () => {
 
     const res = await request(app).get("/api/v1/repositories/my-app/prs");
     expect(res.status).toBe(200);
-    expect(res.body).toEqual([]);
+    expect(res.body).toEqual({ prs: [] });
   });
 
   it("returns 404 for unknown repository", async () => {
@@ -177,8 +177,8 @@ describe("GET /api/v1/repositories/:repoName/prs", () => {
 
     const res = await request(app).get("/api/v1/repositories/my-app/prs");
     expect(res.status).toBe(200);
-    const pr42 = res.body.find((p: any) => p.number === 42);
-    const pr43 = res.body.find((p: any) => p.number === 43);
+    const pr42 = res.body.prs.find((p: any) => p.number === 42);
+    const pr43 = res.body.prs.find((p: any) => p.number === 43);
     expect(pr42.stage).toBe("ready");
     expect(pr43.stage).toBe("ci_failed");
   });

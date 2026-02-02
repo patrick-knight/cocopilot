@@ -101,9 +101,9 @@ describe("GET /api/v1/workers", () => {
     const res = await request(app).get("/api/v1/workers");
 
     expect(res.status).toBe(200);
-    expect(res.body).toHaveLength(2);
-    expect(res.body[0].repoName).toBe("my-app");
-    expect(res.body[1].repoName).toBe("other-app");
+    expect(res.body.workers).toHaveLength(2);
+    expect(res.body.workers[0].repoName).toBe("my-app");
+    expect(res.body.workers[1].repoName).toBe("other-app");
   });
 
   it("returns empty array when no repos exist", async () => {
@@ -113,7 +113,7 @@ describe("GET /api/v1/workers", () => {
     const res = await request(app).get("/api/v1/workers");
 
     expect(res.status).toBe(200);
-    expect(res.body).toEqual([]);
+    expect(res.body).toEqual({ workers: [] });
   });
 });
 
