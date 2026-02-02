@@ -97,6 +97,16 @@ export interface Agent {
   status: string;
 }
 
+interface WorkerOutputPayload {
+  workerName: string;
+  line: string;
+}
+
+interface AgentOutputPayload {
+  agentName: string;
+  line: string;
+}
+
 export interface MetricsResponse {
   throughput: { hour: string; count: number }[];
   cycleTime: { date: string; avgHours: number }[];
@@ -378,19 +388,92 @@ export class TuiApiClient {
     }
   }
 
-  onWorkerOutput(callback: (data: { worker: string; output: string }) => void): () => void {
+  joinWorker(workerName: string): void {
     const socket = this.connect();
-    socket.on("worker:output", callback);
+    socket.emit("worker:join", workerName);
+  }
+
+  leaveWorker(workerName: string): void {
+    if (!this.socket) return;
+    this.socket.emit("worker:leave", workerName);
+  }
+
+  subscribeAgent(agentName: string): void {
+    const socket = this.connect();
+    socket.emit("agent:stream:subscribe", agentName);
+  }
+
+  unsubscribeAgent(agentName: string): void {
+    if (!this.socket) return;
+    this.socket.emit("agent:stream:unsubscribe", agentName);
+  }
+
+  onWorkerOutput(callback: (data: WorkerOutputPayload) => void): () => void {
+    const socket = this.connect();
+    const handleSingle = (event: unknown) => {
+      const parsed = this.normalizeWorkerOutput(event);
+      if (parsed) callback(parsed);
+    };
+    const handleBatch = (batch: unknown) => {
+      if (!Array.isArray(batch)) return;
+      for (const event of batch) {
+        handleSingle(event);
+      }
+    };
+
+    socket.on("worker:output", handleSingle);
+    socket.on("batch:worker:output", handleBatch);
     return () => {
-      socket.off("worker:output", callback);
+      socket.off("worker:output", handleSingle);
+      socket.off("batch:worker:output", handleBatch);
     };
   }
 
-  onAgentOutput(callback: (data: { agent: string; output: string }) => void): () => void {
+  onAgentOutput(callback: (data: AgentOutputPayload) => void): () => void {
     const socket = this.connect();
-    socket.on("agent:output", callback);
+    const handleSingle = (event: unknown) => {
+      const parsed = this.normalizeAgentOutput(event);
+      if (parsed) callback(parsed);
+    };
+    const handleBatch = (batch: unknown) => {
+      if (!Array.isArray(batch)) return;
+      for (const event of batch) {
+        handleSingle(event);
+      }
+    };
+
+    socket.on("agent:output", handleSingle);
+    socket.on("batch:agent:output", handleBatch);
     return () => {
-      socket.off("agent:output", callback);
+      socket.off("agent:output", handleSingle);
+      socket.off("batch:agent:output", handleBatch);
+    };
+  }
+
+  onWorkerActivity(callback: (data: { workerName: string; timestamp: number; eventType?: string }) => void): () => void {
+    const socket = this.connect();
+    const handleSingle = (event: unknown) => {
+      if (!event || typeof event !== "object") return;
+      const payload = event as { workerName?: string; timestamp?: number; eventType?: string };
+      if (typeof payload.workerName !== "string") return;
+      callback({
+        workerName: payload.workerName,
+        timestamp: payload.timestamp ?? Date.now(),
+        eventType: payload.eventType,
+      });
+    };
+    const handleBatch = (batch: unknown) => {
+      if (!Array.isArray(batch)) return;
+      for (const event of batch) {
+        handleSingle(event);
+      }
+    };
+
+    socket.on("worker:activity", handleSingle);
+    socket.on("batch:worker:activity", handleBatch);
+    return () => {
+      socket.off("worker:activity", handleSingle);
+      socket.off("batch:worker:activity", handleBatch);
     };
   }
 
@@ -419,6 +502,30 @@ export class TuiApiClient {
     return () => {
       socket.off("status:update", callback);
     };
+  }
+
+  private normalizeWorkerOutput(event: unknown): WorkerOutputPayload | null {
+    if (!event || typeof event !== "object") return null;
+    const payload = event as {
+      workerName?: string;
+      worker?: string;
+      content?: string;
+      output?: string;
+      text?: string;
+    };
+    const workerName = payload.workerName ?? payload.worker;
+    const line = payload.content ?? payload.output ?? payload.text;
+    if (typeof workerName !== "string" || typeof line !== "string") return null;
+    return { workerName, line };
+  }
+
+  private normalizeAgentOutput(event: unknown): AgentOutputPayload | null {
+    if (!event || typeof event !== "object") return null;
+    const payload = event as { agent?: string; agentName?: string; text?: string; output?: string; content?: string };
+    const agentName = payload.agentName ?? payload.agent;
+    const line = payload.text ?? payload.output ?? payload.content;
+    if (typeof agentName !== "string" || typeof line !== "string") return null;
+    return { agentName, line };
   }
 }
 

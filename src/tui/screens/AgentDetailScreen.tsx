@@ -47,14 +47,18 @@ export function AgentDetailScreen({ repoName, agentName }: AgentDetailScreenProp
   // Subscribe to agent output
   useEffect(() => {
     const client = getClient();
-    const handler = ({ agent: outputAgent, output: line }: { agent: string; output: string }) => {
+    client.subscribeAgent(agentName);
+    const handler = ({ agentName: outputAgent, line }: { agentName: string; line: string }) => {
       if (outputAgent === agentName) {
         setOutput((prev) => [...prev.slice(-500), line]);
       }
     };
 
-    const unsubscribe = client.onAgentOutput?.(handler) ?? (() => {});
-    return unsubscribe;
+    const unsubscribe = client.onAgentOutput(handler);
+    return () => {
+      unsubscribe();
+      client.unsubscribeAgent(agentName);
+    };
   }, [agentName]);
 
   useInput((input) => {

@@ -215,9 +215,9 @@ interface StatusBadgeProps {
 
 function StatusBadge({ status, color }: StatusBadgeProps): React.ReactElement {
   return (
-    <span className="inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-xs font-medium text-foreground bg-muted">
-      <span className={`inline-block h-2 w-2 rounded-full ${color}`} aria-hidden="true" />
-      {status}
+    <span className="relative inline-flex items-center justify-center rounded-full px-4 py-0.5 text-xs font-medium text-foreground bg-muted text-center min-w-[72px]">
+      <span className={`absolute left-2 inline-block h-2 w-2 rounded-full ${color}`} aria-hidden="true" />
+      <span className="text-center">{status}</span>
     </span>
   );
 }

@@ -344,16 +344,27 @@ export function useStreaming(workerName?: string) {
     if (!workerName) return;
 
     const client = getClient();
-    const handler = ({ worker, output: line }: { worker: string; output: string }) => {
-      if (worker === workerName) {
+    client.joinWorker(workerName);
+    const handler = ({ workerName: outputWorker, line }: { workerName: string; line: string }) => {
+      if (outputWorker === workerName) {
         setOutput((prev) => [...prev.slice(-500), line]); // Keep last 500 lines
       }
     };
 
     const unsubscribe = client.onWorkerOutput(handler);
+    const unsubscribeActivity = client.onWorkerActivity((event) => {
+      if (event.workerName !== workerName) return;
+      const label = event.eventType ? `activity:${event.eventType}` : "activity";
+      setOutput((prev) => [
+        ...prev.slice(-500),
+        `[${new Date(event.timestamp).toLocaleTimeString()}] ${label}`,
+      ]);
+    });
 
     return () => {
       unsubscribe();
+      unsubscribeActivity();
+      client.leaveWorker(workerName);
     };
   }, [workerName]);
 
