@@ -263,7 +263,8 @@ export class TuiApiClient {
 
   async getWorker(repoName: string, workerName: string): Promise<Worker> {
     try {
-      return this.fetch(`/api/v1/workers/${encodeURIComponent(repoName)}/${encodeURIComponent(workerName)}`);
+      // The external API uses just worker name: GET /api/v1/workers/:name
+      return this.fetch(`/api/v1/workers/${encodeURIComponent(workerName)}`);
     } catch (err) {
       // Fallback: read directly from state file when daemon is unavailable
       const state = readStateFile();
