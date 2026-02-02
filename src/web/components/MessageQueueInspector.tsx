@@ -199,8 +199,8 @@ export function MessageQueueInspector({
                     <td className="px-3 py-2 font-mono text-xs">
                       <MessageTypeBadge type={msg.type} />
                     </td>
-                    <td className="px-3 py-2 text-stone-700 truncate max-w-[120px]">{msg.from}</td>
-                    <td className="px-3 py-2 text-stone-700 truncate max-w-[120px]">{msg.to === "*" ? "broadcast" : msg.to}</td>
+                    <td className="px-3 py-2 text-stone-700 truncate max-w-[120px]" title={msg.from}>{msg.from}</td>
+                    <td className="px-3 py-2 text-stone-700 truncate max-w-[120px]" title={msg.to === "*" ? "broadcast" : msg.to}>{msg.to === "*" ? "broadcast" : msg.to}</td>
                     <td className="px-3 py-2 hidden sm:table-cell">
                       <PriorityBadge priority={msg.priority} />
                     </td>

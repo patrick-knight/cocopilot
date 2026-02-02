@@ -130,12 +130,12 @@ function PRRow({ pr }: PRRowProps): React.ReactElement {
           <span className="font-mono">{pr.branch}</span>
         </span>
         <span className="inline-flex items-center gap-1" title={`Author: ${pr.author}`}>
-          <span>👤</span>
+          <span aria-hidden="true">👤</span>
           <span>{pr.author}</span>
         </span>
         {pr.workerName && (
           <span className="inline-flex items-center gap-1 text-stone-400" title={`Worker: ${pr.workerName}`}>
-            <span>🍬</span>
+            <span aria-hidden="true">🍬</span>
             <span>{pr.workerName}</span>
           </span>
         )}
