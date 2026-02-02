@@ -230,7 +230,11 @@ export class TuiApiClient {
       const path = repoName
         ? `/api/v1/workers?repo=${encodeURIComponent(repoName)}`
         : "/api/v1/workers";
-      const data = await this.fetch<{ workers: Worker[] }>(path);
+      const data = await this.fetch<{ workers?: Worker[] } | Worker[]>(path);
+      // Handle both response formats: array or { workers: [...] }
+      if (Array.isArray(data)) {
+        return data;
+      }
       return data.workers ?? [];
     } catch (err) {
       // Fallback: read directly from state file when daemon is unavailable

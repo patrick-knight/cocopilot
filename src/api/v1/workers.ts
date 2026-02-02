@@ -73,18 +73,22 @@ export function extWorkerRoutes(
     }
   });
 
-  // GET / -- List workers across all repositories
-  router.get("/", (_req, res) => {
+  // GET / -- List workers across all repositories (or filter by repo)
+  router.get("/", (req, res) => {
+    const repoFilter = req.query.repo as string | undefined;
     const repos = stateManager.getRepos();
     const workers: Array<Record<string, unknown>> = [];
 
     for (const [repoName, repo] of Object.entries(repos)) {
+      // Skip if filtering by repo and doesn't match
+      if (repoFilter && repoName !== repoFilter) continue;
+      
       for (const worker of Object.values(repo.workers)) {
         workers.push({ ...worker, repoName });
       }
     }
 
-    res.json(workers);
+    res.json({ workers });
   });
 
   // GET /:name -- Get a specific worker by name (searches all repos)
