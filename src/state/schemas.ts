@@ -9,6 +9,8 @@
  * - RepoConfig: in-repo .cocopilot/config.json
  */
 
+import { DEFAULT_MODEL } from "../models.js";
+
 // ---------------------------------------------------------------------------
 // Enums / union types
 // ---------------------------------------------------------------------------
@@ -216,7 +218,7 @@ export interface RepoConfig {
 // ---------------------------------------------------------------------------
 
 export const DEFAULT_GLOBAL_CONFIG: GlobalConfig = {
-  model: "claude-sonnet-4-5",
+  model: DEFAULT_MODEL,
   webPort: 3000,
   maxWorkersPerRepo: 10,
   workerTimeout: "4h",

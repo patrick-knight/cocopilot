@@ -1,6 +1,7 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 import type { CocoConfig } from "../types/index.js";
+import { DEFAULT_MODEL } from "../models.js";
 
 const COCOPILOT_DIR = path.join(
   process.env.HOME || process.env.USERPROFILE || "~",
@@ -29,7 +30,7 @@ function getRedisConfig() {
 }
 
 const DEFAULT_CONFIG: CocoConfig = {
-  model: "claude-sonnet-4-5",
+  model: DEFAULT_MODEL,
   webPort: 3000,
   maxWorkersPerRepo: 10,
   workerTimeout: "4h",

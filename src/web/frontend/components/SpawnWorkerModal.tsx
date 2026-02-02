@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { createPortal } from "react-dom";
 import type { Socket } from "socket.io-client";
+import { AVAILABLE_MODELS, DEFAULT_MODEL } from "../../../models.js";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -69,12 +70,10 @@ export interface SpawnWorkerModalProps {
 
 const MIN_TASK_LENGTH = 10;
 
-const MODEL_OPTIONS = [
-  { value: "claude-sonnet-4-5", label: "Claude Sonnet 4.5" },
-  { value: "claude-opus-4-5", label: "Claude Opus 4.5" },
-  { value: "gpt-5", label: "GPT-5" },
-  { value: "gpt-4o", label: "GPT-4o" },
-] as const;
+const MODEL_OPTIONS = AVAILABLE_MODELS.map((m) => ({
+  value: m.value,
+  label: m.isDefault ? `${m.label} (default)` : m.label,
+}));
 
 const PRIORITY_OPTIONS: { value: WorkerPriority; label: string }[] = [
   { value: "low", label: "Low" },
@@ -108,7 +107,7 @@ export function SpawnWorkerModal({
   // Form state
   const [task, setTask] = useState("");
   const [branch, setBranch] = useState(branches[0] ?? "main");
-  const [model, setModel] = useState<string>(MODEL_OPTIONS[0].value);
+  const [model, setModel] = useState<string>(DEFAULT_MODEL);
   const [priority, setPriority] = useState<WorkerPriority>("normal");
 
   // Validation
@@ -145,7 +144,7 @@ export function SpawnWorkerModal({
     if (isOpen) {
       setTask("");
       setBranch(branches[0] ?? "main");
-      setModel(MODEL_OPTIONS[0].value);
+      setModel(DEFAULT_MODEL);
       setPriority("normal");
       setTouched(false);
       setPhase("idle");
