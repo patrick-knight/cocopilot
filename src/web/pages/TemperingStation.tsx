@@ -275,7 +275,7 @@ export function TemperingStation({
         </header>
 
         {/* Main content */}
-        <main className="flex flex-col gap-10">
+        <main className="flex flex-col gap-6">
           {/* Agent Cards Section */}
           <section id="section-agents" aria-label="Agents" className="bg-card border border-border rounded-lg overflow-hidden shadow-sm">
             <button

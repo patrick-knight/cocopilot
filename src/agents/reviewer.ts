@@ -2,7 +2,7 @@
  * Reviewer Agent
  *
  * A dedicated code review bot that reads PRs and leaves comments.
- * Following the multiclaude philosophy: "Forward progress is forward."
+ * Following the philosophy: "Forward progress is forward."
  * Default to non-blocking suggestions unless there's a genuine concern.
  *
  * Blocking issues:

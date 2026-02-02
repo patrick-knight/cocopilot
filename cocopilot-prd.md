@@ -5,9 +5,9 @@
 **CoCoPilot** (Collaborative Copilot Orchestration Platform) is a multi-agent orchestration system that reimagines [dlorenc's multiclaude](https://github.com/dlorenc/multiclaude) architecture using the [GitHub Copilot SDK](https://github.com/github/copilot-sdk/) and [CLI](https://github.com/github/copilot-cli). Like a master chocolatier coordinating a confectionery factory during Valentine's rush, CoCoPilot manages multiple AI coding agents working in parallel on your codebase—each tempering away at their designated tasks while a supervisor ensures the perfect blend of productivity.
 
 The platform introduces two critical differentiators from the original multiclaude:
-
-1. **Containerized Execution via Docker** — Keeping your dev environment as clean as a freshly polished chocolate mold
-2. **Real-Time Web UI** — Observe the entire tempering process from supervisor directives to individual worker progress without ever needing to attach to tmux sessions
+1. **Containerized Execution via Docker** — Keeping your dev environment as clean as a freshly polished chocolate mold  
+2. **Real-Time Web UI** — Observe the entire tempering process from supervisor directives to individual worker progress without ever needing to attach to tmux sessions  
+3. **Terminal TUI Companion** — A curses-style console view for quick status checks, logs, and worker control without leaving your terminal
 
 > *"Good code, like good chocolate, requires the right blend of chaos and control."*
 
