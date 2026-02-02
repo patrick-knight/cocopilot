@@ -32,6 +32,7 @@ CoCoPilot spawns 3 workers → Each works independently → 3 PRs ready for revi
 
 > *"Good code, like good chocolate, requires the right blend of chaos and control."*
 
+![](https://raw.githubusercontent.com/patrick-knight/cocopilot/refs/heads/main/demo-screen.png?token=GHSAT0AAAAAADTOYQKNHIFUGEUEBG4BDTNE2MAHE3A)
 ---
 
 ## 🚀 Quick Start
