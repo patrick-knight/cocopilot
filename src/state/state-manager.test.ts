@@ -267,7 +267,7 @@ describe("workers", () => {
     await sm.addWorker("repo", { task: "T1" });
     await sm.addWorker("repo", { task: "T2" });
     await expect(sm.addWorker("repo", { task: "T3" })).rejects.toThrow(
-      "Maximum workers",
+      "Maximum active workers",
     );
   });
 
