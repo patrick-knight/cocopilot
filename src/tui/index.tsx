@@ -112,15 +112,15 @@ export function startTui(args?: string[]): void {
   // Initialize API client with port
   getClient(port);
 
-  // Render the TUI in fullscreen mode
-  render(<App initialScreen={initialScreen} />, {
-    exitOnCtrlC: false, // We handle this ourselves
-  });
-
-  // Clear screen and enter alternate buffer for fullscreen effect
+  // Enter alternate screen buffer BEFORE rendering (for fullscreen effect)
   process.stdout.write("\x1b[?1049h"); // Enter alternate screen buffer
   process.stdout.write("\x1b[2J"); // Clear screen
   process.stdout.write("\x1b[H"); // Move cursor to top-left
+
+  // Render the TUI
+  render(<App initialScreen={initialScreen} />, {
+    exitOnCtrlC: false, // We handle this ourselves
+  });
 
   // Restore terminal on exit
   process.on("exit", () => {
