@@ -64,37 +64,11 @@ export function createServer(deps: ServerDeps): CocoServer {
     "http://localhost:3000",
     "http://127.0.0.1:3000",
   ];
-  
-  // Add Codespaces URL if running in GitHub Codespaces
-  if (process.env.CODESPACE_NAME) {
-    const codespaceUrl = `https://${process.env.CODESPACE_NAME}-3000.${process.env.GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN || 'app.github.dev'}`;
-    allowedOrigins.push(codespaceUrl);
-  }
-  
-  // CORS origin validator - allows any GitHub Codespace
-  const corsOriginValidator = (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
-    // Allow requests with no origin (like mobile apps or curl)
-    if (!origin) return callback(null, true);
-    
-    // Check if origin is in allowed list
-    if (allowedOrigins.includes(origin)) {
-      return callback(null, true);
-    }
-    
-    // Allow any GitHub Codespace (*.app.github.dev)
-    if (origin.match(/^https:\/\/[a-z0-9-]+-3000\.app\.github\.dev$/)) {
-      return callback(null, true);
-    }
-    
-    // Reject other origins
-    callback(new Error('Not allowed by CORS'));
-  };
-  
   app.use(helmet({
     contentSecurityPolicy: false,
   }));
   app.use(cors({
-    origin: corsOriginValidator,
+    origin: allowedOrigins,
   }));
   app.use(express.json());
 
@@ -153,7 +127,7 @@ export function createServer(deps: ServerDeps): CocoServer {
 
   // Socket.IO
   const io = new SocketIOServer(httpServer, {
-    cors: { origin: corsOriginValidator },
+    cors: { origin: allowedOrigins },
   });
 
   // Wire up bridges
