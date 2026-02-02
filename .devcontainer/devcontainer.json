@@ -1,6 +1,6 @@
 {
   "name": "CoCoPilot Dev Container",
-  "image": "mcr.microsoft.com/devcontainers/typescript-node:22-ubuntu-22.04",
+  "image": "mcr.microsoft.com/devcontainers/typescript-node:1-22-bookworm",
   "features": {
     "ghcr.io/devcontainers/features/docker-in-docker:2": {},
     "ghcr.io/devcontainers/features/github-cli:1": {}
@@ -9,7 +9,9 @@
   "portsAttributes": {
     "3000": {
       "label": "CoCoPilot Application",
-      "onAutoForward": "notify"
+      "onAutoForward": "openPreview",
+      "protocol": "https",
+      "visibility": "public"
     }
   },
   "postCreateCommand": "npm install",
