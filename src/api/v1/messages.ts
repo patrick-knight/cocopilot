@@ -23,7 +23,7 @@ export function messagesRoutes(deps: MessagesDeps): Router {
    * GET /api/v1/messages/recent — List recent messages across all agents.
    * Query params:
    *   - repo: Filter by repository name
-   *   - agent: Filter by agent name (from or to)
+   *   - agent: Filter by agent name (from or to) - can be exact match or partial
    *   - limit: Max number of messages (default 20)
    */
   router.get("/recent", async (req: Request, res: Response) => {
@@ -43,10 +43,15 @@ export function messagesRoutes(deps: MessagesDeps): Router {
       let messages = await messageStore.getRecent(limitNum * 2, repo);
 
       // Filter by agent if specified
+      // Agent names are scoped (e.g., "chocolatier:repoName")
+      // Only show messages where the agent is the sender OR direct recipient (not broadcasts)
       if (agent) {
-        messages = messages.filter(
-          (m) => m.from === agent || m.to === agent || m.to === "*"
-        );
+        messages = messages.filter((m) => {
+          const fromMatch = m.from === agent || m.from.startsWith(`${agent}:`) || m.from.includes(agent);
+          const toMatch = m.to === agent || m.to.startsWith(`${agent}:`) || m.to.includes(agent);
+          // Include if agent sent OR received (but not broadcasts to *)
+          return fromMatch || (toMatch && m.to !== "*");
+        });
       }
 
       // Apply final limit
