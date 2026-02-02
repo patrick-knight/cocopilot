@@ -24,6 +24,9 @@
       ],
       "settings": {
         "terminal.integrated.profiles.linux": {
+          "bash": {
+            "path": "/bin/bash"
+          },
           "CoCoPilot Docker Exec": {
             "path": "docker",
             "args": [
@@ -37,7 +40,7 @@
             ]
           }
         },
-        "terminal.integrated.defaultProfile.linux": "CoCoPilot Docker Exec"
+        "terminal.integrated.defaultProfile.linux": "bash"
       }
     }
   }
