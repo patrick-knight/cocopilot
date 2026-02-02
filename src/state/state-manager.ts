@@ -36,6 +36,7 @@ import {
   atomicWriteFile,
 } from "./atomic-write.js";
 import { recoverState } from "./recovery.js";
+import { logger } from "../daemon/logger.js";
 
 // ---------------------------------------------------------------------------
 // Candy names for workers (adjective + candy combinations = 400 unique names)
@@ -198,21 +199,21 @@ export class StateManager extends EventEmitter {
                 newState.startedAt = this.state.startedAt;
                 
                 this.state = newState;
-                this.emit('stateChanged', this.state);
-                console.log('[StateManager] Reloaded state from disk - repositories updated');
+                this.emit("stateChanged", this.state);
+                logger.info("StateManager reloaded state from disk - repositories updated");
               }
             } catch (error) {
-              console.error('[StateManager] Failed to reload state:', error);
+              logger.error("StateManager failed to reload state", error);
             } finally {
               this.isReloadingState = false;
             }
-          }).catch(err => {
-            console.error('[StateManager] State reload error:', err);
+          }).catch((err) => {
+            logger.error("StateManager reload error", err);
           });
         }
       });
     } catch (error) {
-      console.error('[StateManager] Failed to start state file watcher:', error);
+      logger.error("StateManager failed to start state file watcher", error);
     }
   }
 
@@ -241,8 +242,8 @@ export class StateManager extends EventEmitter {
       newState.startedAt = this.state.startedAt;
       
       this.state = newState;
-      this.emit('stateChanged', this.state);
-      console.log('[StateManager] State reloaded via API - repositories updated');
+      this.emit("stateChanged", this.state);
+      logger.info("StateManager reloaded via API - repositories updated");
     } finally {
       this.isReloadingState = false;
     }
@@ -293,8 +294,8 @@ export class StateManager extends EventEmitter {
       } finally {
         this.isReloadingState = false;
       }
-    }).catch(err => {
-      console.error('[StateManager] Failed to persist state:', err);
+    }).catch((err) => {
+      logger.error("StateManager failed to persist state", err);
       throw err;
     });
     return this.stateOperationQueue;

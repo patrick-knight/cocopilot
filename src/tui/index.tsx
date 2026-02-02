@@ -51,9 +51,9 @@ function AppContent(): React.ReactElement {
       }
     } else if (key.escape && canGoBack) {
       goBack();
-    } else if ((input === "s" || (key.ctrl && input === "s")) && screen.type !== "status") {
+    } else if (key.ctrl && input === "s" && screen.type !== "status") {
       navigate({ type: "status" });
-    } else if ((input === "m" || (key.ctrl && input === "m")) && screen.type !== "metrics") {
+    } else if (key.ctrl && input === "m" && screen.type !== "metrics") {
       navigate({ type: "metrics" });
     }
   });

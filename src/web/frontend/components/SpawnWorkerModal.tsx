@@ -121,7 +121,6 @@ export function SpawnWorkerModal({
 
   // Refs for cleanup
   const abortRef = useRef<AbortController | null>(null);
-  const dialogRef = useRef<HTMLDialogElement>(null);
 
   // -----------------------------------------------------------------------
   // Validation helpers
