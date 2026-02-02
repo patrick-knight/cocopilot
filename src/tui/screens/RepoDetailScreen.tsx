@@ -190,7 +190,7 @@ export function RepoDetailScreen({ repoName }: RepoDetailScreenProps): React.Rea
 
   // View mode
   return (
-    <Box flexDirection="column">
+    <Box flexDirection="column" height="100%">
       <Header />
 
       {/* Repo info */}
@@ -225,7 +225,7 @@ export function RepoDetailScreen({ repoName }: RepoDetailScreenProps): React.Rea
       </Box>
 
       {/* Content based on tab */}
-      <Box flexDirection="column">
+      <Box flexDirection="column" flexGrow={1}>
         {tab === "workers" ? (
           <>
             <Text bold underline>Workers</Text>
@@ -300,8 +300,8 @@ export function RepoDetailScreen({ repoName }: RepoDetailScreenProps): React.Rea
         </Box>
       )}
 
-      {/* Help */}
-      <Box marginTop={1}>
+      {/* Help - pinned to bottom */}
+      <Box borderStyle="single" borderTop borderBottom={false} borderLeft={false} borderRight={false} paddingTop={0}>
         <Text dimColor>
           Tab/t: cycle tabs | p: PRs | ↑/↓: navigate | Enter: inspect | l: messages | n: spawn | x: stop | r: refresh
         </Text>

@@ -87,7 +87,7 @@ export function WorkerDetailScreen({ repoName, workerName }: WorkerDetailScreenP
   }
 
   return (
-    <Box flexDirection="column">
+    <Box flexDirection="column" height="100%">
       <Header />
 
       {/* Worker header */}
@@ -116,15 +116,17 @@ export function WorkerDetailScreen({ repoName, workerName }: WorkerDetailScreenP
         </Box>
       )}
 
-      {/* Live output */}
-      <LogPane
-        lines={output.length > 0 ? output : ["Waiting for output..."]}
-        title="Live Output"
-        height={15}
-      />
+      {/* Live output - flexGrow to fill available space */}
+      <Box flexGrow={1} flexDirection="column">
+        <LogPane
+          lines={output.length > 0 ? output : ["Waiting for output..."]}
+          title="Live Output"
+          height={15}
+        />
+      </Box>
 
-      {/* Help */}
-      <Box marginTop={1}>
+      {/* Help - pinned to bottom */}
+      <Box borderStyle="single" borderTop borderBottom={false} borderLeft={false} borderRight={false} paddingTop={0}>
         <Text dimColor>
           p: {worker.status === "paused" ? "resume" : "pause"} | x: stop worker | r: refresh | Esc: back
         </Text>

@@ -3,15 +3,22 @@
  * TUI Metrics Screen - ASCII charts
  */
 
-import React from "react";
-import { Box, Text } from "ink";
+import React, { useCallback } from "react";
+import { Box, Text, useInput } from "ink";
 import Spinner from "ink-spinner";
 import { useMetrics } from "../hooks/index.js";
 import { Header } from "../components/index.js";
 import { symbols, noColor } from "../utils/colors.js";
 
 export function MetricsScreen(): React.ReactElement {
-  const { metrics, loading, error } = useMetrics();
+  const { metrics, loading, error, refresh } = useMetrics();
+
+  // Handle manual refresh with 'r' key
+  useInput(useCallback((input: string) => {
+    if (input === "r") {
+      refresh();
+    }
+  }, [refresh]));
 
   if (loading && !metrics) {
     return (
@@ -67,7 +74,7 @@ export function MetricsScreen(): React.ReactElement {
   const maxTokens = Math.max(...tokenUsage.map((t) => t.tokens), 1);
 
   return (
-    <Box flexDirection="column">
+    <Box flexDirection="column" height="100%">
       <Header />
 
       {/* Throughput */}
@@ -123,7 +130,7 @@ export function MetricsScreen(): React.ReactElement {
       </Box>
 
       {/* Token Usage */}
-      <Box flexDirection="column" marginBottom={1}>
+      <Box flexDirection="column" flexGrow={1}>
         <Text bold underline>Token Usage by Model</Text>
         {tokenUsage.length === 0 ? (
           <Text dimColor>No token usage data available</Text>
@@ -138,8 +145,9 @@ export function MetricsScreen(): React.ReactElement {
         )}
       </Box>
 
-      <Box marginTop={1}>
-        <Text dimColor>Auto-refreshing every 30s | r: refresh now</Text>
+      {/* Help - pinned to bottom */}
+      <Box borderStyle="single" borderTop borderBottom={false} borderLeft={false} borderRight={false} paddingTop={0}>
+        <Text dimColor>Auto-refreshing every 30s | r: refresh now | Esc: back</Text>
       </Box>
     </Box>
   );

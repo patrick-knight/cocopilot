@@ -180,7 +180,7 @@ export function RepositoriesScreen(): React.ReactElement {
   const workerCount = (repo: Repository) => Object.keys(repo.workers ?? {}).length;
 
   return (
-    <Box flexDirection="column">
+    <Box flexDirection="column" height="100%">
       <Header showBanner />
 
       {/* Filter input */}
@@ -196,44 +196,46 @@ export function RepositoriesScreen(): React.ReactElement {
       )}
 
       {/* Repository list */}
-      {filteredRepos.length === 0 ? (
-        <Box flexDirection="column">
-          <Text color="yellow">{symbols.warning} No repositories found</Text>
-          <Text dimColor>Press 'n' to add a repository</Text>
-        </Box>
-      ) : (
-        <Box flexDirection="column">
-          <Box marginBottom={1}>
-            <Text bold>
-              {filteredRepos.length} {filteredRepos.length === 1 ? "repository" : "repositories"}
-              {filter && ` (filtered)`}
-            </Text>
+      <Box flexDirection="column" flexGrow={1}>
+        {filteredRepos.length === 0 ? (
+          <Box flexDirection="column">
+            <Text color="yellow">{symbols.warning} No repositories found</Text>
+            <Text dimColor>Press 'n' to add a repository</Text>
           </Box>
+        ) : (
+          <Box flexDirection="column">
+            <Box marginBottom={1}>
+              <Text bold>
+                {filteredRepos.length} {filteredRepos.length === 1 ? "repository" : "repositories"}
+                {filter && ` (filtered)`}
+              </Text>
+            </Box>
 
-          {filteredRepos.map((repo, index) => {
-            const isSelected = index === selectedIndex;
-            const workers = workerCount(repo);
+            {filteredRepos.map((repo, index) => {
+              const isSelected = index === selectedIndex;
+              const workers = workerCount(repo);
 
-            return (
-              <Box key={repo.name}>
-                <Text
-                  backgroundColor={isSelected ? "blue" : undefined}
-                  color={isSelected ? "white" : undefined}
-                >
-                  {isSelected ? `${symbols.arrow} ` : "  "}
-                  <Text bold>{repo.name}</Text>
-                  <Text dimColor> ({repo.mode})</Text>
-                  <Text> - {workers} worker{workers !== 1 ? "s" : ""}</Text>
-                  <Text dimColor> [{repo.defaultBranch}]</Text>
-                </Text>
-              </Box>
-            );
-          })}
-        </Box>
-      )}
+              return (
+                <Box key={repo.name}>
+                  <Text
+                    backgroundColor={isSelected ? "blue" : undefined}
+                    color={isSelected ? "white" : undefined}
+                  >
+                    {isSelected ? `${symbols.arrow} ` : "  "}
+                    <Text bold>{repo.name}</Text>
+                    <Text dimColor> ({repo.mode})</Text>
+                    <Text> - {workers} worker{workers !== 1 ? "s" : ""}</Text>
+                    <Text dimColor> [{repo.defaultBranch}]</Text>
+                  </Text>
+                </Box>
+              );
+            })}
+          </Box>
+        )}
+      </Box>
 
-      {/* Help */}
-      <Box marginTop={1} flexDirection="column">
+      {/* Help - pinned to bottom */}
+      <Box borderStyle="single" borderTop borderBottom={false} borderLeft={false} borderRight={false} paddingTop={0}>
         <Text dimColor>
           ↑/↓ or j/k: navigate | Enter: open | n: add | d: delete | x: repair | /: filter | r: refresh
         </Text>

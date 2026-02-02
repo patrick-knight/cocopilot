@@ -93,7 +93,7 @@ export function AgentDetailScreen({ repoName, agentName }: AgentDetailScreenProp
   }
 
   return (
-    <Box flexDirection="column">
+    <Box flexDirection="column" height="100%">
       <Header />
 
       {/* Agent header */}
@@ -107,14 +107,16 @@ export function AgentDetailScreen({ repoName, agentName }: AgentDetailScreenProp
       </Box>
 
       {/* Live output */}
-      <LogPane
-        lines={output.length > 0 ? output : ["Waiting for output from agent..."]}
-        title="Agent Output"
-        height={18}
-      />
+      <Box flexGrow={1} flexDirection="column">
+        <LogPane
+          lines={output.length > 0 ? output : ["Waiting for output from agent..."]}
+          title="Agent Output"
+          height={18}
+        />
+      </Box>
 
-      {/* Help */}
-      <Box marginTop={1}>
+      {/* Help - pinned to bottom */}
+      <Box borderStyle="single" borderTop borderBottom={false} borderLeft={false} borderRight={false} paddingTop={0}>
         <Text dimColor>
           c: clear output | r: refresh | Esc: back
         </Text>

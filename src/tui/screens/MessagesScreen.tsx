@@ -161,7 +161,7 @@ export function MessagesScreen({ repoName }: MessagesScreenProps): React.ReactEl
     : ["No messages yet. Messages appear when agents communicate."];
 
   return (
-    <Box flexDirection="column">
+    <Box flexDirection="column" height="100%">
       <Header />
 
       {/* Filter indicator */}
@@ -174,14 +174,16 @@ export function MessagesScreen({ repoName }: MessagesScreenProps): React.ReactEl
       </Box>
 
       {/* Message list */}
-      <LogPane
-        lines={lines}
-        title="Message Queue"
-        height={18}
-      />
+      <Box flexGrow={1} flexDirection="column">
+        <LogPane
+          lines={lines}
+          title="Message Queue"
+          height={18}
+        />
+      </Box>
 
-      {/* Help */}
-      <Box marginTop={1}>
+      {/* Help - pinned to bottom */}
+      <Box borderStyle="single" borderTop borderBottom={false} borderLeft={false} borderRight={false} paddingTop={0}>
         <Text dimColor>
           f: toggle filter | c: clear | r: refresh | Esc: back
         </Text>

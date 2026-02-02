@@ -59,7 +59,7 @@ export function StatusScreen(): React.ReactElement {
     github.status === "healthy";
 
   return (
-    <Box flexDirection="column">
+    <Box flexDirection="column" height="100%">
       <Header />
 
       {/* Overall status */}
@@ -108,13 +108,14 @@ export function StatusScreen(): React.ReactElement {
       </Box>
 
       {/* Repositories */}
-      <Box>
+      <Box flexGrow={1}>
         <Text bold>Repositories: </Text>
         <Text>{status.repositories ?? 0}</Text>
       </Box>
 
-      <Box marginTop={1}>
-        <Text dimColor>Auto-refreshing every 5s</Text>
+      {/* Help - pinned to bottom */}
+      <Box borderStyle="single" borderTop borderBottom={false} borderLeft={false} borderRight={false} paddingTop={0}>
+        <Text dimColor>Auto-refreshing every 5s | r: refresh | Esc: back</Text>
       </Box>
     </Box>
   );
