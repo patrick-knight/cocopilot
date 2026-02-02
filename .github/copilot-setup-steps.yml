@@ -1,0 +1,38 @@
+# Copilot Coding Agent Setup Steps
+# This workflow prepares the environment for GitHub Copilot coding agent.
+# https://docs.github.com/en/copilot/how-tos/use-copilot-agents/coding-agent/customize-the-agent-environment
+
+name: "Copilot Setup Steps"
+
+on: workflow_dispatch
+
+jobs:
+  copilot-setup-steps:
+    runs-on: ubuntu-latest
+    steps:
+      # Check out the repository
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # Set up Node.js (project requires Node 23+)
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "23"
+          cache: "npm"
+
+      # Install npm dependencies
+      - name: Install dependencies
+        run: npm ci
+
+      # Build the project (TypeScript + Vite frontend)
+      - name: Build project
+        run: npm run build
+
+      # Install Playwright browsers for e2e tests
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      # Verify TypeScript compilation
+      - name: Type check
+        run: npm run lint

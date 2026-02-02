@@ -85,3 +85,9 @@ export {
   isScopedName,
   bareNameFromScoped,
 } from "./scoped-name.js";
+
+export {
+  ReadmeUpdaterAgent,
+  type ReadmeUpdaterConfig,
+  type ReadmeUpdaterEvents,
+} from "./readme-updater.js";

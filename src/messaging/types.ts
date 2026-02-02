@@ -43,6 +43,10 @@ export enum MessageType {
   WORKER_ACTIVITY = "WORKER_ACTIVITY",
   /** Truffle requests code review from Reviewer (Enrober). */
   CODE_REVIEW_REQUEST = "CODE_REVIEW_REQUEST",
+  /** README Updater notifies of README update. */
+  README_UPDATED = "README_UPDATED",
+  /** Request to trigger README update. */
+  README_UPDATE_REQUEST = "README_UPDATE_REQUEST",
 }
 
 /** Message priority levels. */
@@ -194,6 +198,15 @@ export interface WorkerActivityPayload {
   description: string;
 }
 
+export interface ReadmeUpdatedPayload {
+  prUrl: string;
+  repoName: string;
+}
+
+export interface ReadmeUpdateRequestPayload {
+  repoName: string;
+}
+
 /** Maps each MessageType to its corresponding payload type. */
 export interface MessagePayloadMap {
   [MessageType.TASK_ASSIGNED]: TaskAssignedPayload;
@@ -214,6 +227,8 @@ export interface MessagePayloadMap {
   [MessageType.SECURITY_REVIEW_FAILED]: SecurityReviewFailedPayload;
   [MessageType.WORKER_ACTIVITY]: WorkerActivityPayload;
   [MessageType.CODE_REVIEW_REQUEST]: CodeReviewRequestPayload;
+  [MessageType.README_UPDATED]: ReadmeUpdatedPayload;
+  [MessageType.README_UPDATE_REQUEST]: ReadmeUpdateRequestPayload;
 }
 
 /** The core message structure for all inter-agent communication. */

@@ -61,7 +61,27 @@ export const WorkerHeader: React.FC<WorkerHeaderProps> = ({ worker }) => {
       {/* Metadata grid */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
         <div>
-          <span className="text-stone-500">Branch</span>
+          {worker.prUrl && worker.prNumber ? (
+            <>
+              <span className="text-stone-500">Pull Request</span>
+              <p>
+                <a
+                  href={worker.prUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-amber-700 hover:text-amber-900 font-medium"
+                >
+                  PR #{worker.prNumber} &rarr;
+                </a>
+              </p>
+            </>
+          ) : (
+            <>
+              <span className="text-stone-500">Pull Request</span>
+              <p className="text-stone-400">—</p>
+            </>
+          )}
+          <span className="text-stone-500 mt-2 block">Branch</span>
           <p className="font-mono text-stone-800">{worker.branch}</p>
         </div>
         <div>
@@ -77,20 +97,6 @@ export const WorkerHeader: React.FC<WorkerHeaderProps> = ({ worker }) => {
           <p className="text-stone-800">{updatedDate}</p>
         </div>
       </div>
-
-      {/* PR link */}
-      {worker.prUrl && (
-        <div className="mt-4 pt-4 border-t border-stone-100">
-          <a
-            href={worker.prUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-amber-700 hover:text-amber-900 font-medium text-sm"
-          >
-            PR #{worker.prNumber} &rarr;
-          </a>
-        </div>
-      )}
 
       {/* Error message */}
       {worker.error && (
