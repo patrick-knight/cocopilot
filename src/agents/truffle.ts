@@ -317,7 +317,7 @@ export class TruffleAgent extends EventEmitter<TruffleEvents> {
     }
     this.setStatus("paused");
     await this.broadcastActivity("paused", {
-      reason: "User requested pause",
+      description: `Worker ${this.config.name} paused by user request`,
     });
   }
 
@@ -330,7 +330,7 @@ export class TruffleAgent extends EventEmitter<TruffleEvents> {
     }
     this.setStatus("working");
     await this.broadcastActivity("resumed", {
-      reason: "User requested resume",
+      description: `Worker ${this.config.name} resumed by user request`,
     });
   }
 

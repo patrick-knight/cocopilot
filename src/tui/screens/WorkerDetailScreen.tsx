@@ -25,6 +25,8 @@ export function WorkerDetailScreen({ repoName, workerName }: WorkerDetailScreenP
   useInput((input, key) => {
     if (input === "r") {
       refresh();
+    } else if (input === "p") {
+      handlePauseResume();
     } else if (input === "x" || key.return) {
       handleStop();
     }
@@ -34,6 +36,21 @@ export function WorkerDetailScreen({ repoName, workerName }: WorkerDetailScreenP
     try {
       setActionError(null);
       await getClient().stopWorker(workerName);
+      refresh();
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : String(err));
+    }
+  };
+
+  const handlePauseResume = async () => {
+    if (!worker) return;
+    try {
+      setActionError(null);
+      if (worker.status === "paused") {
+        await getClient().resumeWorker(workerName);
+      } else if (worker.status === "working") {
+        await getClient().pauseWorker(workerName);
+      }
       refresh();
     } catch (err) {
       setActionError(err instanceof Error ? err.message : String(err));
@@ -109,7 +126,7 @@ export function WorkerDetailScreen({ repoName, workerName }: WorkerDetailScreenP
       {/* Help */}
       <Box marginTop={1}>
         <Text dimColor>
-          x: stop worker | r: refresh | Esc: back
+          p: {worker.status === "paused" ? "resume" : "pause"} | x: stop worker | r: refresh | Esc: back
         </Text>
       </Box>
     </Box>

@@ -47,6 +47,8 @@ export enum MessageType {
   README_UPDATED = "README_UPDATED",
   /** Request to trigger README update. */
   README_UPDATE_REQUEST = "README_UPDATE_REQUEST",
+  /** Control command for a worker (pause, resume, stop). */
+  WORKER_CONTROL = "WORKER_CONTROL",
 }
 
 /** Message priority levels. */
@@ -173,7 +175,7 @@ export interface CodeReviewRequestPayload {
 }
 
 /** Worker activity types for real-time updates. */
-export type WorkerActivityType = "commit" | "status_change" | "pr_created" | "push" | "started" | "completed" | "review_requested" | "review_passed" | "review_failed";
+export type WorkerActivityType = "commit" | "status_change" | "pr_created" | "push" | "started" | "completed" | "paused" | "resumed" | "review_requested" | "review_passed" | "review_failed";
 
 export interface WorkerActivityPayload {
   activityType: WorkerActivityType;
@@ -207,6 +209,11 @@ export interface ReadmeUpdateRequestPayload {
   repoName: string;
 }
 
+export interface WorkerControlPayload {
+  action: "pause" | "resume" | "stop";
+  reason?: string;
+}
+
 /** Maps each MessageType to its corresponding payload type. */
 export interface MessagePayloadMap {
   [MessageType.TASK_ASSIGNED]: TaskAssignedPayload;
@@ -229,6 +236,7 @@ export interface MessagePayloadMap {
   [MessageType.CODE_REVIEW_REQUEST]: CodeReviewRequestPayload;
   [MessageType.README_UPDATED]: ReadmeUpdatedPayload;
   [MessageType.README_UPDATE_REQUEST]: ReadmeUpdateRequestPayload;
+  [MessageType.WORKER_CONTROL]: WorkerControlPayload;
 }
 
 /** The core message structure for all inter-agent communication. */

@@ -343,6 +343,18 @@ export class TuiApiClient {
     });
   }
 
+  async pauseWorker(name: string): Promise<void> {
+    await this.fetch(`/api/v1/workers/${encodeURIComponent(name)}/pause`, {
+      method: "POST",
+    });
+  }
+
+  async resumeWorker(name: string): Promise<void> {
+    await this.fetch(`/api/v1/workers/${encodeURIComponent(name)}/resume`, {
+      method: "POST",
+    });
+  }
+
   // Metrics
   async getMetrics(): Promise<MetricsResponse> {
     return this.fetch("/api/v1/metrics");

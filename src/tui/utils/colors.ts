@@ -19,6 +19,7 @@ export const statusColors = {
   healthy: colors.green,
   running: colors.green,
   working: colors.cyan,
+  paused: colors.yellow,
   starting: colors.yellow,
   completed: colors.green,
   merged: colors.magenta,
@@ -44,6 +45,7 @@ export const symbols = {
   pointer: noColor ? ">" : "❯",
   check: noColor ? "[x]" : "✓",
   cross: noColor ? "[x]" : "✗",
+  pause: noColor ? "||" : "⏸",
 };
 
 export function getStatusSymbol(status: string): string {
@@ -56,6 +58,8 @@ export function getStatusSymbol(status: string): string {
     case "starting":
     case "working":
       return symbols.info;
+    case "paused":
+      return symbols.pause;
     case "failed":
     case "stuck":
     case "error":

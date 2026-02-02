@@ -8,6 +8,8 @@
  * GET    /api/v1/workers           -- List all workers
  * GET    /api/v1/workers/:name     -- Get worker by name
  * DELETE /api/v1/workers/:name     -- Stop / remove worker
+ * POST   /api/v1/workers/:name/pause   -- Pause a worker
+ * POST   /api/v1/workers/:name/resume  -- Resume a paused worker
  */
 
 import { Router } from "express";
@@ -101,6 +103,88 @@ export function extWorkerRoutes(
       if (worker) {
         res.json({ ...worker, repoName });
         return;
+      }
+    }
+
+    next(createApiError(404, `Worker "${name}" not found`));
+  });
+
+  // POST /:name/pause -- Pause a running worker
+  router.post("/:name/pause", async (req, res, next) => {
+    const { name } = req.params;
+    const repos = stateManager.getRepos();
+
+    for (const [repoName, repo] of Object.entries(repos)) {
+      const worker = repo.workers[name];
+      if (worker) {
+        if (worker.status !== "working") {
+          next(createApiError(400, `Worker "${name}" is not running (status: ${worker.status})`));
+          return;
+        }
+
+        try {
+          // Send pause command via message broker
+          await broker.send({
+            type: MessageType.WORKER_CONTROL,
+            from: "api",
+            to: `worker:${repoName}:${name}`,
+            payload: { action: "pause" },
+          });
+
+          // Update state
+          await stateManager.updateWorkerStatus(repoName, name, "paused");
+          
+          res.json({
+            status: "paused",
+            message: `Worker "${name}" has been paused`,
+            worker: { ...worker, status: "paused" },
+          });
+          return;
+        } catch (err) {
+          next(err);
+          return;
+        }
+      }
+    }
+
+    next(createApiError(404, `Worker "${name}" not found`));
+  });
+
+  // POST /:name/resume -- Resume a paused worker
+  router.post("/:name/resume", async (req, res, next) => {
+    const { name } = req.params;
+    const repos = stateManager.getRepos();
+
+    for (const [repoName, repo] of Object.entries(repos)) {
+      const worker = repo.workers[name];
+      if (worker) {
+        if (worker.status !== "paused") {
+          next(createApiError(400, `Worker "${name}" is not paused (status: ${worker.status})`));
+          return;
+        }
+
+        try {
+          // Send resume command via message broker
+          await broker.send({
+            type: MessageType.WORKER_CONTROL,
+            from: "api",
+            to: `worker:${repoName}:${name}`,
+            payload: { action: "resume" },
+          });
+
+          // Update state
+          await stateManager.updateWorkerStatus(repoName, name, "working");
+          
+          res.json({
+            status: "working",
+            message: `Worker "${name}" has been resumed`,
+            worker: { ...worker, status: "working" },
+          });
+          return;
+        } catch (err) {
+          next(err);
+          return;
+        }
       }
     }
 
