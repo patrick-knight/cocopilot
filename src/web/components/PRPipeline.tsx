@@ -104,6 +104,7 @@ function PRRow({ pr }: PRRowProps): React.ReactElement {
       {/* Top row: PR identifier + title + timestamp */}
       <div className="flex items-start justify-between gap-2">
         <div className="flex items-center gap-2 min-w-0">
+          <span className="shrink-0 text-lg" aria-hidden="true">🔀</span>
           <a
             href={pr.url}
             target="_blank"
@@ -128,12 +129,14 @@ function PRRow({ pr }: PRRowProps): React.ReactElement {
           <BranchIcon />
           <span className="font-mono">{pr.branch}</span>
         </span>
-        <span title={`Author: ${pr.author}`}>
-          by {pr.author}
+        <span className="inline-flex items-center gap-1" title={`Author: ${pr.author}`}>
+          <span aria-hidden="true">👤</span>
+          <span>{pr.author}</span>
         </span>
         {pr.workerName && (
-          <span className="text-stone-400" title={`Worker: ${pr.workerName}`}>
-            worker: {pr.workerName}
+          <span className="inline-flex items-center gap-1 text-stone-400" title={`Worker: ${pr.workerName}`}>
+            <span aria-hidden="true">🍬</span>
+            <span>{pr.workerName}</span>
           </span>
         )}
       </div>

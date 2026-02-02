@@ -529,7 +529,7 @@ export function SpawnWorkerModal({
           )}
 
           {/* Actions */}
-          <div className="flex items-center justify-end gap-3 border-t border-border pt-4">
+          <div className="flex items-center justify-end gap-3 border-t border-border pt-4 mt-4">
             {isDone ? (
               <button
                 type="button"

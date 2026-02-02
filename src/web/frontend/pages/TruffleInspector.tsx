@@ -285,22 +285,22 @@ export const TruffleInspector: React.FC<TruffleInspectorProps> = ({
           </div>
 
           {/* Stats bar */}
-          <div className="mt-6 flex flex-wrap items-center gap-4">
+          <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {worker.branch && (
               <div className="bg-card border border-border rounded-lg px-4 py-2 flex items-center gap-2">
                 <span className="text-2xl">🌿</span>
-                <div>
+                <div className="min-w-0">
                   <div className="text-sm text-muted-foreground">Branch</div>
-                  <div className="font-semibold text-foreground font-mono text-sm">{worker.branch}</div>
+                  <div className="font-semibold text-foreground font-mono text-sm truncate">{worker.branch}</div>
                 </div>
               </div>
             )}
             {/* Worktree path */}
             <div className="bg-card border border-border rounded-lg px-4 py-2 flex items-center gap-2">
               <span className="text-2xl">📁</span>
-              <div>
+              <div className="min-w-0">
                 <div className="text-sm text-muted-foreground">Worktree</div>
-                <div className="font-semibold text-foreground font-mono text-sm truncate max-w-xs" title={`~/.cocopilot/repos/${repoName}/worktrees/${worker.name}`}>
+                <div className="font-semibold text-foreground font-mono text-sm truncate" title={`~/.cocopilot/repos/${repoName}/worktrees/${worker.name}`}>
                   ~/.cocopilot/repos/{repoName}/worktrees/{worker.name}
                 </div>
               </div>
@@ -313,18 +313,18 @@ export const TruffleInspector: React.FC<TruffleInspectorProps> = ({
                 className="bg-card border border-border rounded-lg px-4 py-2 flex items-center gap-2 hover:border-primary transition-colors"
               >
                 <span className="text-2xl">🔗</span>
-                <div>
+                <div className="min-w-0">
                   <div className="text-sm text-muted-foreground">Pull Request</div>
-                  <div className="font-semibold text-primary">View PR →</div>
+                  <div className="font-semibold text-primary truncate">View PR →</div>
                 </div>
               </a>
             )}
             {worker.createdAt && (
               <div className="bg-card border border-border rounded-lg px-4 py-2 flex items-center gap-2">
                 <span className="text-2xl">🕐</span>
-                <div>
+                <div className="min-w-0">
                   <div className="text-sm text-muted-foreground">Created</div>
-                  <div className="font-semibold text-foreground text-sm">
+                  <div className="font-semibold text-foreground text-sm truncate">
                     {new Date(worker.createdAt).toLocaleString()}
                   </div>
                 </div>
