@@ -36,7 +36,7 @@ function AppContent(): React.ReactElement {
   const { exit } = useApp();
 
   useInput((input, key) => {
-    // Global shortcuts
+    // Global shortcuts - use Ctrl modifiers to avoid conflicts with text input
     if (input === "q" || (key.ctrl && input === "c")) {
       getClient().disconnect();
       exit();
@@ -48,9 +48,9 @@ function AppContent(): React.ReactElement {
       }
     } else if (key.escape && canGoBack) {
       goBack();
-    } else if (input === "s" && screen.type !== "status") {
+    } else if (key.ctrl && input === "s" && screen.type !== "status") {
       navigate({ type: "status" });
-    } else if (input === "m" && screen.type !== "metrics") {
+    } else if (key.ctrl && input === "m" && screen.type !== "metrics") {
       navigate({ type: "metrics" });
     }
   });

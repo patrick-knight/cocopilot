@@ -53,8 +53,10 @@ export function StatusScreen(): React.ReactElement {
   const copilotCli = status.copilotCli ?? defaultComponentStatus;
   const workers = status.workers ?? { total: 0, byStatus: {} };
 
+  // Daemon reports "running" instead of "healthy"
+  const daemonHealthy = daemon.status === "healthy" || daemon.status === "running";
   const allHealthy =
-    daemon.status === "healthy" &&
+    daemonHealthy &&
     redis.status === "healthy" &&
     github.status === "healthy";
 
