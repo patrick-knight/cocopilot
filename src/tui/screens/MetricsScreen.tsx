@@ -42,6 +42,12 @@ export function MetricsScreen(): React.ReactElement {
     );
   }
 
+  // Safely access nested properties with defaults
+  const throughput = metrics.throughput ?? [];
+  const ciSuccess = metrics.ciSuccess ?? { passed: 0, failed: 0 };
+  const tokenUsage = metrics.tokenUsage ?? [];
+  const cycleTime = metrics.cycleTime ?? [];
+
   // ASCII bar chart helper
   const barChart = (value: number, max: number, width: number = 20): string => {
     const filled = Math.round((value / max) * width);
@@ -51,14 +57,14 @@ export function MetricsScreen(): React.ReactElement {
   };
 
   // Find max for throughput
-  const maxThroughput = Math.max(...metrics.throughput.map((t) => t.count), 1);
+  const maxThroughput = Math.max(...throughput.map((t) => t.count), 1);
 
   // CI success rate
-  const totalCI = metrics.ciSuccess.passed + metrics.ciSuccess.failed;
-  const successRate = totalCI > 0 ? (metrics.ciSuccess.passed / totalCI) * 100 : null;
+  const totalCI = ciSuccess.passed + ciSuccess.failed;
+  const successRate = totalCI > 0 ? (ciSuccess.passed / totalCI) * 100 : null;
 
   // Max tokens
-  const maxTokens = Math.max(...metrics.tokenUsage.map((t) => t.tokens), 1);
+  const maxTokens = Math.max(...tokenUsage.map((t) => t.tokens), 1);
 
   return (
     <Box flexDirection="column">
@@ -67,51 +73,69 @@ export function MetricsScreen(): React.ReactElement {
       {/* Throughput */}
       <Box flexDirection="column" marginBottom={1}>
         <Text bold underline>Worker Throughput (last 24h)</Text>
-        {metrics.throughput.slice(-8).map((item) => (
-          <Box key={item.hour}>
-            <Text>{item.hour.padEnd(6)} </Text>
-            <Text color="cyan">{barChart(item.count, maxThroughput, 30)}</Text>
-            <Text> {item.count}</Text>
-          </Box>
-        ))}
+        {throughput.length === 0 ? (
+          <Text dimColor>No throughput data available</Text>
+        ) : (
+          throughput.slice(-8).map((item) => (
+            <Box key={item.hour}>
+              <Text>{item.hour.padEnd(6)} </Text>
+              <Text color="cyan">{barChart(item.count, maxThroughput, 30)}</Text>
+              <Text> {item.count}</Text>
+            </Box>
+          ))
+        )}
       </Box>
 
       {/* Cycle Time */}
       <Box flexDirection="column" marginBottom={1}>
         <Text bold underline>PR Cycle Time (avg hours)</Text>
-        {metrics.cycleTime.slice(-5).map((item) => (
-          <Box key={item.date}>
-            <Text>{item.date} </Text>
-            <Text color="green">{item.avgHours.toFixed(1)}h</Text>
-          </Box>
-        ))}
+        {cycleTime.length === 0 ? (
+          <Text dimColor>No cycle time data available</Text>
+        ) : (
+          cycleTime.slice(-5).map((item) => (
+            <Box key={item.date}>
+              <Text>{item.date} </Text>
+              <Text color="green">{item.avgHours.toFixed(1)}h</Text>
+            </Box>
+          ))
+        )}
       </Box>
 
       {/* CI Success Rate */}
       <Box flexDirection="column" marginBottom={1}>
         <Text bold underline>CI Success Rate</Text>
-        <Box>
-          <Text color="green">{barChart(metrics.ciSuccess.passed, totalCI, 30)}</Text>
-          <Text color="red">{barChart(metrics.ciSuccess.failed, totalCI, 10)}</Text>
-        </Box>
-        <Text>
-          <Text color="green">{symbols.success} {metrics.ciSuccess.passed} passed</Text>
-          <Text> | </Text>
-          <Text color="red">{symbols.error} {metrics.ciSuccess.failed} failed</Text>
-          <Text> ({successRate !== null ? `${successRate.toFixed(1)}%` : "N/A"})</Text>
-        </Text>
+        {totalCI === 0 ? (
+          <Text dimColor>No CI data available</Text>
+        ) : (
+          <>
+            <Box>
+              <Text color="green">{barChart(ciSuccess.passed, totalCI, 30)}</Text>
+              <Text color="red">{barChart(ciSuccess.failed, totalCI, 10)}</Text>
+            </Box>
+            <Text>
+              <Text color="green">{symbols.success} {ciSuccess.passed} passed</Text>
+              <Text> | </Text>
+              <Text color="red">{symbols.error} {ciSuccess.failed} failed</Text>
+              <Text> ({successRate !== null ? `${successRate.toFixed(1)}%` : "N/A"})</Text>
+            </Text>
+          </>
+        )}
       </Box>
 
       {/* Token Usage */}
       <Box flexDirection="column" marginBottom={1}>
         <Text bold underline>Token Usage by Model</Text>
-        {metrics.tokenUsage.map((item) => (
-          <Box key={item.model}>
-            <Text>{item.model.padEnd(20)} </Text>
-            <Text color="magenta">{barChart(item.tokens, maxTokens, 25)}</Text>
-            <Text> {item.tokens.toLocaleString()}</Text>
-          </Box>
-        ))}
+        {tokenUsage.length === 0 ? (
+          <Text dimColor>No token usage data available</Text>
+        ) : (
+          tokenUsage.map((item) => (
+            <Box key={item.model}>
+              <Text>{item.model.padEnd(20)} </Text>
+              <Text color="magenta">{barChart(item.tokens, maxTokens, 25)}</Text>
+              <Text> {item.tokens.toLocaleString()}</Text>
+            </Box>
+          ))
+        )}
       </Box>
 
       <Box marginTop={1}>
