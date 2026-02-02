@@ -20,6 +20,7 @@ import { extWebhookRoutes } from "./v1/webhooks.js";
 import { extStatusRoutes, type StatusDeps } from "./v1/status.js";
 import { reloadState, type SystemDeps } from "./v1/system.js";
 import { messagesRoutes } from "./v1/messages.js";
+import { customAgentsRoutes } from "./v1/custom-agents.js";
 
 export interface ExtApiDeps {
   stateManager: StateManager;
@@ -47,6 +48,9 @@ export function createExtApiRouter(deps: ExtApiDeps): Router {
   );
   router.use("/messages", messagesRoutes({ redisBus, messageStore }));
   
+  // Custom agents routes (nested under repositories)
+  router.use("/repositories/:repoName/custom-agents", customAgentsRoutes({ stateManager }));
+  
   // System control endpoints
   router.post("/system/reload-state", (req, res) =>
     reloadState(req, res, { stateManager } satisfies SystemDeps),
@@ -61,3 +65,4 @@ export { extWebhookRoutes } from "./v1/webhooks.js";
 export type { Webhook, WebhookStore } from "./v1/webhooks.js";
 export { extStatusRoutes } from "./v1/status.js";
 export type { StatusDeps } from "./v1/status.js";
+export { customAgentsRoutes } from "./v1/custom-agents.js";

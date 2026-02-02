@@ -533,6 +533,212 @@ export function registerCommands(program: Command): void {
       console.log(lines.join("\n"));
     });
 
+  // ps - List all CoCoPilot containers
+  program
+    .command("ps")
+    .description("List all CoCoPilot containers")
+    .option("--repo <name>", "Filter by repository")
+    .option("--all", "Show all containers including stopped", false)
+    .option("--json", "Output as JSON", false)
+    .action(async (options: { repo?: string; all?: boolean; json?: boolean }) => {
+      try {
+        const args = [
+          "ps",
+          ...(options.all ? ["-a"] : []),
+          "--filter", "label=cocopilot.managed=true",
+        ];
+        if (options.repo) {
+          args.push("--filter", `label=cocopilot.repository=${options.repo}`);
+        }
+        args.push(
+          "--format",
+          "{{.ID}}|{{.Names}}|{{.Status}}|{{.Label \"cocopilot.type\"}}|{{.Label \"cocopilot.worker-name\"}}|{{.Label \"cocopilot.repository\"}}"
+        );
+
+        const { stdout } = await execFileAsync("docker", args);
+        const lines = stdout.split("\n").map(l => l.trim()).filter(Boolean);
+
+        if (lines.length === 0) {
+          if (options.json) {
+            console.log(JSON.stringify({ containers: [] }, null, 2));
+          } else {
+            console.log("No CoCoPilot containers found.");
+          }
+          return;
+        }
+
+        const containers = lines.map(line => {
+          const [id, name, status, type, worker, repo] = line.split("|");
+          return { id, name, status, type: type || "unknown", worker: worker || null, repo: repo || "unknown" };
+        });
+
+        if (options.json) {
+          console.log(JSON.stringify({ containers }, null, 2));
+        } else {
+          console.log("🍫 CoCoPilot Containers\n");
+          console.log("ID           NAME                          STATUS              TYPE          WORKER        REPO");
+          console.log("─".repeat(100));
+          for (const c of containers) {
+            const idShort = c.id.slice(0, 12).padEnd(12);
+            const name = c.name.padEnd(30);
+            const status = c.status.slice(0, 18).padEnd(18);
+            const type = c.type.padEnd(14);
+            const worker = (c.worker || "-").padEnd(14);
+            console.log(`${idShort} ${name} ${status} ${type} ${worker} ${c.repo}`);
+          }
+          console.log(`\nTotal: ${containers.length} container(s)`);
+        }
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : String(err);
+        console.error(`Error: Failed to list containers — ${message}`);
+        process.exitCode = 1;
+      }
+    });
+
+  // prune - Clean up stopped containers and old worktrees
+  program
+    .command("prune")
+    .description("Clean up stopped containers and old worktrees")
+    .option("--all", "Remove all CoCoPilot data (dangerous!)", false)
+    .option("--dry-run", "Show what would be deleted without actually deleting", false)
+    .option("--force", "Skip confirmation prompts", false)
+    .action(async (options: { all?: boolean; dryRun?: boolean; force?: boolean }) => {
+      try {
+        const dryRun = options.dryRun ?? false;
+        const prefix = dryRun ? "[DRY RUN] " : "";
+
+        console.log("🍫 CoCoPilot Prune\n");
+
+        // 1. Find and remove stopped containers
+        const { stdout: stoppedContainers } = await execFileAsync("docker", [
+          "ps", "-a",
+          "--filter", "label=cocopilot.managed=true",
+          "--filter", "status=exited",
+          "--format", "{{.ID}}|{{.Names}}"
+        ]);
+
+        const stoppedLines = stoppedContainers.split("\n").filter(Boolean);
+        if (stoppedLines.length > 0) {
+          console.log(`${prefix}Removing ${stoppedLines.length} stopped container(s)...`);
+          for (const line of stoppedLines) {
+            const [id, name] = line.split("|");
+            console.log(`  ${prefix}Removing: ${name} (${id.slice(0, 12)})`);
+            if (!dryRun) {
+              await execFileAsync("docker", ["rm", "-f", id]);
+            }
+          }
+        } else {
+          console.log("No stopped containers to clean up.");
+        }
+
+        // 2. Clean up dangling images
+        if (options.all) {
+          console.log(`\n${prefix}Removing CoCoPilot images...`);
+          try {
+            const { stdout: images } = await execFileAsync("docker", [
+              "images", "--filter", "label=cocopilot.managed=true",
+              "--format", "{{.ID}}|{{.Repository}}:{{.Tag}}"
+            ]);
+            const imageLines = images.split("\n").filter(Boolean);
+            for (const line of imageLines) {
+              const [id, tag] = line.split("|");
+              console.log(`  ${prefix}Removing image: ${tag} (${id.slice(0, 12)})`);
+              if (!dryRun) {
+                await execFileAsync("docker", ["rmi", "-f", id]).catch(() => {});
+              }
+            }
+          } catch {
+            // No images to clean
+          }
+        }
+
+        // 3. Clean up old worktrees
+        const cocoDir = getCocopilotDir();
+        const reposDir = path.join(cocoDir, "repos");
+        if (fs.existsSync(reposDir)) {
+          const repos = fs.readdirSync(reposDir);
+          for (const repo of repos) {
+            const worktreesDir = path.join(reposDir, repo, "worktrees");
+            if (!fs.existsSync(worktreesDir)) continue;
+
+            const worktrees = fs.readdirSync(worktreesDir);
+            for (const wt of worktrees) {
+              const wtPath = path.join(worktreesDir, wt);
+              const lockFile = path.join(wtPath, ".git");
+              
+              // Check if worktree is orphaned (no corresponding container)
+              try {
+                const { stdout } = await execFileAsync("docker", [
+                  "ps", "-a",
+                  "--filter", `label=cocopilot.worker-name=${wt}`,
+                  "--format", "{{.ID}}"
+                ]);
+                if (!stdout.trim()) {
+                  console.log(`  ${prefix}Removing orphaned worktree: ${repo}/${wt}`);
+                  if (!dryRun) {
+                    fs.rmSync(wtPath, { recursive: true, force: true });
+                  }
+                }
+              } catch {
+                // Skip on error
+              }
+            }
+          }
+        }
+
+        // 4. If --all, remove ~/.cocopilot entirely
+        if (options.all && !dryRun) {
+          if (!options.force) {
+            console.log("\n⚠️  WARNING: --all will remove ALL CoCoPilot data including state and config!");
+            console.log("Run with --force to confirm, or use --dry-run to preview.");
+            return;
+          }
+          console.log(`\n${prefix}Removing ${cocoDir}...`);
+          fs.rmSync(cocoDir, { recursive: true, force: true });
+        }
+
+        console.log(`\n${dryRun ? "Dry run complete." : "Prune complete."}`);
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : String(err);
+        console.error(`Error: Prune failed — ${message}`);
+        process.exitCode = 1;
+      }
+    });
+
+  // ui - Open web dashboard in browser
+  program
+    .command("ui")
+    .description("Open web dashboard in browser")
+    .option("--port <port>", "Dashboard port", "3000")
+    .action(async (options: { port: string }) => {
+      const url = `http://localhost:${options.port}`;
+      console.log(`🍫 Opening CoCoPilot dashboard: ${url}`);
+
+      // Detect platform and open browser
+      const platform = process.platform;
+      let cmd: string;
+      let args: string[];
+
+      if (platform === "darwin") {
+        cmd = "open";
+        args = [url];
+      } else if (platform === "win32") {
+        cmd = "cmd";
+        args = ["/c", "start", url];
+      } else {
+        // Linux - try xdg-open, then fallback to common browsers
+        cmd = "xdg-open";
+        args = [url];
+      }
+
+      try {
+        await execFileAsync(cmd, args);
+      } catch {
+        // Fallback: just print the URL
+        console.log(`Could not open browser automatically. Please visit: ${url}`);
+      }
+    });
+
   // history
   program
     .command("history")
@@ -1362,6 +1568,201 @@ export function registerCommands(program: Command): void {
       } catch (err: unknown) {
         const message = err instanceof Error ? err.message : String(err);
         console.error(`Error: Failed to attach — ${message}`);
+        process.exitCode = 1;
+      }
+    });
+
+  // agent create - Create a custom agent definition
+  agentCmd
+    .command("create")
+    .description("Create a custom agent definition")
+    .argument("<name>", "Agent name")
+    .option("--repo <name>", "Repository name")
+    .option("--class <class>", "Agent class (persistent or ephemeral)", "ephemeral")
+    .option("--tools <tools>", "Comma-separated list of tools")
+    .option("--prompt <prompt>", "System prompt for the agent")
+    .action(async (name: string, options: { repo?: string; class?: string; tools?: string; prompt?: string }) => {
+      try {
+        const repoName = resolveRepoName(options.repo);
+        const agentClass = options.class === "persistent" ? "persistent" : "ephemeral";
+        const tools = options.tools?.split(",").map(t => t.trim()).filter(Boolean) || [];
+        const systemPrompt = options.prompt || `You are ${name}, a custom CoCoPilot agent.\n\nYour purpose is to assist with specific tasks as directed.`;
+
+        // Find the repo's local path
+        const cocoDir = getCocopilotDir();
+        const statePath = path.join(cocoDir, "state.json");
+        
+        let repoLocalPath: string;
+        if (fs.existsSync(statePath)) {
+          const state = JSON.parse(fs.readFileSync(statePath, "utf-8"));
+          const repo = state.repositories?.[repoName];
+          if (repo?.localPath) {
+            repoLocalPath = repo.localPath;
+          } else {
+            throw new Error(`Repository "${repoName}" not found in state.`);
+          }
+        } else {
+          throw new Error("No state file found. Is the daemon running?");
+        }
+
+        // Create .cocopilot/agents directory if it doesn't exist
+        const agentsDir = path.join(repoLocalPath, ".cocopilot", "agents");
+        fs.mkdirSync(agentsDir, { recursive: true });
+
+        // Generate the markdown definition
+        const toolsYaml = tools.length > 0 
+          ? `tools:\n${tools.map(t => `  - ${t}`).join("\n")}`
+          : "tools: []";
+
+        const content = `---
+name: ${name}
+class: ${agentClass}
+${toolsYaml}
+---
+${systemPrompt}
+`;
+
+        const filePath = path.join(agentsDir, `${name}.md`);
+        
+        if (fs.existsSync(filePath)) {
+          throw new Error(`Agent definition already exists: ${filePath}`);
+        }
+
+        fs.writeFileSync(filePath, content, "utf-8");
+        console.log(`✅ Created custom agent definition: ${filePath}`);
+        console.log(`\nTo start this agent, use:`);
+        console.log(`  coco agent start ${name} --repo ${repoName}`);
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : String(err);
+        console.error(`Error: Failed to create agent — ${message}`);
+        process.exitCode = 1;
+      }
+    });
+
+  // agent list - List custom agents
+  agentCmd
+    .command("list")
+    .description("List custom agents for a repository")
+    .option("--repo <name>", "Repository name")
+    .option("--json", "Output as JSON", false)
+    .action(async (options: { repo?: string; json?: boolean }) => {
+      try {
+        const repoName = resolveRepoName(options.repo);
+        const cocoDir = getCocopilotDir();
+        const statePath = path.join(cocoDir, "state.json");
+        
+        let repoLocalPath: string;
+        if (fs.existsSync(statePath)) {
+          const state = JSON.parse(fs.readFileSync(statePath, "utf-8"));
+          const repo = state.repositories?.[repoName];
+          if (repo?.localPath) {
+            repoLocalPath = repo.localPath;
+          } else {
+            throw new Error(`Repository "${repoName}" not found in state.`);
+          }
+        } else {
+          throw new Error("No state file found. Is the daemon running?");
+        }
+
+        // Load all agent definitions
+        const agentsDir = path.join(repoLocalPath, ".cocopilot", "agents");
+        const { loadAllAgents } = await import("../../agents/custom-loader.js");
+        const agents = await loadAllAgents(agentsDir);
+
+        if (options.json) {
+          console.log(JSON.stringify({ agents: agents.map(a => ({
+            name: a.name,
+            class: a.class,
+            tools: a.tools,
+            filePath: a.filePath,
+          })) }, null, 2));
+        } else {
+          if (agents.length === 0) {
+            console.log(`No custom agents found in ${agentsDir}`);
+            console.log(`\nCreate one with: coco agent create <name> --repo ${repoName}`);
+            return;
+          }
+
+          console.log(`🍫 Custom Agents for ${repoName}\n`);
+          console.log("NAME                 CLASS        TOOLS");
+          console.log("─".repeat(60));
+          for (const agent of agents) {
+            const name = agent.name.padEnd(20);
+            const cls = agent.class.padEnd(12);
+            const tools = agent.tools.length > 0 ? agent.tools.join(", ") : "-";
+            console.log(`${name} ${cls} ${tools}`);
+          }
+          console.log(`\nTotal: ${agents.length} custom agent(s)`);
+        }
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : String(err);
+        console.error(`Error: Failed to list agents — ${message}`);
+        process.exitCode = 1;
+      }
+    });
+
+  // agent start - Start a custom agent
+  agentCmd
+    .command("start")
+    .description("Start a custom agent")
+    .argument("<name>", "Agent name")
+    .option("--repo <name>", "Repository name")
+    .option("--model <model>", "Override model for this agent")
+    .action(async (name: string, options: { repo?: string; model?: string }) => {
+      try {
+        const repoName = resolveRepoName(options.repo);
+        const response = await fetch(
+          `http://localhost:3000/api/v1/repositories/${encodeURIComponent(repoName)}/custom-agents/${encodeURIComponent(name)}/start`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ model: options.model }),
+          },
+        );
+
+        if (!response.ok) {
+          const text = await response.text();
+          throw new Error(text || `HTTP ${response.status}`);
+        }
+
+        const result = await response.json();
+        console.log(`✅ Custom agent "${name}" started.`);
+        if (result.status) {
+          console.log(`Status: ${result.status}`);
+        }
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : String(err);
+        console.error(`Error: Failed to start agent — ${message}`);
+        process.exitCode = 1;
+      }
+    });
+
+  // agent stop - Stop a custom agent
+  agentCmd
+    .command("stop")
+    .description("Stop a custom agent")
+    .argument("<name>", "Agent name")
+    .option("--repo <name>", "Repository name")
+    .action(async (name: string, options: { repo?: string }) => {
+      try {
+        const repoName = resolveRepoName(options.repo);
+        const response = await fetch(
+          `http://localhost:3000/api/v1/repositories/${encodeURIComponent(repoName)}/custom-agents/${encodeURIComponent(name)}/stop`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+          },
+        );
+
+        if (!response.ok) {
+          const text = await response.text();
+          throw new Error(text || `HTTP ${response.status}`);
+        }
+
+        console.log(`✅ Custom agent "${name}" stopped.`);
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : String(err);
+        console.error(`Error: Failed to stop agent — ${message}`);
         process.exitCode = 1;
       }
     });
