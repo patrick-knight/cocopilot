@@ -241,9 +241,9 @@ describe("workers", () => {
 
   it("addWorker creates a worker with a candy name", async () => {
     const worker = await sm.addWorker("repo", { task: "Add tests" });
-    expect(worker.name).toBe("Snickers"); // first candy name
+    expect(worker.name).toBe("SweetCaramel"); // first adjective+candy name
     expect(worker.task).toBe("Add tests");
-    expect(worker.branch).toBe("work/Snickers");
+    expect(worker.branch).toBe("work/SweetCaramel");
     expect(worker.status).toBe("starting");
   });
 
@@ -258,8 +258,8 @@ describe("workers", () => {
   it("addWorker assigns sequential candy names", async () => {
     const w1 = await sm.addWorker("repo", { task: "Task 1" });
     const w2 = await sm.addWorker("repo", { task: "Task 2" });
-    expect(w1.name).toBe("Snickers");
-    expect(w2.name).toBe("KitKat");
+    expect(w1.name).toBe("SweetCaramel");
+    expect(w2.name).toBe("SweetToffee");
   });
 
   it("addWorker throws when max workers reached", async () => {
@@ -280,7 +280,7 @@ describe("workers", () => {
 
   it("updateWorkerStatus transitions status", async () => {
     await sm.addWorker("repo", { task: "Work" });
-    const updated = await sm.updateWorkerStatus("repo", "Snickers", "working", {
+    const updated = await sm.updateWorkerStatus("repo", "SweetCaramel", "working", {
       containerId: "c-99",
     });
     expect(updated.status).toBe("working");
@@ -291,7 +291,7 @@ describe("workers", () => {
     await sm.addWorker("repo", { task: "Work" });
     const completed = await sm.updateWorkerStatus(
       "repo",
-      "Snickers",
+      "SweetCaramel",
       "completed",
       { prNumber: 42, prUrl: "https://github.com/org/repo/pull/42" },
     );
@@ -301,8 +301,8 @@ describe("workers", () => {
 
   it("removeWorker deletes the worker", async () => {
     await sm.addWorker("repo", { task: "Work" });
-    await sm.removeWorker("repo", "Snickers");
-    expect(sm.getWorker("repo", "Snickers")).toBeUndefined();
+    await sm.removeWorker("repo", "SweetCaramel");
+    expect(sm.getWorker("repo", "SweetCaramel")).toBeUndefined();
   });
 
   it("removeWorker throws for unknown worker", async () => {
@@ -347,7 +347,7 @@ describe("events", () => {
     await sm.addWorker("ev", { task: "test" });
     expect(handler).toHaveBeenCalledTimes(1);
     expect(handler.mock.calls[0][0]).toBe("ev");
-    expect(handler.mock.calls[0][1].name).toBe("Snickers");
+    expect(handler.mock.calls[0][1].name).toBe("SweetCaramel");
   });
 
   it("emits stateChanged on every mutation", async () => {
@@ -385,7 +385,7 @@ describe("persistence", () => {
     const repo = sm2.getRepo("persist");
     expect(repo).toBeDefined();
     // Worker should be recovered (marked stuck since daemon restarted)
-    const worker = sm2.getWorker("persist", "Snickers");
+    const worker = sm2.getWorker("persist", "SweetCaramel");
     expect(worker).toBeDefined();
     expect(worker!.task).toBe("survive");
   });
