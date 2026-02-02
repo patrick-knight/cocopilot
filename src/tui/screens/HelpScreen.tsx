@@ -27,8 +27,8 @@ export function HelpScreen(): React.ReactElement {
           <Text>  q, Ctrl+C    Quit</Text>
           <Text>  ?            Toggle help</Text>
           <Text>  Esc          Go back / Cancel</Text>
-          <Text>  s            Status screen</Text>
-          <Text>  m            Metrics screen</Text>
+          <Text>  Ctrl+S       Status screen</Text>
+          <Text>  Ctrl+M       Metrics screen</Text>
           <Text>  r            Refresh current view</Text>
         </Box>
 
