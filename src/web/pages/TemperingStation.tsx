@@ -14,6 +14,7 @@
 import React, { useCallback, useState } from "react";
 import { Link } from "react-router-dom";
 import { AgentCard, WorkerCard } from "../components/AgentCard.js";
+import { Footer } from "../components/Footer.js";
 import { LiveOutputPanel } from "../components/LiveOutputPanel.js";
 import { MessageQueueInspector } from "../components/MessageQueueInspector.js";
 import { PRPipeline } from "../components/PRPipeline.js";
@@ -399,9 +400,7 @@ export function TemperingStation({
         </main>
 
         {/* Footer */}
-        <footer className="mt-16 text-center text-muted-foreground text-sm">
-          <p>CoCoPilot v0.1.0 · Collaborative Copilot Orchestration Platform</p>
-        </footer>
+        <Footer />
       </div>
     </div>
   );
