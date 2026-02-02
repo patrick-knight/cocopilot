@@ -10,6 +10,9 @@ import { useStatus } from "../hooks/index.js";
 import { Header, StatusCard } from "../components/index.js";
 import { symbols } from "../utils/colors.js";
 
+// Default status for missing fields
+const defaultComponentStatus = { status: "unknown" as const };
+
 export function StatusScreen(): React.ReactElement {
   const { status, loading, error } = useStatus();
 
@@ -43,10 +46,17 @@ export function StatusScreen(): React.ReactElement {
     );
   }
 
+  // Safely access nested properties with defaults
+  const daemon = status.daemon ?? defaultComponentStatus;
+  const redis = status.redis ?? defaultComponentStatus;
+  const github = status.github ?? defaultComponentStatus;
+  const copilotCli = status.copilotCli ?? defaultComponentStatus;
+  const workers = status.workers ?? { total: 0, byStatus: {} };
+
   const allHealthy =
-    status.daemon.status === "healthy" &&
-    status.redis.status === "healthy" &&
-    status.github.status === "healthy";
+    daemon.status === "healthy" &&
+    redis.status === "healthy" &&
+    github.status === "healthy";
 
   return (
     <Box flexDirection="column">
@@ -66,31 +76,31 @@ export function StatusScreen(): React.ReactElement {
         <Text bold underline>Components</Text>
         <StatusCard
           title="Daemon"
-          status={status.daemon.status}
-          details={status.daemon.uptime ? `uptime: ${Math.floor(status.daemon.uptime / 60)}m` : undefined}
+          status={daemon.status}
+          details={daemon.uptime ? `uptime: ${Math.floor(daemon.uptime / 60)}m` : undefined}
         />
         <StatusCard
           title="Redis"
-          status={status.redis.status}
-          details={status.redis.connected ? "connected" : "disconnected"}
+          status={redis.status}
+          details={redis.connected ? "connected" : "disconnected"}
         />
         <StatusCard
           title="GitHub"
-          status={status.github.status}
-          details={status.github.authenticated ? "authenticated" : "not authenticated"}
+          status={github.status}
+          details={github.authenticated ? "authenticated" : "not authenticated"}
         />
         <StatusCard
           title="Copilot CLI"
-          status={status.copilotCli.status}
-          details={status.copilotCli.installed ? "installed" : "not found"}
+          status={copilotCli.status}
+          details={copilotCli.installed ? "installed" : "not found"}
         />
       </Box>
 
       {/* Worker stats */}
       <Box flexDirection="column" marginBottom={1}>
         <Text bold underline>Workers</Text>
-        <Text>Total: {status.workers.total}</Text>
-        {Object.entries(status.workers.byStatus).map(([stat, count]) => (
+        <Text>Total: {workers.total}</Text>
+        {Object.entries(workers.byStatus).map(([stat, count]) => (
           <Text key={stat}>
             {"  "}{stat}: <Text color={stat === "failed" || stat === "stuck" ? "red" : undefined}>{count}</Text>
           </Text>
@@ -100,7 +110,7 @@ export function StatusScreen(): React.ReactElement {
       {/* Repositories */}
       <Box>
         <Text bold>Repositories: </Text>
-        <Text>{status.repositories}</Text>
+        <Text>{status.repositories ?? 0}</Text>
       </Box>
 
       <Box marginTop={1}>
