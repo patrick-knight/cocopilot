@@ -139,8 +139,8 @@ export function MessageQueueInspector({
           </p>
         </div>
       ) : (
-        <div className="max-h-96 overflow-y-auto rounded-lg border border-stone-300 bg-white">
-          <table className="w-full text-sm">
+        <div className="max-h-96 overflow-y-auto overflow-x-auto rounded-lg border border-stone-300 bg-white">
+          <table className="w-full text-sm min-w-[640px]">
             <thead className="sticky top-0 bg-stone-100 text-left text-xs text-stone-500">
               <tr>
                 <th
@@ -162,13 +162,13 @@ export function MessageQueueInspector({
                   To <SortIndicator field="to" />
                 </th>
                 <th
-                  className="px-3 py-2 font-medium cursor-pointer hover:bg-stone-200 select-none"
+                  className="px-3 py-2 font-medium cursor-pointer hover:bg-stone-200 select-none hidden sm:table-cell"
                   onClick={() => handleSort("priority")}
                 >
                   Priority <SortIndicator field="priority" />
                 </th>
                 <th
-                  className="px-3 py-2 font-medium cursor-pointer hover:bg-stone-200 select-none"
+                  className="px-3 py-2 font-medium cursor-pointer hover:bg-stone-200 select-none hidden md:table-cell"
                   onClick={() => handleSort("timestamp")}
                 >
                   Time <SortIndicator field="timestamp" />
@@ -199,12 +199,12 @@ export function MessageQueueInspector({
                     <td className="px-3 py-2 font-mono text-xs">
                       <MessageTypeBadge type={msg.type} />
                     </td>
-                    <td className="px-3 py-2 text-stone-700">{msg.from}</td>
-                    <td className="px-3 py-2 text-stone-700">{msg.to === "*" ? "broadcast" : msg.to}</td>
-                    <td className="px-3 py-2">
+                    <td className="px-3 py-2 text-stone-700 truncate max-w-[120px]">{msg.from}</td>
+                    <td className="px-3 py-2 text-stone-700 truncate max-w-[120px]">{msg.to === "*" ? "broadcast" : msg.to}</td>
+                    <td className="px-3 py-2 hidden sm:table-cell">
                       <PriorityBadge priority={msg.priority} />
                     </td>
-                    <td className="px-3 py-2 text-stone-500 text-xs">{formatTime(msg.timestamp)}</td>
+                    <td className="px-3 py-2 text-stone-500 text-xs hidden md:table-cell">{formatTime(msg.timestamp)}</td>
                     <td className="px-3 py-2 text-center">
                       {msg.acked ? (
                         <span className="text-green-600" title="Acknowledged">✓</span>
@@ -216,7 +216,7 @@ export function MessageQueueInspector({
                   {expanded === msg.id && (
                     <tr>
                       <td colSpan={6} className="bg-stone-50 px-3 py-2">
-                        <p className="font-mono text-xs text-stone-600 whitespace-pre-wrap">
+                        <p className="font-mono text-xs text-stone-600 whitespace-pre-wrap break-words">
                           {msg.payloadPreview}
                         </p>
                       </td>
