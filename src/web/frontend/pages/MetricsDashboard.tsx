@@ -186,7 +186,7 @@ function WorkerThroughputChart({
   }));
 
   return (
-    <ResponsiveContainer width="100%" height="100%">
+    <ResponsiveContainer width="100%" height={250}>
       <BarChart data={formatted}>
         <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
         <XAxis
@@ -216,7 +216,7 @@ function PRCycleTimeChart({
   data: PRCycleTimePoint[];
 }): React.ReactElement {
   return (
-    <ResponsiveContainer width="100%" height="100%">
+    <ResponsiveContainer width="100%" height={250}>
       <LineChart data={data}>
         <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
         <XAxis
@@ -258,7 +258,7 @@ function CISuccessRateChart({
   data: CISuccessRateSlice[];
 }): React.ReactElement {
   return (
-    <ResponsiveContainer width="100%" height="100%">
+    <ResponsiveContainer width="100%" height={250}>
       <PieChart>
         <Pie
           data={data}
@@ -296,7 +296,7 @@ function TokenUsageChart({
   data: TokenUsageBucket[];
 }): React.ReactElement {
   return (
-    <ResponsiveContainer width="100%" height="100%">
+    <ResponsiveContainer width="100%" height={250}>
       <BarChart data={data} layout="vertical">
         <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
         <XAxis
