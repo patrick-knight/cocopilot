@@ -329,17 +329,21 @@ Respond with ONLY the updated README content, no explanation.`;
     );
     await execFileAsync("git", ["push", "-u", "origin", branchName], { cwd: repoPath });
 
-    // Create PR
-    const { stdout: prUrl } = await execFileAsync(
-      "gh",
-      [
-        "pr", "create",
-        "--title", "docs: Update README with recent changes",
-        "--body", `This PR updates the README to document recent changes made by CoCoPilot workers.\n\n## Recent Changes\n${changesSummary}`,
-        "--label", "documentation,cocopilot",
-      ],
-      { cwd: repoPath }
-    );
+    // Create PR with labels from config
+    const prLabels = this.stateManager.getConfig().github?.prLabels ?? ["cocopilot"];
+    const labels = ["documentation", ...prLabels].filter((v, i, a) => a.indexOf(v) === i); // dedupe
+    
+    const prArgs = [
+      "pr", "create",
+      "--title", "docs: Update README with recent changes",
+      "--body", `This PR updates the README to document recent changes made by CoCoPilot workers.\n\n## Recent Changes\n${changesSummary}`,
+    ];
+    
+    if (labels.length > 0) {
+      prArgs.push("--label", labels.join(","));
+    }
+    
+    const { stdout: prUrl } = await execFileAsync("gh", prArgs, { cwd: repoPath });
 
     // Switch back to main
     await execFileAsync("git", ["checkout", "main"], { cwd: repoPath }).catch(() =>
