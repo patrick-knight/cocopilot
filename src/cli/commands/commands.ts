@@ -739,6 +739,40 @@ export function registerCommands(program: Command): void {
       }
     });
 
+  // completion - Generate shell completion scripts
+  program
+    .command("completion")
+    .description("Generate shell completion script")
+    .argument("<shell>", "Shell type: bash, zsh, fish, or powershell")
+    .action((shell: string) => {
+      const completions: Record<string, string> = {
+        bash: generateBashCompletion(),
+        zsh: generateZshCompletion(),
+        fish: generateFishCompletion(),
+        powershell: generatePowerShellCompletion(),
+      };
+
+      const script = completions[shell.toLowerCase()];
+      if (!script) {
+        console.error(`Unsupported shell: ${shell}`);
+        console.error("Supported shells: bash, zsh, fish, powershell");
+        process.exitCode = 1;
+        return;
+      }
+
+      console.log(script);
+      console.error(`\n# To install, run:`);
+      if (shell === "bash") {
+        console.error(`# coco completion bash >> ~/.bashrc`);
+      } else if (shell === "zsh") {
+        console.error(`# coco completion zsh >> ~/.zshrc`);
+      } else if (shell === "fish") {
+        console.error(`# coco completion fish > ~/.config/fish/completions/coco.fish`);
+      } else if (shell === "powershell") {
+        console.error(`# coco completion powershell >> $PROFILE`);
+      }
+    });
+
   // history
   program
     .command("history")
@@ -1861,4 +1895,180 @@ ${systemPrompt}
         process.exitCode = 1;
       }
     });
+}
+
+// ---------------------------------------------------------------------------
+// Shell Completion Scripts
+// ---------------------------------------------------------------------------
+
+const COCO_COMMANDS = [
+  "init", "start", "stop", "status", "list", "remove",
+  "worker", "spawn", "nudge", "attach", "logs",
+  "ps", "prune", "ui", "history", "tui",
+  "message", "agent", "review", "workspace", "completion",
+];
+
+const COCO_SUBCOMMANDS: Record<string, string[]> = {
+  worker: ["spawn", "stop", "status", "list", "logs"],
+  message: ["send", "list", "clear"],
+  agent: ["create", "list", "start", "stop"],
+  workspace: ["add", "list", "connect", "rm"],
+};
+
+function generateBashCompletion(): string {
+  return `# Bash completion for coco
+_coco_completions() {
+    local cur prev commands
+    COMPREPLY=()
+    cur="\${COMP_WORDS[COMP_CWORD]}"
+    prev="\${COMP_WORDS[COMP_CWORD-1]}"
+    commands="${COCO_COMMANDS.join(" ")}"
+
+    case "\${prev}" in
+        coco)
+            COMPREPLY=( $(compgen -W "\${commands}" -- "\${cur}") )
+            return 0
+            ;;
+        worker)
+            COMPREPLY=( $(compgen -W "${COCO_SUBCOMMANDS.worker?.join(" ") || ""}" -- "\${cur}") )
+            return 0
+            ;;
+        message)
+            COMPREPLY=( $(compgen -W "${COCO_SUBCOMMANDS.message?.join(" ") || ""}" -- "\${cur}") )
+            return 0
+            ;;
+        agent)
+            COMPREPLY=( $(compgen -W "${COCO_SUBCOMMANDS.agent?.join(" ") || ""}" -- "\${cur}") )
+            return 0
+            ;;
+        workspace)
+            COMPREPLY=( $(compgen -W "${COCO_SUBCOMMANDS.workspace?.join(" ") || ""}" -- "\${cur}") )
+            return 0
+            ;;
+        completion)
+            COMPREPLY=( $(compgen -W "bash zsh fish powershell" -- "\${cur}") )
+            return 0
+            ;;
+    esac
+
+    COMPREPLY=( $(compgen -W "\${commands}" -- "\${cur}") )
+}
+complete -F _coco_completions coco`;
+}
+
+function generateZshCompletion(): string {
+  return `# Zsh completion for coco
+#compdef coco
+
+_coco() {
+    local -a commands
+    commands=(
+        'init:Initialize a repository for CoCoPilot'
+        'start:Start the CoCoPilot daemon'
+        'stop:Stop the CoCoPilot daemon'
+        'status:Show status of daemon and workers'
+        'list:List tracked repositories'
+        'remove:Remove a repository from tracking'
+        'worker:Manage workers'
+        'spawn:Spawn a new worker'
+        'nudge:Send a nudge to a worker'
+        'attach:Attach to a worker session'
+        'logs:View worker logs'
+        'ps:List running containers'
+        'prune:Clean up stopped containers and worktrees'
+        'ui:Open web dashboard in browser'
+        'history:Show task history'
+        'tui:Launch terminal UI'
+        'message:Manage inter-agent messages'
+        'agent:Manage custom agents'
+        'review:Spawn a review agent for a PR'
+        'workspace:Manage workspaces'
+        'completion:Generate shell completion script'
+    )
+
+    _arguments -C \\
+        '1: :->command' \\
+        '*::arg:->args'
+
+    case $state in
+        command)
+            _describe -t commands 'coco commands' commands
+            ;;
+        args)
+            case $words[1] in
+                worker)
+                    _values 'worker subcommands' spawn stop status list logs
+                    ;;
+                message)
+                    _values 'message subcommands' send list clear
+                    ;;
+                agent)
+                    _values 'agent subcommands' create list start stop
+                    ;;
+                workspace)
+                    _values 'workspace subcommands' add list connect rm
+                    ;;
+                completion)
+                    _values 'shells' bash zsh fish powershell
+                    ;;
+            esac
+            ;;
+    esac
+}
+
+_coco "$@"`;
+}
+
+function generateFishCompletion(): string {
+  const commands = COCO_COMMANDS.map((cmd) => `complete -c coco -n "__fish_use_subcommand" -a "${cmd}"`).join("\n");
+  return `# Fish completion for coco
+${commands}
+
+# worker subcommands
+complete -c coco -n "__fish_seen_subcommand_from worker" -a "spawn stop status list logs"
+
+# message subcommands
+complete -c coco -n "__fish_seen_subcommand_from message" -a "send list clear"
+
+# agent subcommands
+complete -c coco -n "__fish_seen_subcommand_from agent" -a "create list start stop"
+
+# workspace subcommands
+complete -c coco -n "__fish_seen_subcommand_from workspace" -a "add list connect rm"
+
+# completion subcommands
+complete -c coco -n "__fish_seen_subcommand_from completion" -a "bash zsh fish powershell"`;
+}
+
+function generatePowerShellCompletion(): string {
+  const commands = COCO_COMMANDS.map((c) => `'${c}'`).join(", ");
+  return `# PowerShell completion for coco
+\$script:CocoCommands = @(${commands})
+
+Register-ArgumentCompleter -Native -CommandName coco -ScriptBlock {
+    param(\$wordToComplete, \$commandAst, \$cursorPosition)
+    
+    \$commands = \$commandAst.CommandElements
+    
+    if (\$commands.Count -eq 1) {
+        # Complete main commands
+        \$script:CocoCommands | Where-Object { \$_ -like "\$wordToComplete*" } | ForEach-Object {
+            [System.Management.Automation.CompletionResult]::new(\$_, \$_, 'ParameterValue', \$_)
+        }
+    }
+    elseif (\$commands.Count -eq 2) {
+        \$subCmd = \$commands[1].ToString()
+        \$subCommands = switch (\$subCmd) {
+            'worker' { @('spawn', 'stop', 'status', 'list', 'logs') }
+            'message' { @('send', 'list', 'clear') }
+            'agent' { @('create', 'list', 'start', 'stop') }
+            'workspace' { @('add', 'list', 'connect', 'rm') }
+            'completion' { @('bash', 'zsh', 'fish', 'powershell') }
+            default { @() }
+        }
+        \$subCommands | Where-Object { \$_ -like "\$wordToComplete*" } | ForEach-Object {
+            [System.Management.Automation.CompletionResult]::new(\$_, \$_, 'ParameterValue', \$_)
+        }
+    }
+}`;
 }

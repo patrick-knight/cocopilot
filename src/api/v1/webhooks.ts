@@ -107,5 +107,88 @@ export function extWebhookRoutes(store?: WebhookStore): Router {
     res.status(204).end();
   });
 
+  // POST /:id/test -- Test a webhook
+  router.post("/:id/test", async (req, res, next) => {
+    const { id } = req.params;
+    const webhook = webhooks.get(id);
+
+    if (!webhook) {
+      next(createApiError(404, `Webhook "${id}" not found`));
+      return;
+    }
+
+    try {
+      const testPayload = {
+        event: "test",
+        timestamp: new Date().toISOString(),
+        data: {
+          message: "This is a test webhook delivery from CoCoPilot",
+          webhookId: id,
+        },
+      };
+
+      const response = await fetch(webhook.url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-CoCoPilot-Event": "test",
+          "X-CoCoPilot-Webhook-Id": id,
+        },
+        body: JSON.stringify(testPayload),
+      });
+
+      res.json({
+        success: response.ok,
+        status: response.status,
+        statusText: response.statusText,
+      });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      res.status(500).json({ error: `Failed to deliver test webhook: ${message}` });
+    }
+  });
+
   return router;
+}
+
+/**
+ * Notify all registered webhooks about an event.
+ */
+export async function notifyWebhooks(
+  webhooks: WebhookStore,
+  event: string,
+  data: Record<string, unknown>,
+): Promise<void> {
+  const payload = {
+    event,
+    timestamp: new Date().toISOString(),
+    data,
+  };
+
+  const promises: Promise<void>[] = [];
+
+  for (const webhook of webhooks.values()) {
+    if (!webhook.events.includes(event)) continue;
+
+    promises.push(
+      (async () => {
+        try {
+          await fetch(webhook.url, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "X-CoCoPilot-Event": event,
+              "X-CoCoPilot-Webhook-Id": webhook.id,
+            },
+            body: JSON.stringify(payload),
+          });
+        } catch (err) {
+          // Log error but don't fail
+          console.error(`[Webhook] Failed to deliver to ${webhook.url}:`, err);
+        }
+      })(),
+    );
+  }
+
+  await Promise.allSettled(promises);
 }

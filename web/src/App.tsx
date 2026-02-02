@@ -11,6 +11,8 @@ import { MetricsDashboard } from "../../src/web/frontend/pages/MetricsDashboard.
 import { useSocket } from "../../src/web/hooks/useSocket.js";
 import { FactoryFloor } from "./pages/FactoryFloor.js";
 import { StatusPage } from "./pages/StatusPage.js";
+import { ActivityPage } from "./pages/ActivityPage.js";
+import { ConfigPage } from "./pages/ConfigPage.js";
 
 export default function App() {
   return (
@@ -18,6 +20,8 @@ export default function App() {
       <Route path="/" element={<FactoryFloor />} />
       <Route path="/status" element={<StatusPage />} />
       <Route path="/metrics" element={<MetricsDashboard />} />
+      <Route path="/activity" element={<ActivityPage />} />
+      <Route path="/config" element={<ConfigPage />} />
       <Route path="/repos/:repoName" element={<TemperingStationPage />} />
       <Route path="/repos/:repoName/workers/:workerName" element={<TruffleInspectorPage />} />
     </Routes>

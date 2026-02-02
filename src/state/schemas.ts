@@ -26,6 +26,7 @@ export type AgentStatus =
 export type WorkerStatus =
   | "starting"
   | "working"
+  | "paused"
   | "stuck"
   | "completed"
   | "failed"
@@ -56,6 +57,41 @@ export interface RedisConfig {
   password?: string;
 }
 
+/**
+ * BYOK (Bring Your Own Key) configuration for enterprise deployments.
+ * Allows users to provide their own API keys for various AI providers.
+ */
+export interface ApiKeysConfig {
+  /** OpenAI API key for GPT models. */
+  openaiKey?: string;
+  /** Anthropic API key for Claude models. */
+  anthropicKey?: string;
+  /** Azure OpenAI endpoint URL. */
+  azureEndpoint?: string;
+  /** Azure OpenAI API key. */
+  azureKey?: string;
+  /** Azure OpenAI deployment name. */
+  azureDeployment?: string;
+  /** Custom base URL for OpenAI-compatible APIs. */
+  customBaseUrl?: string;
+  /** Custom API key for customBaseUrl. */
+  customApiKey?: string;
+}
+
+/**
+ * Container resource limits configuration.
+ */
+export interface ContainerLimitsConfig {
+  /** Memory limit (e.g., "4g", "512m"). */
+  memory: string;
+  /** CPU limit (e.g., "2", "0.5"). */
+  cpu: string;
+  /** Maximum PIDs in container. */
+  pidsLimit?: number;
+  /** Enable/disable network access. */
+  networkEnabled?: boolean;
+}
+
 export interface GlobalConfig {
   model: string;
   webPort: number;
@@ -70,6 +106,10 @@ export interface GlobalConfig {
   theme: string;
   github: GitHubConfig;
   redis: RedisConfig;
+  /** BYOK API keys for enterprise deployments. */
+  apiKeys?: ApiKeysConfig;
+  /** Container resource limits. */
+  containerLimits?: ContainerLimitsConfig;
 }
 
 // ---------------------------------------------------------------------------

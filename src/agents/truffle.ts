@@ -302,9 +302,43 @@ export class TruffleAgent extends EventEmitter<TruffleEvents> {
    */
   async stop(): Promise<void> {
     await this.broker.unsubscribe(this.scopedName);
-    if (this._status === "working") {
+    if (this._status === "working" || this._status === "paused") {
       this.setStatus("terminated");
     }
+  }
+
+  /**
+   * Pause the worker. The worker will stop processing but retain its state.
+   * Can be resumed later with resume().
+   */
+  async pause(): Promise<void> {
+    if (this._status !== "working") {
+      throw new Error(`Cannot pause worker in status "${this._status}" (must be "working")`);
+    }
+    this.setStatus("paused");
+    await this.broadcastActivity("paused", {
+      reason: "User requested pause",
+    });
+  }
+
+  /**
+   * Resume a paused worker. The worker will continue processing from where it left off.
+   */
+  async resume(): Promise<void> {
+    if (this._status !== "paused") {
+      throw new Error(`Cannot resume worker in status "${this._status}" (must be "paused")`);
+    }
+    this.setStatus("working");
+    await this.broadcastActivity("resumed", {
+      reason: "User requested resume",
+    });
+  }
+
+  /**
+   * Check if the worker is currently paused.
+   */
+  get isPaused(): boolean {
+    return this._status === "paused";
   }
 
   // -----------------------------------------------------------------------
