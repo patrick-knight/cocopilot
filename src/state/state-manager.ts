@@ -38,31 +38,59 @@ import {
 import { recoverState } from "./recovery.js";
 
 // ---------------------------------------------------------------------------
-// Candy names for workers
+// Candy names for workers (adjective + candy combinations = 400 unique names)
 // ---------------------------------------------------------------------------
 
-const CANDY_NAMES = [
-  "Snickers",
-  "KitKat",
-  "Twix",
-  "Reeses",
-  "Milkyway",
-  "Butterfinger",
-  "Skittles",
-  "Starburst",
-  "MnMs",
-  "Hersheys",
-  "Toblerone",
-  "Ferrero",
-  "Lindt",
-  "Godiva",
-  "Cadbury",
-  "Ghirardelli",
-  "Rolo",
-  "Crunch",
-  "PayDay",
-  "BabyRuth",
+const CANDY_ADJECTIVES = [
+  "Sweet",
+  "Rich",
+  "Golden",
+  "Silky",
+  "Melty",
+  "Sugary",
+  "Gooey",
+  "Minty",
+  "Creamy",
+  "Honeyed",
+  "Buttery",
+  "Toasty",
+  "Swirly",
+  "Frosted",
+  "Glazed",
+  "Candied",
+  "Chewy",
+  "Crunchy",
+  "Caramelly",
+  "Fizzy",
 ];
+
+const CANDY_NOUNS = [
+  "Caramel",
+  "Toffee",
+  "Praline",
+  "Ganache",
+  "Nougat",
+  "Fudge",
+  "Brittle",
+  "Marzipan",
+  "Taffy",
+  "Bonbon",
+  "Butterscotch",
+  "Licorice",
+  "Gummy",
+  "Jellybean",
+  "Lollipop",
+  "Gumdrop",
+  "Peppermint",
+  "Marshmallow",
+  "Fondant",
+  "Turtles",
+];
+
+// Generate all adjective-candy combinations
+const CANDY_NAMES = CANDY_ADJECTIVES.flatMap((adj) =>
+  CANDY_NOUNS.map((noun) => `${adj}${noun}`)
+);
 
 // ---------------------------------------------------------------------------
 // Events
@@ -458,15 +486,25 @@ export class StateManager extends EventEmitter {
 
   /**
    * Pick the next available candy name that isn't already in use for the
-   * given repo.
+   * given repo. Uses adjective+candy combinations (400 unique names).
+   * Falls back to numbering if all combinations are exhausted.
    */
   nextWorkerName(repoName: string): string {
     const repo = this.requireRepo(repoName);
     const used = new Set(Object.keys(repo.workers));
     const available = CANDY_NAMES.find((n) => !used.has(n));
     if (available) return available;
-    // Fallback: append a number
-    return `Truffle-${Object.keys(repo.workers).length + 1}`;
+    // Fallback: find a name with suffix -N
+    for (const baseName of CANDY_NAMES) {
+      let n = 2;
+      while (n <= 100) {
+        const numbered = `${baseName}-${n}`;
+        if (!used.has(numbered)) return numbered;
+        n++;
+      }
+    }
+    // Ultimate fallback
+    return `Worker-${Object.keys(repo.workers).length + 1}`;
   }
 
   async addWorker(
