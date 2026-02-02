@@ -130,8 +130,8 @@ describe("SpawnWorkerModal", () => {
 
     const select = body.querySelector("#spawn-model") as HTMLSelectElement;
     const options = select.querySelectorAll("option");
-    expect(options.length).toBe(4);
-    expect(options[0].value).toBe("claude-sonnet-4-5");
+    expect(options.length).toBe(14);
+    expect(options[0].value).toBe("claude-sonnet-4.5");
   });
 
   it("has submit button with correct text", () => {
