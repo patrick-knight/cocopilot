@@ -525,11 +525,14 @@ export class StateManager extends EventEmitter {
       );
     }
 
-    const maxWorkers =
-      this.config.maxWorkersPerRepo;
-    if (Object.keys(repo.workers).length >= maxWorkers) {
+    const maxWorkers = this.config.maxWorkersPerRepo;
+    const activeStatuses: WorkerStatus[] = ["starting", "working", "stuck"];
+    const activeWorkerCount = Object.values(repo.workers).filter(
+      (w) => activeStatuses.includes(w.status)
+    ).length;
+    if (activeWorkerCount >= maxWorkers) {
       throw new Error(
-        `Maximum workers (${maxWorkers}) reached for repo "${repoName}"`,
+        `Maximum active workers (${maxWorkers}) reached for repo "${repoName}"`,
       );
     }
 
