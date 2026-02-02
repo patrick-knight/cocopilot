@@ -29,6 +29,12 @@ interface AgentParams extends RepoParams {
   name: string;
 }
 
+const VALID_AGENT_NAME = /^[a-zA-Z0-9._-]+$/;
+
+function isSafeAgentName(name: string): boolean {
+  return Boolean(name) && VALID_AGENT_NAME.test(name) && !name.includes("..");
+}
+
 /**
  * Create routes for custom agent management.
  */
@@ -75,6 +81,11 @@ export function customAgentsRoutes(deps: CustomAgentsDeps): Router {
     const { repoName, name } = req.params as unknown as AgentParams;
     const { model } = req.body as { model?: string };
 
+    if (!isSafeAgentName(name)) {
+      res.status(400).json({ error: `Invalid agent name "${name}".` });
+      return;
+    }
+
     const repos = stateManager.getRepos();
     const repo = repos[repoName];
 
@@ -118,6 +129,11 @@ export function customAgentsRoutes(deps: CustomAgentsDeps): Router {
     const { repoName, name } = req.params as unknown as AgentParams;
     const key = `${repoName}:${name}`;
 
+    if (!isSafeAgentName(name)) {
+      res.status(400).json({ error: `Invalid agent name "${name}".` });
+      return;
+    }
+
     const agent = runningAgents.get(key);
     if (!agent) {
       res.status(404).json({ error: `Agent "${name}" is not running.` });
@@ -143,6 +159,11 @@ export function customAgentsRoutes(deps: CustomAgentsDeps): Router {
   router.get("/:name/status", async (req, res) => {
     const { repoName, name } = req.params as unknown as AgentParams;
     const key = `${repoName}:${name}`;
+
+    if (!isSafeAgentName(name)) {
+      res.status(400).json({ error: `Invalid agent name "${name}".` });
+      return;
+    }
 
     const agent = runningAgents.get(key);
     if (agent) {

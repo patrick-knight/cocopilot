@@ -108,6 +108,7 @@ export interface GitHubConfig {
 export interface RedisConfig {
   host: string;
   port: number;
+  password?: string;
 }
 
 // Global configuration from ~/.cocopilot/config.json

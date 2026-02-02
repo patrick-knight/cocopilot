@@ -55,6 +55,17 @@ describe("POST /api/v1/webhooks", () => {
     expect(res.body.error).toMatch(/URL/);
   });
 
+  it("returns 400 for unsafe webhook URL", async () => {
+    const app = createApp();
+
+    const res = await request(app)
+      .post("/api/v1/webhooks")
+      .send({ url: "http://127.0.0.1:6379", events: ["worker.created"] });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/unsafe/i);
+  });
+
   it("returns 400 when events is missing", async () => {
     const app = createApp();
 

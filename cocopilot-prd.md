@@ -2,10 +2,9 @@
 
 ## 🍫 Executive Summary
 
-**CoCoPilot** (Collaborative Copilot Orchestration Platform) is a multi-agent orchestration system that reimagines [dlorenc's multiclaude](https://github.com/dlorenc/multiclaude) architecture using the [GitHub Copilot SDK](https://github.com/github/copilot-sdk/) and [CLI](https://github.com/github/copilot-cli). Like a master chocolatier coordinating a confectionery factory during Valentine's rush, CoCoPilot manages multiple AI coding agents working in parallel on your codebase—each tempering away at their designated tasks while a supervisor ensures the perfect blend of productivity.
+**CoCoPilot** (Collaborative Copilot Orchestration Platform) is a multi-agent orchestration system that reimagines [dlorenc's hub.com/dlorenc/e using the [GitHub Copilot SDK](https://github.com/github/copilot-sdk/) and [CLI](https://github.com/github/copilot-cli). Like a master chocolatier coordinating a confectionery factory during Valentine's rush, CoCoPilot manages multiple AI coding agents working in parallel on your codebase—each tempering away at their designated tasks while a supervisor ensures the perfect blend of productivity.
 
-The platform introduces two critical differentiators from the original multiclaude:
-1. **Containerized Execution via Docker** — Keeping your dev environment as clean as a freshly polished chocolate mold  
+The platform introduces two critical differentiators from the original nerized Execution via Docker** — Keeping your dev environment as clean as a freshly polished chocolate mold  
 2. **Real-Time Web UI** — Observe the entire tempering process from supervisor directives to individual worker progress without ever needing to attach to tmux sessions  
 3. **Terminal TUI Companion** — A curses-style console view for quick status checks, logs, and worker control without leaving your terminal
 
@@ -22,7 +21,7 @@ Modern software development increasingly benefits from AI coding assistance, but
 - **Environment pollution**: Running multiple AI agents with file system access risks contaminating local development environments
 - **Observability gaps**: Understanding what multiple agents are doing simultaneously requires constant terminal attachment
 
-Multiclaude pioneered solutions to agent coordination, but its tmux-based observability requires terminal expertise, and local execution lacks isolation guarantees.
+lutions to agent coordination, but its tmux-based observability requires terminal expertise, and local execution lacks isolation guarantees.
 
 ---
 
@@ -88,10 +87,10 @@ Users need seamless integration with GitHub for repository management, PR creati
 - Fork detection automatically adjusts merge behavior
 
 ### CN-5: CLI Compatibility
-Users familiar with multiclaude need a compatible command-line interface for scripting and terminal-based workflows.
+Users familiar with tible command-line interface for scripting and terminal-based workflows.
 
 **Acceptance Criteria:**
-- CLI commands mirror multiclaude semantics where applicable
+- CLI commands mirror ere applicable
 - All dashboard functionality is accessible via CLI
 - CLI supports JSON output for scripting
 - Tab completion available for common shells
@@ -290,7 +289,7 @@ You have access to standard Copilot tools plus:
 
 > ⚠️ **CRITICAL SECURITY NOTES** - Review before development
 
-1. **React 19 is PROHIBITED**: CVE-2025-55182 (React2Shell) allows unauthenticated RCE via Server Components. Use React 18.3.x only. The web dashboard does NOT use Server Components.
+1. **React 19 has vulnerabilities**: CVE-2025-55182 (React2Shell) allows unauthenticated RCE via Server Components. Use React 18.3.x only. The web dashboard does NOT use Server Components.
 
 2. **Redis MUST be patched**: CVE-2025-49844 (RediShell, CVSS 10.0) allows authenticated RCE via Lua scripts. Upgrade to 7.4.6+, 8.0.4+, or 8.2.2+. Enable authentication with `requirepass` and restrict network access.
 
@@ -610,7 +609,7 @@ System and repository configuration management.
 
 ## ⌨️ CLI Interface: The Confectionery Commands
 
-CoCoPilot maintains CLI compatibility with multiclaude while adding Docker-specific commands. The command prefix is `coco`.
+CoCoPilot maintains CLI compatibility with  Docker-specific commands. The command prefix is `coco`.
 
 ### Command Reference
 
@@ -816,9 +815,9 @@ interface CocoMessage {
 
 ---
 
-## 🌊 Development Waves & Multiclaude Commands
+## 🌊 Development Waves & Commands
 
-The following waves define the implementation plan. Each wave includes the multiclaude commands to execute for AI-assisted development.
+The following waves define the implementation plan. Each wave includes the  commands to execute for AI-assisted development.
 
 ### Wave 1: Foundation (The First Batch)
 
@@ -831,21 +830,21 @@ The following waves define the implementation plan. Each wave includes the multi
 - Redis message bus setup
 - File-based state persistence
 
-**Multiclaude Commands:**
+**Commands:**
 ```bash
 # Initialize the repository
-multiclaude init https://github.com/yourorg/cocopilot
+
 
 # Spawn workers for Wave 1 tasks
-multiclaude work --repo cocopilot "Create the Concher daemon in TypeScript with process lifecycle management, PID file handling, and graceful shutdown. Use Node.js child_process for spawning containers."
+cocopilot "Create the Concher daemon in TypeScript with process lifecycle management, PID file handling, and graceful shutdown. Use Node.js child_process for spawning containers."
 
-multiclaude work --repo cocopilot "Implement Docker container orchestration using dockerode library. Create functions to spawn, stop, and monitor containers. Include volume mounting for worktrees and message directories."
+cocopilot "Implement Docker container orchestration using dockerode library. Create functions to spawn, stop, and monitor containers. Include volume mounting for worktrees and message directories."
 
-multiclaude work --repo cocopilot "Build the CLI foundation using Commander.js. Implement commands: start, stop, status, init, list. Include --help documentation and tab completion generation."
+cocopilot "Build the CLI foundation using Commander.js. Implement commands: start, stop, status, init, list. Include --help documentation and tab completion generation."
 
-multiclaude work --repo cocopilot "Set up Redis pub/sub messaging infrastructure. Create TypeScript interfaces for message types, implement publish/subscribe helpers, and add file-based message persistence for recovery."
+cocopilot "Set up Redis pub/sub messaging infrastructure. Create TypeScript interfaces for message types, implement publish/subscribe helpers, and add file-based message persistence for recovery."
 
-multiclaude work --repo cocopilot "Implement file-based state management. Create schemas for global config, repo state, and worker state. Add atomic write operations and state recovery on daemon restart."
+cocopilot "Implement file-based state management. Create schemas for global config, repo state, and worker state. Add atomic write operations and state recovery on daemon restart."
 ```
 
 ### Wave 2: Agent Runtime (Grinding the Truffles)
@@ -859,20 +858,19 @@ multiclaude work --repo cocopilot "Implement file-based state management. Create
 - Inter-agent messaging tools
 - Git worktree management
 
-**Multiclaude Commands:**
-```bash
+**```bash
 # Spawn workers for Wave 2 tasks
-multiclaude work --repo cocopilot "Create a CopilotClient wrapper class that initializes sessions with custom tools, handles streaming events, and manages session lifecycle. Include error handling and reconnection logic."
+cocopilot "Create a CopilotClient wrapper class that initializes sessions with custom tools, handles streaming events, and manages session lifecycle. Include error handling and reconnection logic."
 
-multiclaude work --repo cocopilot "Implement the Chocolatier (supervisor) agent. Include the system prompt, custom tools for worker management (list_workers, spawn_worker, nudge_worker), and periodic health check loop."
+cocopilot "Implement the Chocolatier (supervisor) agent. Include the system prompt, custom tools for worker management (list_workers, spawn_worker, nudge_worker), and periodic health check loop."
 
-multiclaude work --repo cocopilot "Implement the Truffle (worker) agent template. Include configurable system prompt injection, task context, branch management, and completion signaling tools."
+cocopilot "Implement the Truffle (worker) agent template. Include configurable system prompt injection, task context, branch management, and completion signaling tools."
 
-multiclaude work --repo cocopilot "Build inter-agent messaging tools using the Copilot SDK defineTool API. Implement send_message, mark_complete, request_help with Redis pub/sub integration."
+cocopilot "Build inter-agent messaging tools using the Copilot SDK defineTool API. Implement send_message, mark_complete, request_help with Redis pub/sub integration."
 
-multiclaude work --repo cocopilot "Create git worktree management utilities. Implement functions to create, list, and cleanup worktrees. Handle branch creation and switching for worker isolation."
+cocopilot "Create git worktree management utilities. Implement functions to create, list, and cleanup worktrees. Handle branch creation and switching for worker isolation."
 
-multiclaude work --repo cocopilot "Implement the Temperer (merge queue) agent. Include PR monitoring via GitHub MCP, CI status checking, auto-merge logic, and fixup worker spawning on failures."
+cocopilot "Implement the Temperer (merge queue) agent. Include PR monitoring via GitHub MCP, CI status checking, auto-merge logic, and fixup worker spawning on failures."
 ```
 
 ### Wave 3: Web Dashboard (The Chocolate Layer)
@@ -886,20 +884,19 @@ multiclaude work --repo cocopilot "Implement the Temperer (merge queue) agent. I
 - Live output streaming
 - Repository and worker management views
 
-**Multiclaude Commands:**
-```bash
+**```bash
 # Spawn workers for Wave 3 tasks
-multiclaude work --repo cocopilot "Set up Express.js backend with Socket.IO for real-time updates. Create REST endpoints for repository CRUD, worker management, and configuration. Implement WebSocket event emission for all state changes."
+cocopilot "Set up Express.js backend with Socket.IO for real-time updates. Create REST endpoints for repository CRUD, worker management, and configuration. Implement WebSocket event emission for all state changes."
 
-multiclaude work --repo cocopilot "Create React frontend scaffolding with TailwindCSS. Implement the cocoa-themed color palette (dark chocolate headers, cream backgrounds, caramel accent colors). Set up React Router for navigation."
+cocopilot "Create React frontend scaffolding with TailwindCSS. Implement the cocoa-themed color palette (dark chocolate headers, cream backgrounds, caramel accent colors). Set up React Router for navigation."
 
-multiclaude work --repo cocopilot "Build the Factory Floor (home) page component. Show repository cards with health indicators, worker counts, and recent activity feed. Implement Socket.IO subscription for real-time updates."
+cocopilot "Build the Factory Floor (home) page component. Show repository cards with health indicators, worker counts, and recent activity feed. Implement Socket.IO subscription for real-time updates."
 
-multiclaude work --repo cocopilot "Build the Tempering Station (repository detail) page. Create agent cards for Chocolatier, Temperer, and Truffles. Implement live output streaming panel with agent selector dropdown."
+cocopilot "Build the Tempering Station (repository detail) page. Create agent cards for Chocolatier, Temperer, and Truffles. Implement live output streaming panel with agent selector dropdown."
 
-multiclaude work --repo cocopilot "Build the Truffle Inspector (worker detail) page. Show task description, conversation history, file diffs, git log, and resource usage. Add manual intervention controls (pause, resume, terminate)."
+cocopilot "Build the Truffle Inspector (worker detail) page. Show task description, conversation history, file diffs, git log, and resource usage. Add manual intervention controls (pause, resume, terminate)."
 
-multiclaude work --repo cocopilot "Implement the Spawn Worker modal/form. Include task description input, branch selector, and model override option. Validate inputs and show spawning progress."
+cocopilot "Implement the Spawn Worker modal/form. Include task description input, branch selector, and model override option. Validate inputs and show spawning progress."
 ```
 
 ### Wave 4: GitHub Integration (The Perfect Pour)
@@ -913,18 +910,17 @@ multiclaude work --repo cocopilot "Implement the Spawn Worker modal/form. Includ
 - Fork detection and multiplayer mode
 - Enrober (PR shepherd) agent
 
-**Multiclaude Commands:**
-```bash
+**```bash
 # Spawn workers for Wave 4 tasks
-multiclaude work --repo cocopilot "Configure GitHub MCP server integration in agent sessions. Implement helper functions for common operations: create PR, list PRs, get CI status, merge PR, add labels."
+cocopilot "Configure GitHub MCP server integration in agent sessions. Implement helper functions for common operations: create PR, list PRs, get CI status, merge PR, add labels."
 
-multiclaude work --repo cocopilot "Build PR pipeline visualization component for the dashboard. Show PR status progression (draft → ready → CI running → CI passed → merged) with real-time updates."
+cocopilot "Build PR pipeline visualization component for the dashboard. Show PR status progression (draft → ready → CI running → CI passed → merged) with real-time updates."
 
-multiclaude work --repo cocopilot "Implement fork detection logic during repository initialization. Auto-configure multiplayer mode for forks, disable auto-merge, enable Enrober agent."
+cocopilot "Implement fork detection logic during repository initialization. Auto-configure multiplayer mode for forks, disable auto-merge, enable Enrober agent."
 
-multiclaude work --repo cocopilot "Implement the Enrober (PR shepherd) agent for multiplayer mode. Include reviewer tracking, approval status monitoring, and upstream coordination for fork workflows."
+cocopilot "Implement the Enrober (PR shepherd) agent for multiplayer mode. Include reviewer tracking, approval status monitoring, and upstream coordination for fork workflows."
 
-multiclaude work --repo cocopilot "Add CI status monitoring to the Temperer agent. Parse GitHub Actions workflow results, categorize failures, and generate actionable summaries for fixup workers."
+cocopilot "Add CI status monitoring to the Temperer agent. Parse GitHub Actions workflow results, categorize failures, and generate actionable summaries for fixup workers."
 ```
 
 ### Wave 5: Polish & Production (The Final Blend)
@@ -938,20 +934,19 @@ multiclaude work --repo cocopilot "Add CI status monitoring to the Temperer agen
 - Performance optimization
 - End-to-end testing
 
-**Multiclaude Commands:**
-```bash
+**```bash
 # Spawn workers for Wave 5 tasks
-multiclaude work --repo cocopilot "Add comprehensive error handling throughout the codebase. Implement error boundaries in React, graceful degradation for network failures, and user-friendly error messages in CLI."
+cocopilot "Add comprehensive error handling throughout the codebase. Implement error boundaries in React, graceful degradation for network failures, and user-friendly error messages in CLI."
 
-multiclaude work --repo cocopilot "Write user documentation including README, quick start guide, configuration reference, and troubleshooting guide. Use clear examples and cocoa-themed language."
+cocopilot "Write user documentation including README, quick start guide, configuration reference, and troubleshooting guide. Use clear examples and cocoa-themed language."
 
-multiclaude work --repo cocopilot "Create production Docker Compose configuration with proper resource limits, health checks, restart policies, and volume management. Include docker-compose.prod.yml."
+cocopilot "Create production Docker Compose configuration with proper resource limits, health checks, restart policies, and volume management. Include docker-compose.prod.yml."
 
-multiclaude work --repo cocopilot "Optimize WebSocket performance for high-frequency updates. Implement message batching, selective subscription, and connection pooling. Target <500ms latency for UI updates."
+cocopilot "Optimize WebSocket performance for high-frequency updates. Implement message batching, selective subscription, and connection pooling. Target <500ms latency for UI updates."
 
-multiclaude work --repo cocopilot "Write end-to-end tests for critical user flows: initialize repo, spawn worker, monitor progress, merge PR. Use Playwright for UI tests and Jest for CLI tests."
+cocopilot "Write end-to-end tests for critical user flows: initialize repo, spawn worker, monitor progress, merge PR. Use Playwright for UI tests and Jest for CLI tests."
 
-multiclaude work --repo cocopilot "Implement the Batch Log (activity timeline) page. Create filterable event list with event type icons, agent badges, and time grouping. Add export to JSON/CSV functionality."
+cocopilot "Implement the Batch Log (activity timeline) page. Create filterable event list with event type icons, agent badges, and time grouping. Add export to JSON/CSV functionality."
 ```
 
 ### Wave 6: Advanced Features (Extra Shots)
@@ -965,18 +960,17 @@ multiclaude work --repo cocopilot "Implement the Batch Log (activity timeline) p
 - API for external integrations
 - BYOK (Bring Your Own Key) support
 
-**Multiclaude Commands:**
-```bash
+**```bash
 # Spawn workers for Wave 6 tasks
-multiclaude work --repo cocopilot "Implement custom agent support. Allow users to define new agent types via markdown files in .cocopilot/agents/. Parse agent definitions and spawn as configured."
+cocopilot "Implement custom agent support. Allow users to define new agent types via markdown files in .cocopilot/agents/. Parse agent definitions and spawn as configured."
 
-multiclaude work --repo cocopilot "Add MCP server extensibility configuration. Allow repos to specify additional MCP servers in config. Validate server availability and inject into agent sessions."
+cocopilot "Add MCP server extensibility configuration. Allow repos to specify additional MCP servers in config. Validate server availability and inject into agent sessions."
 
-multiclaude work --repo cocopilot "Build metrics and analytics dashboard page. Track worker throughput, PR cycle time, CI success rate, and model usage. Visualize with charts using Recharts."
+cocopilot "Build metrics and analytics dashboard page. Track worker throughput, PR cycle time, CI success rate, and model usage. Visualize with charts using Recharts."
 
-multiclaude work --repo cocopilot "Create REST API for external integrations. Implement endpoints for programmatic worker spawning, status queries, and webhook notifications. Document with OpenAPI spec."
+cocopilot "Create REST API for external integrations. Implement endpoints for programmatic worker spawning, status queries, and webhook notifications. Document with OpenAPI spec."
 
-multiclaude work --repo cocopilot "Implement BYOK (Bring Your Own Key) support for enterprise deployments. Allow configuration of custom API keys for OpenAI, Anthropic, and Azure endpoints in the Copilot SDK."
+cocopilot "Implement BYOK (Bring Your Own Key) support for enterprise deployments. Allow configuration of custom API keys for OpenAI, Anthropic, and Azure endpoints in the Copilot SDK."
 ```
 
 ---

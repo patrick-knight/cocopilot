@@ -13,13 +13,14 @@ services:
       - redis
     environment:
       - HOME=/root
-      - REDIS_URL=redis://redis:6379
-      - NODE_ENV=development
+      - REDIS_URL=redis://:cocopilot-dev@redis:6379
+      - NODE_ENV=production
 
   redis:
     image: redis:7.4.6-alpine
     ports:
       - "6379:6379"
+    command: ["redis-server", "--requirepass", "cocopilot-dev"]
 
 volumes:
   cocopilot-data:

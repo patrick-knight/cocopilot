@@ -34,6 +34,7 @@
     "dockerode": "^4.0.9",
     "eventsource": "^4.1.0",
     "express": "^5.2.1",
+    "helmet": "^8.1.0",
     "ink": "^6.6.0",
     "ink-select-input": "^6.2.0",
     "ink-spinner": "^5.0.0",

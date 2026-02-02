@@ -10,6 +10,7 @@ import { createServer as createHttpServer, type Server as HttpServer } from "nod
 import path from "node:path";
 import express from "express";
 import cors from "cors";
+import helmet from "helmet";
 import { Server as SocketIOServer } from "socket.io";
 
 import type { StateManager } from "../state/index.js";
@@ -59,7 +60,16 @@ export function createServer(deps: ServerDeps): CocoServer {
   const app = express();
 
   // Middleware
-  app.use(cors());
+  const allowedOrigins = [
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+  ];
+  app.use(helmet({
+    contentSecurityPolicy: false,
+  }));
+  app.use(cors({
+    origin: allowedOrigins,
+  }));
   app.use(express.json());
 
   // Serve static frontend files (in production)
@@ -117,7 +127,7 @@ export function createServer(deps: ServerDeps): CocoServer {
 
   // Socket.IO
   const io = new SocketIOServer(httpServer, {
-    cors: { origin: "*" },
+    cors: { origin: allowedOrigins },
   });
 
   // Wire up bridges

@@ -35,6 +35,35 @@ const VALID_EVENTS = [
   "ci.failed",
 ];
 
+const BLOCKED_HOST_PATTERNS = [
+  /^localhost$/i,
+  /^127\./,
+  /^10\./,
+  /^172\.(1[6-9]|2[0-9]|3[01])\./,
+  /^192\.168\./,
+  /^169\.254\./,
+  /^0\./,
+  /^::1$/i,
+  /^\[::1\]$/i,
+  /^fe80:/i,
+  /^fc/i,
+  /^fd/i,
+  /^::ffff:127\./i,
+];
+
+function isSafeWebhookUrl(rawUrl: string): boolean {
+  try {
+    const url = new URL(rawUrl);
+    if (url.protocol !== "http:" && url.protocol !== "https:") {
+      return false;
+    }
+    const host = url.hostname.toLowerCase();
+    return !BLOCKED_HOST_PATTERNS.some((pattern) => pattern.test(host));
+  } catch {
+    return false;
+  }
+}
+
 export function extWebhookRoutes(store?: WebhookStore): Router {
   const webhooks: WebhookStore = store ?? new Map();
   const router = Router();
@@ -48,10 +77,8 @@ export function extWebhookRoutes(store?: WebhookStore): Router {
       return;
     }
 
-    try {
-      new URL(url);
-    } catch {
-      next(createApiError(400, "Invalid URL format"));
+    if (!isSafeWebhookUrl(url)) {
+      next(createApiError(400, "Invalid or unsafe webhook URL"));
       return;
     }
 

@@ -103,7 +103,7 @@ Environment variables used internally by CoCoPilot. Most users won't need to set
 | `COCOPILOT_MODEL` | Model override for the Copilot SDK | Config value |
 | `COCOPILOT_AGENT_TYPE` | Agent type: `chocolatier`, `temperer`, `enrober`, `truffle` | Not set |
 | `COCOPILOT_WORKER_NAME` | Worker candy name (set in Truffle containers) | Not set |
-| `REDIS_URL` | Redis connection URL (overrides config) | `redis://localhost:6379` |
+| `REDIS_URL` | Redis connection URL (overrides config) | `redis://:password@localhost:6379` |
 
 ---
 

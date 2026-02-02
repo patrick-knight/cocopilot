@@ -16,6 +16,7 @@ function getRedisConfig() {
       return {
         host: url.hostname,
         port: parseInt(url.port || "6379", 10),
+        password: url.password || undefined,
       };
     } catch {
       // Invalid URL, fall back to default
