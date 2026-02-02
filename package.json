@@ -23,7 +23,9 @@
     "test:e2e": "jest tests/e2e/",
     "test:e2e:ui": "npx playwright test",
     "lint": "tsc --noEmit",
-    "clean": "rm -rf dist/ dist-web/"
+    "clean": "rm -rf dist/ dist-web/",
+    "version": "npm run build && git add -A",
+    "postversion": "git push && git push --tags"
   },
   "dependencies": {
     "@github/copilot-sdk": "^0.1.19",
