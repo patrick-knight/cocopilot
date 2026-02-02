@@ -15,6 +15,8 @@ services:
       - HOME=/root
       - REDIS_URL=redis://:cocopilot-dev@redis:6379
       - NODE_ENV=production
+      - CODESPACE_NAME=${CODESPACE_NAME}
+      - GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN=${GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN}
 
   redis:
     image: redis:7.4.6-alpine

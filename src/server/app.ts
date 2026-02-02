@@ -64,6 +64,13 @@ export function createServer(deps: ServerDeps): CocoServer {
     "http://localhost:3000",
     "http://127.0.0.1:3000",
   ];
+  
+  // Add Codespaces URL if running in GitHub Codespaces
+  if (process.env.CODESPACE_NAME) {
+    const codespaceUrl = `https://${process.env.CODESPACE_NAME}-3000.${process.env.GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN || 'app.github.dev'}`;
+    allowedOrigins.push(codespaceUrl);
+  }
+  
   app.use(helmet({
     contentSecurityPolicy: false,
   }));
