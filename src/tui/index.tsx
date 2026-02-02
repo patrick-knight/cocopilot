@@ -20,6 +20,8 @@ import {
   RepositoriesScreen,
   RepoDetailScreen,
   WorkerDetailScreen,
+  AgentDetailScreen,
+  MessagesScreen,
   MetricsScreen,
   HelpScreen,
 } from "./screens/index.js";
@@ -63,6 +65,10 @@ function AppContent(): React.ReactElement {
       return <RepoDetailScreen repoName={screen.repoName} />;
     case "worker-detail":
       return <WorkerDetailScreen repoName={screen.repoName} workerName={screen.workerName} />;
+    case "agent-detail":
+      return <AgentDetailScreen repoName={screen.repoName} agentName={screen.agentName} />;
+    case "messages":
+      return <MessagesScreen repoName={screen.repoName} />;
     case "metrics":
       return <MetricsScreen />;
     case "help":

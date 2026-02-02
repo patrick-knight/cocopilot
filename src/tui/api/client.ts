@@ -325,6 +325,33 @@ export class TuiApiClient {
     };
   }
 
+  onAgentOutput(callback: (data: { agent: string; output: string }) => void): () => void {
+    const socket = this.connect();
+    socket.on("agent:output", callback);
+    return () => {
+      socket.off("agent:output", callback);
+    };
+  }
+
+  onMessage(callback: (msg: { id: string; type: string; from: string; to: string; payload: unknown; timestamp: number }) => void): () => void {
+    const socket = this.connect();
+    socket.on("message:new", callback);
+    return () => {
+      socket.off("message:new", callback);
+    };
+  }
+
+  async getMessages(repoName: string): Promise<{ id: string; type: string; from: string; to: string; payload: unknown; timestamp: number }[]> {
+    try {
+      const data = await this.fetch<{ messages: { id: string; type: string; from: string; to: string; payload: unknown; timestamp: number }[] }>(
+        `/api/v1/repositories/${encodeURIComponent(repoName)}/messages`
+      );
+      return data.messages ?? [];
+    } catch {
+      return [];
+    }
+  }
+
   onStatusUpdate(callback: (status: StatusResponse) => void): () => void {
     const socket = this.connect();
     socket.on("status:update", callback);

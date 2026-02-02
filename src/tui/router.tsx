@@ -9,6 +9,8 @@ export type Screen =
   | { type: "repositories" }
   | { type: "repo-detail"; repoName: string }
   | { type: "worker-detail"; repoName: string; workerName: string }
+  | { type: "agent-detail"; repoName: string; agentName: string }
+  | { type: "messages"; repoName: string }
   | { type: "metrics" }
   | { type: "help" };
 
@@ -66,6 +68,10 @@ export function getScreenTitle(screen: Screen): string {
       return `Repo: ${screen.repoName}`;
     case "worker-detail":
       return `Worker: ${screen.workerName}`;
+    case "agent-detail":
+      return `Agent: ${screen.agentName}`;
+    case "messages":
+      return "Messages";
     case "metrics":
       return "Metrics";
     case "help":
@@ -83,6 +89,10 @@ export function getBreadcrumbs(screen: Screen): string[] {
       return ["CoCo", "Repositories", screen.repoName];
     case "worker-detail":
       return ["CoCo", "Repositories", screen.repoName, screen.workerName];
+    case "agent-detail":
+      return ["CoCo", "Repositories", screen.repoName, screen.agentName];
+    case "messages":
+      return ["CoCo", "Repositories", screen.repoName, "Messages"];
     case "metrics":
       return ["CoCo", "Metrics"];
     case "help":

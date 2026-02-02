@@ -104,7 +104,7 @@ export function RepositoriesScreen(): React.ReactElement {
   if (loading && repositories.length === 0) {
     return (
       <Box flexDirection="column">
-        <Header />
+        <Header showBanner />
         <Text>
           <Spinner type="dots" /> Loading repositories...
         </Text>
@@ -115,7 +115,7 @@ export function RepositoriesScreen(): React.ReactElement {
   if (error) {
     return (
       <Box flexDirection="column">
-        <Header />
+        <Header showBanner />
         <Text color="red">{symbols.error} Error: {error.message}</Text>
       </Box>
     );
@@ -181,7 +181,7 @@ export function RepositoriesScreen(): React.ReactElement {
 
   return (
     <Box flexDirection="column">
-      <Header />
+      <Header showBanner />
 
       {/* Filter input */}
       {isFiltering && (

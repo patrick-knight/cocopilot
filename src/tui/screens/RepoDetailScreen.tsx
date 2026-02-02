@@ -17,17 +17,22 @@ interface RepoDetailScreenProps {
 }
 
 type Mode = "view" | "spawn";
+type Tab = "workers" | "agents";
 
 export function RepoDetailScreen({ repoName }: RepoDetailScreenProps): React.ReactElement {
   const { repository, loading: repoLoading, error: repoError } = useRepository(repoName);
   const { workers, spawnWorker, stopWorker, refresh } = useWorkers(repoName);
   const { navigate } = useRouter();
   const [mode, setMode] = useState<Mode>("view");
+  const [tab, setTab] = useState<Tab>("workers");
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [spawnTask, setSpawnTask] = useState("");
   const [spawnBranch, setSpawnBranch] = useState("");
   const [spawnStep, setSpawnStep] = useState<"task" | "branch">("task");
   const [actionError, setActionError] = useState<string | null>(null);
+
+  const agents = Object.values(repository?.agents ?? {});
+  const currentList = tab === "workers" ? workers : agents;
 
   useInput((input, key) => {
     if (mode !== "view") {
@@ -45,17 +50,32 @@ export function RepoDetailScreen({ repoName }: RepoDetailScreenProps): React.Rea
       setSpawnStep("task");
     } else if (input === "r") {
       refresh();
+    } else if (input === "l") {
+      // Navigate to messages
+      navigate({ type: "messages", repoName });
+    } else if (key.tab || input === "t") {
+      // Toggle between tabs
+      setTab((prev) => prev === "workers" ? "agents" : "workers");
+      setSelectedIndex(0);
     } else if (key.upArrow || input === "k") {
       setSelectedIndex((prev) => Math.max(0, prev - 1));
     } else if (key.downArrow || input === "j") {
-      setSelectedIndex((prev) => Math.min(workers.length - 1, prev + 1));
-    } else if (key.return && workers[selectedIndex]) {
-      navigate({
-        type: "worker-detail",
-        repoName,
-        workerName: workers[selectedIndex].name,
-      });
-    } else if (input === "x" && workers[selectedIndex]) {
+      setSelectedIndex((prev) => Math.min(currentList.length - 1, prev + 1));
+    } else if (key.return && currentList[selectedIndex]) {
+      if (tab === "workers") {
+        navigate({
+          type: "worker-detail",
+          repoName,
+          workerName: (currentList[selectedIndex] as typeof workers[0]).name,
+        });
+      } else {
+        navigate({
+          type: "agent-detail",
+          repoName,
+          agentName: (currentList[selectedIndex] as typeof agents[0]).name,
+        });
+      }
+    } else if (input === "x" && tab === "workers" && workers[selectedIndex]) {
       handleStopWorker(workers[selectedIndex].name);
     }
   });
@@ -158,8 +178,6 @@ export function RepoDetailScreen({ repoName }: RepoDetailScreenProps): React.Rea
   }
 
   // View mode
-  const agents = Object.values(repository.agents ?? {});
-
   return (
     <Box flexDirection="column">
       <Header />
@@ -171,47 +189,73 @@ export function RepoDetailScreen({ repoName }: RepoDetailScreenProps): React.Rea
         <Text>Mode: <Text color="cyan">{repository.mode}</Text> | Branch: <Text color="cyan">{repository.defaultBranch}</Text></Text>
       </Box>
 
-      {/* Agents */}
-      <Box marginBottom={1} flexDirection="column">
-        <Text bold underline>Agents</Text>
-        {agents.length === 0 ? (
-          <Text dimColor>No agents running</Text>
-        ) : (
-          agents.map((agent) => (
-            <Box key={agent.name}>
-              <Text>
-                <StatusIndicator status={agent.status} />
-                <Text> {agent.name}</Text>
-                <Text dimColor> ({agent.type})</Text>
-              </Text>
-            </Box>
-          ))
-        )}
+      {/* Tab selector */}
+      <Box marginBottom={1}>
+        <Text
+          backgroundColor={tab === "workers" ? "blue" : undefined}
+          color={tab === "workers" ? "white" : "gray"}
+        >
+          {" "}Workers ({workers.length}) {" "}
+        </Text>
+        <Text> | </Text>
+        <Text
+          backgroundColor={tab === "agents" ? "blue" : undefined}
+          color={tab === "agents" ? "white" : "gray"}
+        >
+          {" "}Agents ({agents.length}) {" "}
+        </Text>
       </Box>
 
-      {/* Workers */}
+      {/* Content based on tab */}
       <Box flexDirection="column">
-        <Text bold underline>Workers ({workers.length})</Text>
-        {workers.length === 0 ? (
-          <Text dimColor>No workers. Press 'n' to spawn one.</Text>
+        {tab === "workers" ? (
+          <>
+            <Text bold underline>Workers</Text>
+            {workers.length === 0 ? (
+              <Text dimColor>No workers. Press 'n' to spawn one.</Text>
+            ) : (
+              workers.map((worker, index) => {
+                const isSelected = index === selectedIndex;
+                return (
+                  <Box key={worker.name}>
+                    <Text
+                      backgroundColor={isSelected ? "blue" : undefined}
+                      color={isSelected ? "white" : undefined}
+                    >
+                      {isSelected ? `${symbols.pointer} ` : "  "}
+                      <StatusIndicator status={worker.status} showSymbol={false} label={worker.status.padEnd(10)} />
+                      <Text bold> {worker.name}</Text>
+                      {worker.branch && <Text dimColor> [{worker.branch}]</Text>}
+                    </Text>
+                  </Box>
+                );
+              })
+            )}
+          </>
         ) : (
-          workers.map((worker, index) => {
-            const isSelected = index === selectedIndex;
-
-            return (
-              <Box key={worker.name}>
-                <Text
-                  backgroundColor={isSelected ? "blue" : undefined}
-                  color={isSelected ? "white" : undefined}
-                >
-                  {isSelected ? `${symbols.pointer} ` : "  "}
-                  <StatusIndicator status={worker.status} showSymbol={false} label={worker.status.padEnd(10)} />
-                  <Text bold> {worker.name}</Text>
-                  {worker.branch && <Text dimColor> [{worker.branch}]</Text>}
-                </Text>
-              </Box>
-            );
-          })
+          <>
+            <Text bold underline>Agents</Text>
+            {agents.length === 0 ? (
+              <Text dimColor>No agents running</Text>
+            ) : (
+              agents.map((agent, index) => {
+                const isSelected = index === selectedIndex;
+                return (
+                  <Box key={agent.name}>
+                    <Text
+                      backgroundColor={isSelected ? "blue" : undefined}
+                      color={isSelected ? "white" : undefined}
+                    >
+                      {isSelected ? `${symbols.pointer} ` : "  "}
+                      <StatusIndicator status={agent.status} />
+                      <Text> {agent.name}</Text>
+                      <Text dimColor> ({agent.type})</Text>
+                    </Text>
+                  </Box>
+                );
+              })
+            )}
+          </>
         )}
       </Box>
 
@@ -224,7 +268,7 @@ export function RepoDetailScreen({ repoName }: RepoDetailScreenProps): React.Rea
       {/* Help */}
       <Box marginTop={1}>
         <Text dimColor>
-          ↑/↓: navigate | Enter: inspect | n: spawn | x: stop | r: refresh
+          Tab/t: switch | ↑/↓: navigate | Enter: inspect | l: messages | n: spawn | x: stop | r: refresh
         </Text>
       </Box>
     </Box>

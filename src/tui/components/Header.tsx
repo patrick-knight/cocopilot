@@ -1,5 +1,5 @@
 /**
- * TUI Header component with breadcrumbs
+ * TUI Header component with CoCoPilot banner and breadcrumbs
  */
 
 import React from "react";
@@ -7,12 +7,26 @@ import { Box, Text } from "ink";
 import { useRouter, getBreadcrumbs } from "../router.js";
 import { symbols } from "../utils/colors.js";
 
-export function Header(): React.ReactElement {
+// ASCII art banner for CoCoPilot
+const LOGO_LINES = [
+  "┌─────────────────────────────────────────────┐",
+  "│   🍫 CoCoPilot - AI Worker Orchestration    │",
+  "└─────────────────────────────────────────────┘",
+];
+
+export function Header({ showBanner = false }: { showBanner?: boolean }): React.ReactElement {
   const { screen, canGoBack } = useRouter();
   const breadcrumbs = getBreadcrumbs(screen);
 
   return (
     <Box flexDirection="column" marginBottom={1}>
+      {showBanner && (
+        <Box flexDirection="column" marginBottom={1}>
+          {LOGO_LINES.map((line, i) => (
+            <Text key={i} color="cyan">{line}</Text>
+          ))}
+        </Box>
+      )}
       <Box>
         <Text bold color="cyan">
           {breadcrumbs.map((crumb, i) => (
@@ -25,7 +39,7 @@ export function Header(): React.ReactElement {
       </Box>
       <Box>
         <Text dimColor>
-          {canGoBack ? "Esc: Back" : ""} | q: Quit | ?: Help | s: Status | r: Refresh
+          {canGoBack ? "Esc: Back" : ""} | q: Quit | ?: Help | s: Status | m: Metrics | r: Refresh
         </Text>
       </Box>
       <Box marginTop={0}>
