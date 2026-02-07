@@ -440,6 +440,15 @@ export function MessagesPage() {
                         <tr
                           className="border-b border-border hover:bg-muted/30 cursor-pointer transition-colors"
                           onClick={() => toggleExpand(msg.id)}
+                          role="button"
+                          tabIndex={0}
+                          aria-expanded={isExpanded}
+                          onKeyDown={(event) => {
+                            if (event.key === "Enter" || event.key === " ") {
+                              event.preventDefault();
+                              toggleExpand(msg.id);
+                            }
+                          }}
                         >
                           <td className="px-4 py-3 whitespace-nowrap">
                             <div className="text-xs">{formatRelativeTime(msg.timestamp)}</div>

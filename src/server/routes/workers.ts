@@ -11,8 +11,6 @@
 
 import { Router } from "express";
 import { execFile } from "node:child_process";
-import * as fs from "node:fs";
-import * as path from "node:path";
 import { promisify } from "node:util";
 import type { StateManager } from "../../state/index.js";
 import type { MessageBroker } from "../../messaging/index.js";
@@ -22,7 +20,8 @@ import { chocolatierAgentName } from "../../agents/chocolatier.js";
 import { scopedWorkerName } from "../../agents/scoped-name.js";
 import { createApiError } from "../middleware/error-handler.js";
 import { resolveTemplate } from "../../api/v1/templates.js";
-import type { RepoConfig, TaskTemplate } from "../../state/schemas.js";
+import type { TaskTemplate } from "../../state/schemas.js";
+import { loadRepoConfig } from "../../utils/index.js";
 
 interface RepoParams {
   repoName: string;
@@ -31,21 +30,6 @@ interface RepoParams {
 
 interface WorkerParams extends RepoParams {
   workerName: string;
-}
-
-/**
- * Load per-repo configuration from .cocopilot/config.json
- */
-function loadRepoConfig(localPath: string): RepoConfig {
-  try {
-    const configPath = path.join(localPath, ".cocopilot", "config.json");
-    if (fs.existsSync(configPath)) {
-      return JSON.parse(fs.readFileSync(configPath, "utf-8")) as RepoConfig;
-    }
-  } catch {
-    // Ignore read errors
-  }
-  return {};
 }
 
 export function workerRoutes(

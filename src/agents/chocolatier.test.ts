@@ -10,7 +10,6 @@ import { ContainerStatus, ContainerType } from "../docker/index.js";
 import type { MessageBroker } from "../messaging/index.js";
 import { MessageType } from "../messaging/index.js";
 import type { CocoMessage } from "../messaging/index.js";
-import type { CocoConfig } from "../types/index.js";
 import type { GlobalConfig, RepoState } from "../state/schemas.js";
 
 // ---------------------------------------------------------------------------
