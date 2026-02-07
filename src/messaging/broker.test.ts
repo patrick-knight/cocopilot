@@ -294,7 +294,7 @@ describe("MessageBroker (Redis failover)", () => {
       expect(redisHandler).toBeDefined();
 
       // Simulate Redis delivering a message
-      const msg: CocoMessage = {
+      const redisMsg: CocoMessage = {
         id: "redis-msg-1",
         type: MessageType.NUDGE,
         from: "chocolatier",
@@ -306,14 +306,33 @@ describe("MessageBroker (Redis failover)", () => {
       };
 
       if (redisHandler) {
-        await (redisHandler as any)(msg);
+        await (redisHandler as any)(redisMsg);
       }
 
       // Handler should have been called
-      expect(handler).toHaveBeenCalledWith(msg);
+      expect(handler).toHaveBeenCalledWith(redisMsg);
+      expect(handler).toHaveBeenCalledTimes(1);
 
-      // Watermark should be updated (private, but we can verify by checking file polling doesn't re-deliver)
-      // If we fall back to file polling, messages older than this timestamp should be skipped
+      // Save an older message to file store
+      const olderMsg: CocoMessage = {
+        id: "old-msg",
+        type: MessageType.NUDGE,
+        from: "chocolatier",
+        to: "test-agent",
+        payload: { hint: "Old message" },
+        priority: "normal",
+        timestamp: redisMsg.timestamp - 1000, // 1 second older
+        ack_required: false,
+      };
+
+      await store.save(olderMsg);
+
+      // Trigger file polling
+      await (broker as any).pollFileStore();
+
+      // Handler should NOT have been called again because the watermark
+      // was updated by the Redis message, so older messages are skipped
+      expect(handler).toHaveBeenCalledTimes(1);
     });
 
     it("does not re-deliver old messages after Redis→file fallback", async () => {
@@ -327,7 +346,29 @@ describe("MessageBroker (Redis failover)", () => {
       const handler = jest.fn();
       await broker.subscribe("test-agent", handler);
 
-      // Save an old message to file store
+      // First, deliver a newer message via Redis to establish the watermark
+      const redisHandler = mockBus.subscribe.mock.calls[0]?.[1];
+      expect(redisHandler).toBeDefined();
+
+      const newerMsg: CocoMessage = {
+        id: "newer-msg",
+        type: MessageType.NUDGE,
+        from: "chocolatier",
+        to: "test-agent",
+        payload: { hint: "Newer message" },
+        priority: "normal",
+        timestamp: Date.now(),
+        ack_required: false,
+      };
+
+      if (redisHandler) {
+        await (redisHandler as any)(newerMsg);
+      }
+
+      expect(handler).toHaveBeenCalledWith(newerMsg);
+      expect(handler).toHaveBeenCalledTimes(1);
+
+      // Save an old message to file store (older than the Redis message)
       const oldMsg: CocoMessage = {
         id: "old-msg",
         type: MessageType.NUDGE,
@@ -335,7 +376,7 @@ describe("MessageBroker (Redis failover)", () => {
         to: "test-agent",
         payload: { hint: "Old message" },
         priority: "normal",
-        timestamp: Date.now() - 60000, // 1 minute ago
+        timestamp: newerMsg.timestamp - 60000, // 1 minute older
         ack_required: false,
       };
 
@@ -347,10 +388,9 @@ describe("MessageBroker (Redis failover)", () => {
       // Trigger file polling (normally happens via timer)
       await (broker as any).pollFileStore();
 
-      // Old message should NOT be delivered because the subscription
-      // initialized the watermark to now, not to 0
-      // (This is the bug mentioned in the review comment)
-      // For now, this test documents the current behavior
+      // Old message should NOT be delivered because the watermark
+      // was updated by the newer Redis message
+      expect(handler).toHaveBeenCalledTimes(1);
     });
   });
 
