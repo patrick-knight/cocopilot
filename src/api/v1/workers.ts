@@ -12,13 +12,31 @@
  * POST   /api/v1/workers/:name/resume  -- Resume a paused worker
  */
 
+import * as fs from "node:fs";
+import * as path from "node:path";
 import { Router } from "express";
 import type { StateManager } from "../../state/index.js";
 import type { MessageBroker } from "../../messaging/index.js";
 import { MessageType } from "../../messaging/index.js";
 import { chocolatierAgentName } from "../../agents/chocolatier.js";
 import { createApiError } from "../../server/middleware/error-handler.js";
+import type { RepoConfig, TaskTemplate } from "../../state/schemas.js";
 import { resolveTemplate, BUILTIN_TEMPLATES } from "./templates.js";
+
+/**
+ * Load per-repo configuration from .cocopilot/config.json
+ */
+function loadRepoConfig(localPath: string): RepoConfig {
+  try {
+    const configPath = path.join(localPath, ".cocopilot", "config.json");
+    if (fs.existsSync(configPath)) {
+      return JSON.parse(fs.readFileSync(configPath, "utf-8")) as RepoConfig;
+    }
+  } catch {
+    // Ignore read errors
+  }
+  return {};
+}
 
 export function extWorkerRoutes(
   stateManager: StateManager,
@@ -29,22 +47,10 @@ export function extWorkerRoutes(
   // POST / -- Spawn a worker in a specific repository
   // Sends SPAWN_WORKER message to Chocolatier which actually spawns the container
   router.post("/", async (req, res, next) => {
-    let { task, repoName, branch, name, model, pushTo, templateId } = req.body ?? {};
+    const body = req.body ?? {};
+    let { task } = body;
+    const { repoName, branch, name, model, pushTo, templateId } = body;
 
-    // Resolve task from template if templateId is provided
-    if (templateId && !task) {
-      const template = resolveTemplate(templateId);
-      if (!template) {
-        next(createApiError(404, `Template "${templateId}" not found`));
-        return;
-      }
-      task = template.task;
-    }
-
-    if (!task) {
-      next(createApiError(400, "Missing required field: task"));
-      return;
-    }
     if (!repoName) {
       next(createApiError(400, "Missing required field: repoName"));
       return;
@@ -54,6 +60,28 @@ export function extWorkerRoutes(
     const repo = stateManager.getRepo(repoName);
     if (!repo) {
       next(createApiError(404, `Repository "${repoName}" not tracked`));
+      return;
+    }
+
+    // Get repo-specific templates if resolving from templateId
+    let repoTemplates: TaskTemplate[] | undefined;
+    if (templateId) {
+      const repoConfig = loadRepoConfig(repo.localPath);
+      repoTemplates = repoConfig.templates;
+    }
+
+    // Resolve task from template if templateId is provided
+    if (templateId && !task) {
+      const template = resolveTemplate(templateId, repoTemplates);
+      if (!template) {
+        next(createApiError(404, `Template "${templateId}" not found`));
+        return;
+      }
+      task = template.task;
+    }
+
+    if (!task) {
+      next(createApiError(400, "Missing required field: task"));
       return;
     }
 
