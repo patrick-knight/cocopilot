@@ -11,6 +11,7 @@
 
 import { Router } from "express";
 import { execFile } from "node:child_process";
+import * as fs from "node:fs";
 import { promisify } from "node:util";
 import type { StateManager } from "../../state/index.js";
 import type { MessageBroker } from "../../messaging/index.js";
