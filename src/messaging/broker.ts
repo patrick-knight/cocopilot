@@ -362,20 +362,25 @@ export class MessageBroker {
     }
   }
 
+  /** Attempt a single Redis reconnection. */
+  private async attemptRedisReconnect(): Promise<void> {
+    if (this.redisAvailable) return;
+    try {
+      await this.bus.connect();
+      console.log("[MessageBroker] Redis reconnected successfully");
+      this.redisAvailable = true;
+      await this.resubscribeAll();
+      this.stopFilePolling();
+    } catch {
+      // Still unavailable, will retry next interval
+    }
+  }
+
   /** Start periodic Redis reconnection attempts. */
   private startReconnectTimer(): void {
     if (this.reconnectTimer) return;
-    this.reconnectTimer = setInterval(async () => {
-      if (this.redisAvailable) return;
-      try {
-        await this.bus.connect();
-        console.log("[MessageBroker] Redis reconnected successfully");
-        this.redisAvailable = true;
-        await this.resubscribeAll();
-        this.stopFilePolling();
-      } catch {
-        // Still unavailable, will retry next interval
-      }
+    this.reconnectTimer = setInterval(() => {
+      this.attemptRedisReconnect().catch(() => {});
     }, REDIS_RECONNECT_INTERVAL_MS);
     // Don't block process exit
     if (this.reconnectTimer && typeof this.reconnectTimer === "object" && "unref" in this.reconnectTimer) {
@@ -390,35 +395,40 @@ export class MessageBroker {
     }
   }
 
+  /** Poll file store once for new messages across all subscribed agents. */
+  private async pollFileStore(): Promise<void> {
+    for (const [agentName, handler] of this.agentHandlers) {
+      try {
+        const lastTs = this.lastPollTimestamps.get(agentName) ?? 0;
+        const pending = await this.store.getPending(agentName);
+        const broadcasts = await this.store.getPendingBroadcasts();
+        const newMessages = [...pending, ...broadcasts]
+          .filter((m) => m.timestamp > lastTs)
+          .sort((a, b) => a.timestamp - b.timestamp);
+
+        for (const msg of newMessages) {
+          try {
+            await handler(msg);
+          } catch {
+            // Handler errors don't break polling
+          }
+        }
+
+        if (newMessages.length > 0) {
+          const maxTs = Math.max(...newMessages.map((m) => m.timestamp));
+          this.lastPollTimestamps.set(agentName, maxTs);
+        }
+      } catch {
+        // File store read errors don't break polling
+      }
+    }
+  }
+
   /** Start polling file store for new messages when Redis is unavailable. */
   private startFilePolling(): void {
     if (this.pollTimer) return;
-    this.pollTimer = setInterval(async () => {
-      for (const [agentName, handler] of this.agentHandlers) {
-        try {
-          const lastTs = this.lastPollTimestamps.get(agentName) ?? 0;
-          const pending = await this.store.getPending(agentName);
-          const broadcasts = await this.store.getPendingBroadcasts();
-          const newMessages = [...pending, ...broadcasts]
-            .filter((m) => m.timestamp > lastTs)
-            .sort((a, b) => a.timestamp - b.timestamp);
-
-          for (const msg of newMessages) {
-            try {
-              await handler(msg);
-            } catch {
-              // Handler errors don't break polling
-            }
-          }
-
-          if (newMessages.length > 0) {
-            const maxTs = Math.max(...newMessages.map((m) => m.timestamp));
-            this.lastPollTimestamps.set(agentName, maxTs);
-          }
-        } catch {
-          // File store read errors don't break polling
-        }
-      }
+    this.pollTimer = setInterval(() => {
+      this.pollFileStore().catch(() => {});
     }, FILE_POLL_INTERVAL_MS);
     // Don't block process exit
     if (this.pollTimer && typeof this.pollTimer === "object" && "unref" in this.pollTimer) {
