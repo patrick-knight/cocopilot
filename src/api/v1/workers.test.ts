@@ -39,7 +39,14 @@ describe("POST /api/v1/workers", () => {
   });
 
   it("returns 400 when task is missing", async () => {
-    const sm = { getRepo: jest.fn() };
+    const sm = { 
+      getRepo: jest.fn().mockReturnValue({
+        id: "repo-1",
+        name: "my-app",
+        localPath: "/tmp/my-app",
+        defaultBranch: "main",
+      }) 
+    };
     const broker = { send: jest.fn() };
     const app = createApp(sm, broker);
 
