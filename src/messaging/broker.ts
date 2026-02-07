@@ -370,7 +370,10 @@ export class MessageBroker {
       console.log("[MessageBroker] Redis reconnected successfully");
       this.redisAvailable = true;
       await this.resubscribeAll();
-      this.stopFilePolling();
+      // Only stop file polling if Redis is still marked available after resubscribeAll().
+      if (this.redisAvailable) {
+        this.stopFilePolling();
+      }
     } catch {
       // Still unavailable, will retry next interval
     }
@@ -397,11 +400,18 @@ export class MessageBroker {
 
   /** Poll file store once for new messages across all subscribed agents. */
   private async pollFileStore(): Promise<void> {
+    // Fetch broadcasts once per poll to reduce IO overhead
+    let broadcasts: CocoMessage[] = [];
+    try {
+      broadcasts = await this.store.getPendingBroadcasts();
+    } catch {
+      // Broadcast read errors don't break per-agent polling
+    }
+
     for (const [agentName, handler] of this.agentHandlers) {
       try {
         const lastTs = this.lastPollTimestamps.get(agentName) ?? 0;
         const pending = await this.store.getPending(agentName);
-        const broadcasts = await this.store.getPendingBroadcasts();
         const newMessages = [...pending, ...broadcasts]
           .filter((m) => m.timestamp > lastTs)
           .sort((a, b) => a.timestamp - b.timestamp);
