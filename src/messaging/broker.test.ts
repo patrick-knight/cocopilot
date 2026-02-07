@@ -1,9 +1,16 @@
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
+
+// Mock RedisMessageBus to avoid real Redis connections in tests
+jest.mock("./redis-bus");
+
 import { MessageBroker } from "./broker";
 import { FileMessageStore } from "./file-store";
 import { CocoMessage, MessageType } from "./types";
+import { RedisMessageBus } from "./redis-bus";
+
+const MockedRedisMessageBus = RedisMessageBus as jest.MockedClass<typeof RedisMessageBus>;
 
 /**
  * These tests focus on the FileMessageStore-backed parts of the broker.
@@ -147,3 +154,281 @@ describe("MessageBroker (file persistence)", () => {
     });
   });
 });
+
+describe("MessageBroker (Redis failover)", () => {
+  let tmpDir: string;
+  let store: FileMessageStore;
+  let mockBus: jest.Mocked<RedisMessageBus>;
+  let broker: MessageBroker | null;
+
+  beforeEach(() => {
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "cocopilot-broker-test-"));
+    store = new FileMessageStore({ basePath: tmpDir });
+
+    // Configure the mocked RedisMessageBus constructor to return a controllable mock
+    mockBus = {
+      publish: jest.fn().mockResolvedValue(true),
+      subscribe: jest.fn().mockResolvedValue(true),
+      unsubscribe: jest.fn().mockResolvedValue(undefined),
+      subscribeChannel: jest.fn().mockResolvedValue(undefined),
+      unsubscribeChannel: jest.fn().mockResolvedValue(undefined),
+      onConnectionStateChange: jest.fn(),
+      connect: jest.fn().mockResolvedValue(undefined),
+      close: jest.fn().mockResolvedValue(undefined),
+      publishRaw: jest.fn().mockResolvedValue(true),
+      isReady: false,
+    } as unknown as jest.Mocked<RedisMessageBus>;
+
+    MockedRedisMessageBus.mockImplementation(() => mockBus as any);
+    broker = null;
+  });
+
+  afterEach(async () => {
+    if (broker) await broker.close();
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  describe("Redis failure detection and fallback", () => {
+    it("falls back to file polling when Redis publish fails", async () => {
+      broker = new MessageBroker({
+        fileStore: { basePath: tmpDir },
+        redis: {},
+      });
+
+      // Start with successful Redis
+      await broker.connect();
+      await broker.subscribe("test-agent", jest.fn());
+
+      // Simulate Redis failure
+      mockBus.publish.mockResolvedValue(false);
+
+      const msg: CocoMessage = {
+        id: "failover-1",
+        type: MessageType.NUDGE,
+        from: "chocolatier",
+        to: "test-agent",
+        payload: { hint: "Check logs" },
+        priority: "normal",
+        timestamp: Date.now(),
+        ack_required: false,
+      };
+
+      await broker.send(msg);
+
+      // Message should be saved to file store
+      const pending = await store.getPending("test-agent");
+      expect(pending).toHaveLength(1);
+      expect(pending[0].type).toBe(MessageType.NUDGE);
+
+      // Broker should detect Redis is unavailable
+      const health = broker.getHealth();
+      expect(health.redis).toBe(false);
+      expect(health.fileStore).toBe(true);
+    });
+
+    it("falls back to file polling when Redis subscribe fails", async () => {
+      broker = new MessageBroker({
+        fileStore: { basePath: tmpDir },
+        redis: {},
+      });
+
+      // Connect successfully, then subscribe fails
+      await broker.connect();
+      mockBus.subscribe.mockResolvedValue(false);
+
+      const handler = jest.fn();
+      await broker.subscribe("test-agent", handler);
+
+      // Broker should mark Redis as unavailable
+      const health = broker.getHealth();
+      expect(health.redis).toBe(false);
+      expect(health.fileStore).toBe(true);
+    });
+
+    it("resumes Redis when reconnect succeeds", async () => {
+      // Start with failed Redis
+      mockBus.connect.mockRejectedValueOnce(new Error("Redis unavailable"));
+
+      broker = new MessageBroker({
+        fileStore: { basePath: tmpDir },
+        redis: {},
+      });
+
+      await broker.connect();
+      await broker.subscribe("test-agent", jest.fn());
+
+      // Verify Redis is unavailable
+      let health = broker.getHealth();
+      expect(health.redis).toBe(false);
+
+      // Simulate Redis recovery
+      mockBus.connect.mockResolvedValue(undefined);
+      mockBus.subscribe.mockResolvedValue(true);
+
+      // Trigger reconnect (normally happens via timer)
+      await (broker as any).attemptRedisReconnect();
+
+      // Redis should be available again
+      health = broker.getHealth();
+      expect(health.redis).toBe(true);
+
+      // Should resubscribe to channels
+      expect(mockBus.subscribe).toHaveBeenCalled();
+    });
+  });
+
+  describe("timestamp watermarks prevent re-delivery", () => {
+    it("updates watermark on Redis-delivered messages", async () => {
+      broker = new MessageBroker({
+        fileStore: { basePath: tmpDir },
+        redis: {},
+      });
+
+      await broker.connect();
+
+      const handler = jest.fn();
+      await broker.subscribe("test-agent", handler);
+
+      // Get the Redis handler that was registered
+      const redisHandler = mockBus.subscribe.mock.calls[0]?.[1];
+      expect(redisHandler).toBeDefined();
+
+      // Simulate Redis delivering a message
+      const redisMsg: CocoMessage = {
+        id: "redis-msg-1",
+        type: MessageType.NUDGE,
+        from: "chocolatier",
+        to: "test-agent",
+        payload: { hint: "Check logs" },
+        priority: "normal",
+        timestamp: Date.now(),
+        ack_required: false,
+      };
+
+      if (redisHandler) {
+        await (redisHandler as any)(redisMsg);
+      }
+
+      // Handler should have been called
+      expect(handler).toHaveBeenCalledWith(redisMsg);
+      expect(handler).toHaveBeenCalledTimes(1);
+
+      // Save an older message to file store
+      const olderMsg: CocoMessage = {
+        id: "old-msg",
+        type: MessageType.NUDGE,
+        from: "chocolatier",
+        to: "test-agent",
+        payload: { hint: "Old message" },
+        priority: "normal",
+        timestamp: redisMsg.timestamp - 1000, // 1 second older
+        ack_required: false,
+      };
+
+      await store.save(olderMsg);
+
+      // Trigger file polling
+      await (broker as any).pollFileStore();
+
+      // Handler should NOT have been called again because the watermark
+      // was updated by the Redis message, so older messages are skipped
+      expect(handler).toHaveBeenCalledTimes(1);
+    });
+
+    it("does not re-deliver old messages after Redis→file fallback", async () => {
+      broker = new MessageBroker({
+        fileStore: { basePath: tmpDir },
+        redis: {},
+      });
+
+      await broker.connect();
+
+      const handler = jest.fn();
+      await broker.subscribe("test-agent", handler);
+
+      // First, deliver a newer message via Redis to establish the watermark
+      const redisHandler = mockBus.subscribe.mock.calls[0]?.[1];
+      expect(redisHandler).toBeDefined();
+
+      const newerMsg: CocoMessage = {
+        id: "newer-msg",
+        type: MessageType.NUDGE,
+        from: "chocolatier",
+        to: "test-agent",
+        payload: { hint: "Newer message" },
+        priority: "normal",
+        timestamp: Date.now(),
+        ack_required: false,
+      };
+
+      if (redisHandler) {
+        await (redisHandler as any)(newerMsg);
+      }
+
+      expect(handler).toHaveBeenCalledWith(newerMsg);
+      expect(handler).toHaveBeenCalledTimes(1);
+
+      // Save an old message to file store (older than the Redis message)
+      const oldMsg: CocoMessage = {
+        id: "old-msg",
+        type: MessageType.NUDGE,
+        from: "chocolatier",
+        to: "test-agent",
+        payload: { hint: "Old message" },
+        priority: "normal",
+        timestamp: newerMsg.timestamp - 60000, // 1 minute older
+        ack_required: false,
+      };
+
+      await store.save(oldMsg);
+
+      // Simulate Redis failure
+      mockBus.publish.mockResolvedValue(false);
+
+      // Trigger file polling (normally happens via timer)
+      await (broker as any).pollFileStore();
+
+      // Old message should NOT be delivered because the watermark
+      // was updated by the newer Redis message
+      expect(handler).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe("getHealth() method", () => {
+    it("returns Redis and file store health status", async () => {
+      broker = new MessageBroker({
+        fileStore: { basePath: tmpDir },
+        redis: {},
+      });
+
+      await broker.connect();
+
+      const health = broker.getHealth();
+
+      expect(health).toHaveProperty("redis");
+      expect(health).toHaveProperty("fileStore");
+      expect(typeof health.redis).toBe("boolean");
+      expect(typeof health.fileStore).toBe("boolean");
+    });
+
+    it("reflects Redis unavailable state", async () => {
+      mockBus.connect.mockRejectedValueOnce(new Error("Redis unavailable"));
+
+      broker = new MessageBroker({
+        fileStore: { basePath: tmpDir },
+        redis: {},
+      });
+
+      await broker.connect();
+
+      await broker.subscribe("test-agent", jest.fn());
+
+      const health = broker.getHealth();
+      expect(health.redis).toBe(false);
+      expect(health.fileStore).toBe(true);
+    });
+  });
+});
+
+
+

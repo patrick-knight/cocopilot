@@ -110,9 +110,14 @@ export function messagesRoutes(deps: MessagesDeps): Router {
         const data = typeof message === "string" ? message : JSON.stringify(message);
         const parsed = JSON.parse(data);
 
-        // Apply filters
-        if (repo && parsed.repoName && parsed.repoName !== repo) return;
-        if (agent && parsed.agent && parsed.agent !== agent) return;
+        // The parsed message should be a CocoMessage with { id, type, from, to, payload, timestamp, ... }
+        // Apply filters if agent is specified (check from/to fields)
+        // Note: includes() is intentional to support partial matching of scoped names like "chocolatier:my-app"
+        if (agent) {
+          const fromMatch = parsed.from === agent || parsed.from?.includes(agent);
+          const toMatch = parsed.to === agent || parsed.to?.includes(agent);
+          if (!fromMatch && !toMatch) return;
+        }
 
         res.write(`data: ${data}\n\n`);
       } catch {

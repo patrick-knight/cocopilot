@@ -205,6 +205,7 @@ async function hasDuplicateIssue(
 export async function createNotificationIssue(
   ctx: GitHubHelperContext,
   event: NotificationEvent,
+  config?: NotificationConfig,
 ): Promise<void> {
   const title = buildTitle(event);
   const body = buildBody(event);
@@ -215,10 +216,18 @@ export async function createNotificationIssue(
     return;
   }
 
+  // Start with cocopilot-notification base label
   const labels = ["cocopilot-notification"];
+  
+  // Add event-specific label
   const eventLabel = EVENT_LABELS[event.type];
   if (eventLabel) {
     labels.push(eventLabel);
+  }
+  
+  // Add custom labels from config
+  if (config?.labels) {
+    labels.push(...config.labels);
   }
 
   try {

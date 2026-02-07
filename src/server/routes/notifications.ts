@@ -5,41 +5,15 @@
  * PUT  /api/v1/repositories/:repoName/notifications  -- Update notification config
  */
 
-import * as fs from "node:fs";
-import * as path from "node:path";
 import { Router } from "express";
 import type { StateManager } from "../../state/index.js";
-import type { RepoConfig } from "../../state/schemas.js";
 import { createApiError } from "../middleware/error-handler.js";
 import { DEFAULT_NOTIFICATION_CONFIG } from "../../github/index.js";
+import { loadRepoConfig, saveRepoConfig } from "../../utils/index.js";
 
 interface RepoParams {
   repoName: string;
   [key: string]: string;
-}
-
-function loadRepoConfig(localPath: string): RepoConfig {
-  try {
-    const configPath = path.join(localPath, ".cocopilot", "config.json");
-    if (fs.existsSync(configPath)) {
-      return JSON.parse(fs.readFileSync(configPath, "utf-8")) as RepoConfig;
-    }
-  } catch {
-    // Ignore read errors
-  }
-  return {};
-}
-
-function saveRepoConfig(localPath: string, config: RepoConfig): void {
-  const dir = path.join(localPath, ".cocopilot");
-  if (!fs.existsSync(dir)) {
-    fs.mkdirSync(dir, { recursive: true });
-  }
-  fs.writeFileSync(
-    path.join(dir, "config.json"),
-    JSON.stringify(config, null, 2),
-    "utf-8",
-  );
 }
 
 export function notificationRoutes(stateManager: StateManager): Router {

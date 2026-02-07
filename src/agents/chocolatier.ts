@@ -12,7 +12,6 @@
  */
 
 import { EventEmitter } from "node:events";
-import { randomUUID } from "node:crypto";
 import * as fs from "node:fs";
 import * as path from "node:path";
 
@@ -32,6 +31,7 @@ import { loadMCPConfig } from "../mcp/index.js";
 import { getWorktreePath, cleanupWorktree } from "../git/index.js";
 import { TruffleAgent } from "./truffle.js";
 import { LocalTruffleRuntime } from "./truffle-runtime.js";
+import { loadRepoConfig } from "../utils/index.js";
 
 import type {
   ChocolatierConfig,
@@ -47,7 +47,6 @@ import {
   shouldNotify,
   createNotificationIssue,
   DEFAULT_NOTIFICATION_CONFIG,
-  type NotificationConfig,
   type NotificationEvent,
 } from "../github/index.js";
 
@@ -547,21 +546,6 @@ export class Chocolatier extends EventEmitter {
   }
 
   /**
-   * Load per-repo configuration from .cocopilot/config.json
-   */
-  private loadRepoConfig(localPath: string): RepoConfig {
-    try {
-      const configPath = path.join(localPath, ".cocopilot", "config.json");
-      if (fs.existsSync(configPath)) {
-        return JSON.parse(fs.readFileSync(configPath, "utf-8")) as RepoConfig;
-      }
-    } catch {
-      // Ignore read errors
-    }
-    return {};
-  }
-
-  /**
    * Fire-and-forget: create a GitHub notification issue if configured.
    * Failures are logged but never block agent operations.
    */
@@ -569,7 +553,7 @@ export class Chocolatier extends EventEmitter {
     const repo = this.stateManager.getRepo(this.config.repoName);
     if (!repo) return;
 
-    const repoConfig = this.loadRepoConfig(repo.localPath);
+    const repoConfig = loadRepoConfig(repo.localPath);
     const notifConfig = repoConfig.notifications ?? DEFAULT_NOTIFICATION_CONFIG;
 
     if (!shouldNotify(notifConfig, event.type)) return;
@@ -577,7 +561,7 @@ export class Chocolatier extends EventEmitter {
     event.timestamp = event.timestamp ?? new Date().toISOString();
 
     const ctx = { repoPath: repo.localPath };
-    createNotificationIssue(ctx, event).catch((err) => {
+    createNotificationIssue(ctx, event, notifConfig).catch((err) => {
       const msg = err instanceof Error ? err.message : String(err);
       console.error(`[Chocolatier] Notification failed: ${msg}`);
     });
