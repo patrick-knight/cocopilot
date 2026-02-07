@@ -20,7 +20,6 @@ import {
 } from "../messaging/index.js";
 import {
   getCIStatus,
-  generateFixupSummary,
   type CIExecFn,
   checkMergeability,
   shouldNotify,

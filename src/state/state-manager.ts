@@ -366,6 +366,9 @@ export class StateManager extends EventEmitter {
       }
     }
 
+    // Ensure backups are returned in strict recency order (most recent first)
+    results.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
+
     return results;
   }
 
@@ -397,12 +400,10 @@ export class StateManager extends EventEmitter {
         // If current state doesn't exist that's fine
       }
 
-      // Write the backup data as the new state.json
-      await writeJsonFile(this.statePath, parsed);
-
-      // Reload into memory
+      // Apply backup to in-memory state and persist using the standard path
       this.state = recoverState(parsed);
-      this.emit("stateChanged", this.state);
+      await this.persistState();
+      
       logger.info(`StateManager restored state from backup ${backupIndex}`);
       return true;
     } catch (err) {

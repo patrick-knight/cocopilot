@@ -224,11 +224,23 @@ export class MessageBroker {
         `Use scopedAgentName() or scopedWorkerName() to avoid cross-repo collisions.`,
       );
     }
-    this.agentHandlers.set(agentName, handler);
-    this.lastPollTimestamps.set(agentName, Date.now());
+    
+    // Wrap handler to update timestamp watermark on every delivery
+    const wrappedHandler: MessageHandler = async (msg) => {
+      await handler(msg);
+      // Update watermark to prevent re-delivery during Redis→file fallback
+      const currentTs = this.lastPollTimestamps.get(agentName) ?? 0;
+      if (msg.timestamp > currentTs) {
+        this.lastPollTimestamps.set(agentName, msg.timestamp);
+      }
+    };
+    
+    this.agentHandlers.set(agentName, wrappedHandler);
+    // Initialize to 0 to replay pending messages when Redis is unavailable
+    this.lastPollTimestamps.set(agentName, 0);
 
     if (this.redisAvailable) {
-      const ok = await this.bus.subscribe(agentName, handler);
+      const ok = await this.bus.subscribe(agentName, wrappedHandler);
       if (!ok) {
         console.warn("[MessageBroker] Redis subscribe failed, falling back to file store polling");
         this.redisAvailable = false;
@@ -339,10 +351,10 @@ export class MessageBroker {
   /** Re-subscribe all registered agents to Redis after reconnection. */
   private async resubscribeAll(): Promise<void> {
     for (const [agentName, handler] of this.agentHandlers) {
-      try {
-        await this.bus.subscribe(agentName, handler);
-      } catch {
+      const ok = await this.bus.subscribe(agentName, handler);
+      if (!ok) {
         // If resubscribe fails, remain in file-store-only mode
+        console.warn("[MessageBroker] Resubscribe failed, reverting to file-store polling");
         this.redisAvailable = false;
         this.startFilePolling();
         return;

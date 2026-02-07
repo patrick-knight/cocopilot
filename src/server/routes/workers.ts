@@ -12,6 +12,7 @@
 import { Router } from "express";
 import { execFile } from "node:child_process";
 import * as fs from "node:fs";
+import * as path from "node:path";
 import { promisify } from "node:util";
 import type { StateManager } from "../../state/index.js";
 import type { MessageBroker } from "../../messaging/index.js";
@@ -21,6 +22,7 @@ import { chocolatierAgentName } from "../../agents/chocolatier.js";
 import { scopedWorkerName } from "../../agents/scoped-name.js";
 import { createApiError } from "../middleware/error-handler.js";
 import { resolveTemplate } from "../../api/v1/templates.js";
+import type { RepoConfig, TaskTemplate } from "../../state/schemas.js";
 
 interface RepoParams {
   repoName: string;
@@ -29,6 +31,21 @@ interface RepoParams {
 
 interface WorkerParams extends RepoParams {
   workerName: string;
+}
+
+/**
+ * Load per-repo configuration from .cocopilot/config.json
+ */
+function loadRepoConfig(localPath: string): RepoConfig {
+  try {
+    const configPath = path.join(localPath, ".cocopilot", "config.json");
+    if (fs.existsSync(configPath)) {
+      return JSON.parse(fs.readFileSync(configPath, "utf-8")) as RepoConfig;
+    }
+  } catch {
+    // Ignore read errors
+  }
+  return {};
 }
 
 export function workerRoutes(
@@ -42,11 +59,27 @@ export function workerRoutes(
   // Sends SPAWN_WORKER message to Chocolatier which actually spawns the container
   router.post("/", async (req, res, next) => {
     const { repoName } = req.params as unknown as RepoParams;
-    let { task, branch, name, model, pushTo, templateId } = req.body ?? {};
+    const body = req.body ?? {};
+    let { task } = body;
+    const { branch, name, model, pushTo, templateId } = body;
+
+    // Verify repository exists
+    const repo = stateManager.getRepo(repoName);
+    if (!repo) {
+      next(createApiError(404, `Repository "${repoName}" not tracked`));
+      return;
+    }
+
+    // Get repo-specific templates if resolving from templateId
+    let repoTemplates: TaskTemplate[] | undefined;
+    if (templateId) {
+      const repoConfig = loadRepoConfig(repo.localPath);
+      repoTemplates = repoConfig.templates;
+    }
 
     // Resolve task from template if templateId is provided
     if (templateId && !task) {
-      const template = resolveTemplate(templateId);
+      const template = resolveTemplate(templateId, repoTemplates);
       if (!template) {
         next(createApiError(404, `Template "${templateId}" not found`));
         return;
@@ -56,13 +89,6 @@ export function workerRoutes(
 
     if (!task) {
       next(createApiError(400, "Missing required field: task"));
-      return;
-    }
-
-    // Verify repository exists
-    const repo = stateManager.getRepo(repoName);
-    if (!repo) {
-      next(createApiError(404, `Repository "${repoName}" not tracked`));
       return;
     }
 
