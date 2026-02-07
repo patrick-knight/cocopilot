@@ -18,6 +18,7 @@ import type { MessageBroker } from "../../messaging/index.js";
 import { MessageType } from "../../messaging/index.js";
 import { chocolatierAgentName } from "../../agents/chocolatier.js";
 import { createApiError } from "../../server/middleware/error-handler.js";
+import { resolveTemplate, BUILTIN_TEMPLATES } from "./templates.js";
 
 export function extWorkerRoutes(
   stateManager: StateManager,
@@ -28,7 +29,17 @@ export function extWorkerRoutes(
   // POST / -- Spawn a worker in a specific repository
   // Sends SPAWN_WORKER message to Chocolatier which actually spawns the container
   router.post("/", async (req, res, next) => {
-    const { task, repoName, branch, name, model, pushTo } = req.body ?? {};
+    let { task, repoName, branch, name, model, pushTo, templateId } = req.body ?? {};
+
+    // Resolve task from template if templateId is provided
+    if (templateId && !task) {
+      const template = resolveTemplate(templateId);
+      if (!template) {
+        next(createApiError(404, `Template "${templateId}" not found`));
+        return;
+      }
+      task = template.task;
+    }
 
     if (!task) {
       next(createApiError(400, "Missing required field: task"));

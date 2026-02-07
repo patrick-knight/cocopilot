@@ -315,6 +315,13 @@ export function FactoryFloor() {
           <span>Metrics</span>
         </Link>
         <Link
+          to="/messages"
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+        >
+          <span>📨</span>
+          <span>Messages</span>
+        </Link>
+        <Link
           to="/config"
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
         >

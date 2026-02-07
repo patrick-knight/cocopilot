@@ -45,12 +45,15 @@ type RedisOptions = {
 
 type RedisConstructor = new (options: RedisOptions) => RedisClient;
 
+export type ConnectionStateCallback = (connected: boolean) => void;
+
 export class RedisMessageBus {
   private pub: RedisClient;
   private sub: RedisClient;
   private handlers: Map<string, Set<MessageHandler>> = new Map();
   private subscribedChannels: Set<string> = new Set();
   private closed = false;
+  private connectionStateCallback: ConnectionStateCallback | null = null;
 
   constructor(config: Partial<RedisConfig> = {}) {
     const mergedConfig = { ...DEFAULT_CONFIG, ...config };
@@ -79,6 +82,29 @@ export class RedisMessageBus {
     this.sub.on("message", (channel: string, raw: string) => {
       this.handleIncoming(channel, raw);
     });
+
+    // Listen for connection state events on both clients
+    for (const client of [this.pub, this.sub]) {
+      client.on("error", () => {
+        this.connectionStateCallback?.(false);
+      });
+      client.on("close", () => {
+        this.connectionStateCallback?.(false);
+      });
+      client.on("reconnecting", () => {
+        this.connectionStateCallback?.(false);
+      });
+      client.on("ready", () => {
+        if (this.pub.status === "ready" && this.sub.status === "ready") {
+          this.connectionStateCallback?.(true);
+        }
+      });
+    }
+  }
+
+  /** Register a callback to be notified of connection state changes. */
+  onConnectionStateChange(callback: ConnectionStateCallback): void {
+    this.connectionStateCallback = callback;
   }
 
   /** Connect both pub and sub clients to Redis. */
@@ -91,21 +117,28 @@ export class RedisMessageBus {
    * Publish a message to the appropriate channel.
    * Messages addressed to "*" go to the broadcast channel;
    * otherwise they go to the target agent's channel.
+   * Returns false if publish failed (instead of throwing).
    */
-  async publish(message: CocoMessage): Promise<void> {
-    if (this.closed) throw new Error("Bus is closed");
-    const channel =
-      message.to === "*" ? BROADCAST_CHANNEL : agentChannel(message.to);
-    const raw = JSON.stringify(message);
-    await this.pub.publish(channel, raw);
+  async publish(message: CocoMessage): Promise<boolean> {
+    if (this.closed) return false;
+    try {
+      const channel =
+        message.to === "*" ? BROADCAST_CHANNEL : agentChannel(message.to);
+      const raw = JSON.stringify(message);
+      await this.pub.publish(channel, raw);
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   /**
    * Subscribe to messages for a specific agent.
    * Automatically subscribes to both the agent's channel and broadcast.
+   * Returns false if Redis subscription failed (instead of throwing).
    */
-  async subscribe(agentName: string, handler: MessageHandler): Promise<void> {
-    if (this.closed) throw new Error("Bus is closed");
+  async subscribe(agentName: string, handler: MessageHandler): Promise<boolean> {
+    if (this.closed) return false;
 
     const channel = agentChannel(agentName);
 
@@ -126,8 +159,14 @@ export class RedisMessageBus {
     }
 
     if (toSubscribe.length > 0) {
-      await this.sub.subscribe(...toSubscribe);
+      try {
+        await this.sub.subscribe(...toSubscribe);
+      } catch {
+        return false;
+      }
     }
+
+    return true;
   }
 
   /**
@@ -194,10 +233,15 @@ export class RedisMessageBus {
     );
   }
 
-  /** Publish raw payload to an arbitrary Redis channel. */
-  async publishRaw(channel: string, payload: string): Promise<void> {
-    if (this.closed) throw new Error("Bus is closed");
-    await this.pub.publish(channel, payload);
+  /** Publish raw payload to an arbitrary Redis channel. Returns false on failure. */
+  async publishRaw(channel: string, payload: string): Promise<boolean> {
+    if (this.closed) return false;
+    try {
+      await this.pub.publish(channel, payload);
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   private addHandler(channel: string, handler: MessageHandler): void {

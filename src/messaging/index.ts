@@ -24,6 +24,6 @@ export {
   streamChannel,
 } from "./types.js";
 
-export { RedisMessageBus, type RedisConfig } from "./redis-bus.js";
+export { RedisMessageBus, type RedisConfig, type ConnectionStateCallback } from "./redis-bus.js";
 export { FileMessageStore, type FileStoreConfig } from "./file-store.js";
-export { MessageBroker, type MessageBrokerConfig } from "./broker.js";
+export { MessageBroker, type MessageBrokerConfig, type BrokerHealth } from "./broker.js";

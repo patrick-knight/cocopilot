@@ -2,7 +2,7 @@
  * Tests for the Chocolatier (supervisor) agent.
  */
 
-import { Chocolatier, CHOCOLATIER_SYSTEM_PROMPT } from "./chocolatier.js";
+import { Chocolatier, CHOCOLATIER_SYSTEM_PROMPT, parseTimeout } from "./chocolatier.js";
 import type { ChocolatierConfig } from "./types.js";
 import type { StateManager } from "../state/index.js";
 import type { ContainerManager } from "../docker/index.js";
@@ -1020,5 +1020,168 @@ describe("Chocolatier", () => {
       expect(prompt).toContain("Chocolatier");
       expect(prompt).toContain("supervisor");
     });
+  });
+
+  // -----------------------------------------------------------------------
+  // Worker timeout enforcement
+  // -----------------------------------------------------------------------
+
+  describe("worker timeout enforcement", () => {
+    it("should terminate workers that exceed the configured timeout", async () => {
+      const fiveHoursAgo = new Date(Date.now() - 5 * 60 * 60 * 1000).toISOString();
+
+      stateManager.getConfig.mockReturnValue({
+        workerTimeout: "4h",
+      } as any);
+
+      stateManager.getRepo.mockReturnValue({
+        id: "repo-1",
+        name: "test-repo",
+        workers: {
+          Snickers: {
+            id: "w-1",
+            name: "Snickers",
+            task: "Fix bug",
+            branch: "work/Snickers",
+            status: "working",
+            containerId: "c-1",
+            createdAt: fiveHoursAgo,
+            updatedAt: new Date().toISOString(),
+          },
+        },
+        agents: {},
+      } as any);
+
+      containerManager.list.mockResolvedValue([]);
+      containerManager.stop.mockResolvedValue(undefined);
+
+      const report = await chocolatier.runHealthCheck();
+
+      expect(stateManager.updateWorkerStatus).toHaveBeenCalledWith(
+        "test-repo",
+        "Snickers",
+        "terminated",
+        { error: "timeout_exceeded" },
+      );
+
+      expect(broker.send).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: MessageType.TASK_FAILED,
+          payload: expect.objectContaining({
+            error: expect.stringContaining("exceeded timeout"),
+            task: "Fix bug",
+            recoverable: false,
+          }),
+        }),
+      );
+    });
+
+    it("should not terminate workers within the timeout", async () => {
+      const oneHourAgo = new Date(Date.now() - 1 * 60 * 60 * 1000).toISOString();
+
+      stateManager.getConfig.mockReturnValue({
+        workerTimeout: "4h",
+      } as any);
+
+      stateManager.getRepo.mockReturnValue({
+        id: "repo-1",
+        name: "test-repo",
+        workers: {
+          Snickers: {
+            id: "w-1",
+            name: "Snickers",
+            task: "Fix bug",
+            branch: "work/Snickers",
+            status: "working",
+            containerId: "c-1",
+            createdAt: oneHourAgo,
+            updatedAt: new Date().toISOString(),
+          },
+        },
+        agents: {},
+      } as any);
+
+      containerManager.list.mockResolvedValue([
+        {
+          id: "c-1",
+          name: "cocopilot-truffle-snickers",
+          type: ContainerType.TRUFFLE,
+          workerName: "Snickers",
+          status: ContainerStatus.RUNNING,
+          image: "cocopilot-agent:latest",
+          createdAt: oneHourAgo,
+          labels: {},
+        },
+      ]);
+
+      await chocolatier.runHealthCheck();
+
+      expect(stateManager.updateWorkerStatus).not.toHaveBeenCalledWith(
+        "test-repo",
+        "Snickers",
+        "terminated",
+        expect.anything(),
+      );
+    });
+
+    it("should stop container for timed-out worker", async () => {
+      const fiveHoursAgo = new Date(Date.now() - 5 * 60 * 60 * 1000).toISOString();
+
+      stateManager.getConfig.mockReturnValue({
+        workerTimeout: "4h",
+      } as any);
+
+      stateManager.getRepo.mockReturnValue({
+        id: "repo-1",
+        name: "test-repo",
+        workers: {
+          Snickers: {
+            id: "w-1",
+            name: "Snickers",
+            task: "Fix bug",
+            branch: "work/Snickers",
+            status: "working",
+            containerId: "c-1",
+            createdAt: fiveHoursAgo,
+            updatedAt: new Date().toISOString(),
+          },
+        },
+        agents: {},
+      } as any);
+
+      containerManager.list.mockResolvedValue([]);
+      containerManager.stop.mockResolvedValue(undefined);
+
+      await chocolatier.runHealthCheck();
+
+      expect(containerManager.stop).toHaveBeenCalledWith("c-1");
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// parseTimeout unit tests
+// ---------------------------------------------------------------------------
+
+describe("parseTimeout", () => {
+  it("should parse hours", () => {
+    expect(parseTimeout("4h")).toBe(4 * 60 * 60 * 1000);
+  });
+
+  it("should parse minutes", () => {
+    expect(parseTimeout("30m")).toBe(30 * 60 * 1000);
+  });
+
+  it("should parse days", () => {
+    expect(parseTimeout("1d")).toBe(24 * 60 * 60 * 1000);
+  });
+
+  it("should parse compound durations", () => {
+    expect(parseTimeout("2h30m")).toBe(2 * 60 * 60 * 1000 + 30 * 60 * 1000);
+  });
+
+  it("should default to 4 hours for invalid input", () => {
+    expect(parseTimeout("invalid")).toBe(4 * 60 * 60 * 1000);
+    expect(parseTimeout("")).toBe(4 * 60 * 60 * 1000);
   });
 });

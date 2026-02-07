@@ -321,6 +321,57 @@ export async function getPRReviews(
   }
 }
 
+/** Result of checking PR mergeability. */
+export interface MergeabilityResult {
+  mergeable: boolean;
+  reason?: string;
+  baseBranch?: string;
+}
+
+/**
+ * Check if a PR has merge conflicts with its base branch.
+ *
+ * Runs: `gh pr view <number> --json mergeable,mergeStateStatus,baseRefName`
+ * Returns mergeable: true if the check fails (to avoid blocking merges).
+ */
+export async function checkMergeability(
+  ctx: GitHubHelperContext,
+  prNumber: number,
+): Promise<MergeabilityResult> {
+  try {
+    const { stdout } = await exec(ctx)(
+      "gh",
+      [
+        "pr",
+        "view",
+        String(prNumber),
+        "--json",
+        "mergeable,mergeStateStatus,baseRefName",
+      ],
+      { cwd: ctx.repoPath },
+    );
+
+    const data = JSON.parse(stdout) as {
+      mergeable: string;
+      mergeStateStatus: string;
+      baseRefName: string;
+    };
+
+    if (data.mergeable === "CONFLICTING" || data.mergeStateStatus === "DIRTY") {
+      return {
+        mergeable: false,
+        reason: `mergeable=${data.mergeable}, mergeStateStatus=${data.mergeStateStatus}`,
+        baseBranch: data.baseRefName,
+      };
+    }
+
+    return { mergeable: true, baseBranch: data.baseRefName };
+  } catch {
+    // If check fails, don't block the merge
+    return { mergeable: true };
+  }
+}
+
 /**
  * Get repository information.
  *
