@@ -13,9 +13,12 @@
 
 import { EventEmitter } from "node:events";
 import { randomUUID } from "node:crypto";
+import * as fs from "node:fs";
+import * as path from "node:path";
 
 import { StateManager } from "../state/index.js";
 import type { WorkerState } from "../state/index.js";
+import type { RepoConfig } from "../state/schemas.js";
 import {
   ContainerManager,
   ContainerType,
@@ -544,6 +547,21 @@ export class Chocolatier extends EventEmitter {
   }
 
   /**
+   * Load per-repo configuration from .cocopilot/config.json
+   */
+  private loadRepoConfig(localPath: string): RepoConfig {
+    try {
+      const configPath = path.join(localPath, ".cocopilot", "config.json");
+      if (fs.existsSync(configPath)) {
+        return JSON.parse(fs.readFileSync(configPath, "utf-8")) as RepoConfig;
+      }
+    } catch {
+      // Ignore read errors
+    }
+    return {};
+  }
+
+  /**
    * Fire-and-forget: create a GitHub notification issue if configured.
    * Failures are logged but never block agent operations.
    */
@@ -551,9 +569,8 @@ export class Chocolatier extends EventEmitter {
     const repo = this.stateManager.getRepo(this.config.repoName);
     if (!repo) return;
 
-    const notifConfig: NotificationConfig =
-      (repo as unknown as { config?: { notifications?: NotificationConfig } }).config?.notifications
-        ?? DEFAULT_NOTIFICATION_CONFIG;
+    const repoConfig = this.loadRepoConfig(repo.localPath);
+    const notifConfig = repoConfig.notifications ?? DEFAULT_NOTIFICATION_CONFIG;
 
     if (!shouldNotify(notifConfig, event.type)) return;
 

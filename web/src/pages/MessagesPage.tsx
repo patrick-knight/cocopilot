@@ -16,9 +16,9 @@ interface Message {
   to: string;
   payload: unknown;
   priority?: number | string;
-  timestamp: string;
+  timestamp: number; // epoch ms, matches CocoMessage
   ack_required?: boolean;
-  ack_received?: boolean;
+  ack_received?: number; // epoch ms of ack receipt, optional
 }
 
 const MESSAGE_ICONS: Record<string, string> = {
@@ -74,12 +74,12 @@ function getPriorityInfo(priority: number | string | undefined) {
   return PRIORITY_LABELS[String(priority)] ?? { label: String(priority), icon: "●", color: "text-muted-foreground" };
 }
 
-function formatTime(timestamp: string) {
+function formatTime(timestamp: number) {
   return new Date(timestamp).toLocaleString();
 }
 
-function formatRelativeTime(timestamp: string) {
-  const diffMs = Date.now() - new Date(timestamp).getTime();
+function formatRelativeTime(timestamp: number) {
+  const diffMs = Date.now() - timestamp;
   const diffMins = Math.floor(diffMs / 60000);
   const diffHours = Math.floor(diffMins / 60);
   const diffDays = Math.floor(diffHours / 24);
@@ -146,16 +146,26 @@ export function MessagesPage() {
       return;
     }
 
-    const params = new URLSearchParams();
-    if (repoFilter) params.set("repo", repoFilter);
+    // Backend does not support a global stream; require a repo filter
+    if (!repoFilter) {
+      // Do not open an EventSource without a repo parameter
+      return;
+    }
 
-    const es = new EventSource(`/api/v1/messages/stream?${params}`);
+    const params = new URLSearchParams();
+    params.set("repo", repoFilter);
+
+    const es = new EventSource(`/api/v1/messages/stream?${params.toString()}`);
     eventSourceRef.current = es;
 
     es.onmessage = (event) => {
       try {
         const msg: Message = JSON.parse(event.data);
-        setMessages((prev) => [...prev, msg]);
+        setMessages((prev) => {
+          // Cap at 500 messages to prevent unbounded growth
+          const updated = [...prev, msg];
+          return updated.length > 500 ? updated.slice(-500) : updated;
+        });
       } catch {
         // ignore malformed
       }
@@ -200,8 +210,8 @@ export function MessagesPage() {
       if (fromFilter && m.from !== fromFilter) return false;
       if (toFilter && m.to !== toFilter) return false;
       if (priorityFilter && String(m.priority ?? "normal") !== priorityFilter) return false;
-      if (dateFrom && m.timestamp < new Date(dateFrom).toISOString()) return false;
-      if (dateTo && m.timestamp > new Date(dateTo + "T23:59:59").toISOString()) return false;
+      if (dateFrom && m.timestamp < new Date(dateFrom).getTime()) return false;
+      if (dateTo && m.timestamp > new Date(dateTo + "T23:59:59").getTime()) return false;
       return true;
     });
   }, [messages, typeFilter, fromFilter, toFilter, priorityFilter, dateFrom, dateTo]);

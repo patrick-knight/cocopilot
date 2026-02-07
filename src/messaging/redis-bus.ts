@@ -151,17 +151,28 @@ export class RedisMessageBus {
     const toSubscribe: string[] = [];
     if (!this.subscribedChannels.has(channel)) {
       toSubscribe.push(channel);
-      this.subscribedChannels.add(channel);
     }
     if (!this.subscribedChannels.has(BROADCAST_CHANNEL)) {
       toSubscribe.push(BROADCAST_CHANNEL);
-      this.subscribedChannels.add(BROADCAST_CHANNEL);
     }
 
     if (toSubscribe.length > 0) {
       try {
         await this.sub.subscribe(...toSubscribe);
+        // Only add to subscribedChannels after successful Redis subscribe
+        for (const ch of toSubscribe) {
+          this.subscribedChannels.add(ch);
+        }
       } catch {
+        // Roll back handlers on failure
+        this.handlers.get(channel)?.delete(handler);
+        if (this.handlers.get(channel)?.size === 0) {
+          this.handlers.delete(channel);
+        }
+        this.handlers.get(BROADCAST_CHANNEL)?.delete(handler);
+        if (this.handlers.get(BROADCAST_CHANNEL)?.size === 0) {
+          this.handlers.delete(BROADCAST_CHANNEL);
+        }
         return false;
       }
     }

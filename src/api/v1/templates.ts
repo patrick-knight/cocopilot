@@ -5,9 +5,11 @@
  * GET /api/v1/templates/:id     — Get a specific template by ID
  */
 
+import * as fs from "node:fs";
+import * as path from "node:path";
 import { Router } from "express";
 import type { StateManager } from "../../state/index.js";
-import type { TaskTemplate } from "../../state/schemas.js";
+import type { TaskTemplate, RepoConfig } from "../../state/schemas.js";
 import { createApiError } from "../../server/middleware/error-handler.js";
 
 // ---------------------------------------------------------------------------
@@ -90,6 +92,21 @@ export function resolveTemplate(
   return BUILTIN_TEMPLATES.find((t) => t.id === templateId);
 }
 
+/**
+ * Load per-repo configuration from .cocopilot/config.json
+ */
+function loadRepoConfig(localPath: string): RepoConfig {
+  try {
+    const configPath = path.join(localPath, ".cocopilot", "config.json");
+    if (fs.existsSync(configPath)) {
+      return JSON.parse(fs.readFileSync(configPath, "utf-8")) as RepoConfig;
+    }
+  } catch {
+    // Ignore read errors
+  }
+  return {};
+}
+
 // ---------------------------------------------------------------------------
 // Routes
 // ---------------------------------------------------------------------------
@@ -110,10 +127,8 @@ export function templatesRoutes(deps: TemplatesDeps): Router {
     if (repoName) {
       const repo = stateManager.getRepo(repoName);
       if (repo) {
-        // Repo-specific templates would be stored in repo config
-        // For now we look at a hypothetical templates field loaded from config
-        // This is a placeholder for when per-repo config loading is wired up
-        repoTemplates = [];
+        const repoConfig = loadRepoConfig(repo.localPath);
+        repoTemplates = repoConfig.templates ?? [];
       }
     }
 

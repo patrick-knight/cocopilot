@@ -10,6 +10,7 @@ import { ContainerStatus, ContainerType } from "../docker/index.js";
 import type { MessageBroker } from "../messaging/index.js";
 import { MessageType } from "../messaging/index.js";
 import type { CocoMessage } from "../messaging/index.js";
+import type { CocoConfig, RepoState } from "../types/index.js";
 
 // ---------------------------------------------------------------------------
 // Mocks
@@ -1032,7 +1033,7 @@ describe("Chocolatier", () => {
 
       stateManager.getConfig.mockReturnValue({
         workerTimeout: "4h",
-      } as any);
+      } as Partial<CocoConfig>);
 
       stateManager.getRepo.mockReturnValue({
         id: "repo-1",
@@ -1050,12 +1051,12 @@ describe("Chocolatier", () => {
           },
         },
         agents: {},
-      } as any);
+      } as Partial<RepoState>);
 
       containerManager.list.mockResolvedValue([]);
       containerManager.stop.mockResolvedValue(undefined);
 
-      const report = await chocolatier.runHealthCheck();
+      await chocolatier.runHealthCheck();
 
       expect(stateManager.updateWorkerStatus).toHaveBeenCalledWith(
         "test-repo",
@@ -1081,7 +1082,7 @@ describe("Chocolatier", () => {
 
       stateManager.getConfig.mockReturnValue({
         workerTimeout: "4h",
-      } as any);
+      } as Partial<CocoConfig>);
 
       stateManager.getRepo.mockReturnValue({
         id: "repo-1",
@@ -1099,7 +1100,7 @@ describe("Chocolatier", () => {
           },
         },
         agents: {},
-      } as any);
+      } as Partial<RepoState>);
 
       containerManager.list.mockResolvedValue([
         {
@@ -1129,7 +1130,7 @@ describe("Chocolatier", () => {
 
       stateManager.getConfig.mockReturnValue({
         workerTimeout: "4h",
-      } as any);
+      } as Partial<CocoConfig>);
 
       stateManager.getRepo.mockReturnValue({
         id: "repo-1",
@@ -1147,7 +1148,7 @@ describe("Chocolatier", () => {
           },
         },
         agents: {},
-      } as any);
+      } as Partial<RepoState>);
 
       containerManager.list.mockResolvedValue([]);
       containerManager.stop.mockResolvedValue(undefined);

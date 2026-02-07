@@ -64,12 +64,14 @@ export async function restoreBackup(
     return;
   }
 
+  const index = backupIndex ?? 1;
+
   try {
-    const ok = await deps.stateManager.restoreFromBackup(backupIndex);
+    const ok = await deps.stateManager.restoreFromBackup(index);
     if (ok) {
       res.json({
         success: true,
-        message: `State restored from backup ${backupIndex ?? 1}`,
+        message: `State restored from backup ${index}`,
         repositories: Object.keys(deps.stateManager.getRepos()),
       });
     } else {
