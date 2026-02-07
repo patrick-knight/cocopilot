@@ -112,6 +112,7 @@ export function messagesRoutes(deps: MessagesDeps): Router {
 
         // The parsed message should be a CocoMessage with { id, type, from, to, payload, timestamp, ... }
         // Apply filters if agent is specified (check from/to fields)
+        // Note: includes() is intentional to support partial matching of scoped names like "chocolatier:my-app"
         if (agent) {
           const fromMatch = parsed.from === agent || parsed.from?.includes(agent);
           const toMatch = parsed.to === agent || parsed.to?.includes(agent);

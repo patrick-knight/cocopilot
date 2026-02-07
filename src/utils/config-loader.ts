@@ -8,7 +8,7 @@ import type { RepoConfig } from "../state/schemas.js";
 
 /**
  * Load per-repo configuration from .cocopilot/config.json
- * 
+ *
  * @param localPath - Absolute path to the repository root
  * @returns RepoConfig object, or empty object if config does not exist or fails to parse
  */
@@ -26,7 +26,7 @@ export function loadRepoConfig(localPath: string): RepoConfig {
 
 /**
  * Save per-repo configuration to .cocopilot/config.json
- * 
+ *
  * @param localPath - Absolute path to the repository root
  * @param config - RepoConfig object to save
  */
