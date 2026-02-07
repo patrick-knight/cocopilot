@@ -13,6 +13,7 @@ import { FactoryFloor } from "./pages/FactoryFloor.js";
 import { StatusPage } from "./pages/StatusPage.js";
 import { ActivityPage } from "./pages/ActivityPage.js";
 import { ConfigPage } from "./pages/ConfigPage.js";
+import { MessagesPage } from "./pages/MessagesPage.js";
 
 export default function App() {
   return (
@@ -22,6 +23,7 @@ export default function App() {
       <Route path="/metrics" element={<MetricsDashboard />} />
       <Route path="/activity" element={<ActivityPage />} />
       <Route path="/config" element={<ConfigPage />} />
+      <Route path="/messages" element={<MessagesPage />} />
       <Route path="/repos/:repoName" element={<TemperingStationPage />} />
       <Route path="/repos/:repoName/workers/:workerName" element={<TruffleInspectorPage />} />
     </Routes>

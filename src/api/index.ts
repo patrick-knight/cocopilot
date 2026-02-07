@@ -22,12 +22,13 @@ import { extRepositoriesRoutes } from "./v1/repositories.js";
 import { extWorkerRoutes } from "./v1/workers.js";
 import { extWebhookRoutes } from "./v1/webhooks.js";
 import { extStatusRoutes, type StatusDeps } from "./v1/status.js";
-import { reloadState, type SystemDeps } from "./v1/system.js";
+import { reloadState, listBackups, restoreBackup, type SystemDeps } from "./v1/system.js";
 import { messagesRoutes } from "./v1/messages.js";
 import { customAgentsRoutes } from "./v1/custom-agents.js";
 import { activityRoutes } from "./v1/activity.js";
 import { configRoutes } from "./v1/config.js";
 import { openapiRoutes } from "./v1/openapi.js";
+import { templatesRoutes } from "./v1/templates.js";
 
 export interface ExtApiDeps {
   stateManager: StateManager;
@@ -57,6 +58,7 @@ export function createExtApiRouter(deps: ExtApiDeps): Router {
   router.use("/messages", messagesRoutes({ redisBus, messageStore }));
   router.use("/activity", activityRoutes({ eventStore }));
   router.use("/config", configRoutes());
+  router.use("/templates", templatesRoutes({ stateManager }));
   
   // Custom agents routes (nested under repositories)
   router.use("/repositories/:repoName/custom-agents", customAgentsRoutes({ stateManager }));
@@ -64,6 +66,12 @@ export function createExtApiRouter(deps: ExtApiDeps): Router {
   // System control endpoints
   router.post("/system/reload-state", (req, res) =>
     reloadState(req, res, { stateManager } satisfies SystemDeps),
+  );
+  router.get("/system/backups", (req, res) =>
+    listBackups(req, res, { stateManager } satisfies SystemDeps),
+  );
+  router.post("/system/restore", (req, res) =>
+    restoreBackup(req, res, { stateManager } satisfies SystemDeps),
   );
 
   return router;
@@ -87,3 +95,5 @@ export { customAgentsRoutes } from "./v1/custom-agents.js";
 export { activityRoutes } from "./v1/activity.js";
 export { configRoutes } from "./v1/config.js";
 export { openapiRoutes } from "./v1/openapi.js";
+export { templatesRoutes } from "./v1/templates.js";
+export type { TaskTemplate } from "../state/schemas.js";

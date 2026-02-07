@@ -22,6 +22,12 @@ import {
   getCIStatus,
   generateFixupSummary,
   type CIExecFn,
+  checkMergeability,
+  shouldNotify,
+  createNotificationIssue,
+  DEFAULT_NOTIFICATION_CONFIG,
+  type NotificationConfig,
+  type NotificationEvent,
 } from "../github/index.js";
 import type { CIStatusResult } from "../github/types.js";
 import { scopedAgentName } from "./scoped-name.js";
@@ -47,6 +53,8 @@ export interface TempererConfig {
   chocolatierName?: string;
   /** Security reviewer agent name. Derived from repoName if not set. */
   securityReviewerName?: string;
+  /** GitHub Issues notification configuration. */
+  notificationConfig?: NotificationConfig;
   /** PR label used to identify CoCoPilot PRs. Defaults to "cocopilot". */
   label?: string;
 }
@@ -108,6 +116,7 @@ export class Temperer {
   private readonly config: Required<
     Pick<TempererConfig, "repoPath" | "pollIntervalMs" | "agentName" | "chocolatierName" | "securityReviewerName" | "label">
   > & { broker: MessageBroker };
+  private readonly notificationConfig: NotificationConfig;
   private readonly trackedPRs: Map<number, TrackedPR> = new Map();
   private pollTimer: ReturnType<typeof setInterval> | null = null;
   private running = false;
@@ -123,6 +132,7 @@ export class Temperer {
       securityReviewerName: config.securityReviewerName ?? scopedAgentName("security-reviewer", config.repoName),
       label: config.label ?? DEFAULT_LABEL,
     };
+    this.notificationConfig = config.notificationConfig ?? DEFAULT_NOTIFICATION_CONFIG;
     this.execFn = execFn ?? execFile;
   }
 
@@ -174,6 +184,7 @@ export class Temperer {
    */
   async pollOnce(): Promise<void> {
     const prs = await this.listOpenPRs();
+    const mergeCandidates: PRInfo[] = [];
 
     for (const pr of prs) {
       const tracked = this.trackedPRs.get(pr.number);
@@ -211,7 +222,7 @@ export class Temperer {
         case "passing":
           // Only merge if security review has passed
           if (tracked.securityReviewPassed) {
-            await this.mergePR(pr);
+            mergeCandidates.push(pr);
           }
           break;
         case "failing": {
@@ -231,6 +242,20 @@ export class Temperer {
           // Nothing to do yet; check again next poll
           break;
       }
+    }
+
+    // Merge candidates one at a time, re-checking mergeability before each
+    // (after a merge the base branch changes, so remaining PRs may conflict)
+    for (const pr of mergeCandidates) {
+      const mergeability = await checkMergeability(
+        { repoPath: this.config.repoPath, execFn: this.execFn },
+        pr.number,
+      );
+      if (!mergeability.mergeable) {
+        await this.handleMergeConflict(pr, mergeability.baseBranch);
+        continue;
+      }
+      await this.mergePR(pr);
     }
 
     // Clean up tracked PRs that are no longer open
@@ -521,6 +546,76 @@ export class Temperer {
       },
       priority: "high",
     });
+
+    // Fire-and-forget notification for CI failure
+    this.fireNotification({
+      type: "ci.failed",
+      summary: `CI failed on PR #${pr.number}`,
+      details: {
+        prNumber: pr.number,
+        prUrl: pr.url,
+        workerName: tracked?.originalWorker ?? "unknown",
+        failureSummary,
+        workflowUrl,
+      },
+    });
+  }
+
+  /** Handle a PR with merge conflicts: log, comment, and request fixup. */
+  private async handleMergeConflict(pr: PRInfo, baseBranch?: string): Promise<void> {
+    const branch = baseBranch ?? "base branch";
+    console.log(`[Temperer] PR #${pr.number} has merge conflicts with ${branch}`);
+
+    const tracked = this.trackedPRs.get(pr.number);
+
+    // Comment on the PR noting the conflict
+    try {
+      await this.execFn(
+        "gh",
+        [
+          "pr",
+          "comment",
+          String(pr.number),
+          "--body",
+          `⚠️ This PR has merge conflicts with \`${branch}\` and cannot be auto-merged. A conflict resolution worker has been requested.`,
+        ],
+        { cwd: this.config.repoPath },
+      );
+    } catch {
+      // Ignore comment failures
+    }
+
+    // Request fixup worker for conflict resolution
+    await this.config.broker.send({
+      type: MessageType.SPAWN_FIXUP,
+      from: this.config.agentName,
+      to: this.config.chocolatierName,
+      payload: {
+        pr_number: pr.number,
+        pr_url: pr.url,
+        failure_summary: `Merge conflicts with ${branch}`,
+        original_worker: tracked?.originalWorker ?? "unknown",
+      },
+      priority: "high",
+      ack_required: false,
+    });
+
+    if (tracked) {
+      tracked.state = "fixup_requested";
+      tracked.fixupRequestedAt = Date.now();
+    }
+
+    // Fire-and-forget notification for merge conflict
+    this.fireNotification({
+      type: "merge.conflict",
+      summary: `PR #${pr.number} has merge conflicts`,
+      details: {
+        prNumber: pr.number,
+        prUrl: pr.url,
+        baseBranch: branch,
+        workerName: tracked?.originalWorker ?? "unknown",
+      },
+    });
   }
 
   /** Try to extract a merge SHA from gh pr merge output. */
@@ -528,5 +623,20 @@ export class Temperer {
     // gh pr merge output may contain the merge commit SHA
     const match = /([0-9a-f]{40})/i.exec(output);
     return match ? match[1] : "unknown";
+  }
+
+  /**
+   * Fire-and-forget: create a GitHub notification issue if configured.
+   * Failures are logged but never block agent operations.
+   */
+  private fireNotification(event: NotificationEvent): void {
+    if (!shouldNotify(this.notificationConfig, event.type)) return;
+
+    event.timestamp = event.timestamp ?? new Date().toISOString();
+    const ctx = { repoPath: this.config.repoPath };
+    createNotificationIssue(ctx, event).catch((err) => {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error(`[Temperer] Notification failed: ${msg}`);
+    });
   }
 }

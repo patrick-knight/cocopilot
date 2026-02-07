@@ -288,6 +288,7 @@ export class StateManager extends EventEmitter {
       // Set flag to prevent reloading our own write
       this.isReloadingState = true;
       try {
+        this.rotateBackups();
         await writeJsonFile(this.statePath, state ?? this.state);
         // Brief delay after write completes to ensure fs.watch event passes
         await new Promise(resolve => setTimeout(resolve, 150));
@@ -299,6 +300,115 @@ export class StateManager extends EventEmitter {
       throw err;
     });
     return this.stateOperationQueue;
+  }
+
+  // -----------------------------------------------------------------------
+  // Backup rotation
+  // -----------------------------------------------------------------------
+
+  private backupPath(index: number): string {
+    return path.join(this.baseDir, `state.backup.${index}.json`);
+  }
+
+  /**
+   * Rotate existing backups and copy current state.json to backup slot 1.
+   * Called synchronously before each atomic write. Errors are swallowed so
+   * a failed backup never blocks state persistence.
+   */
+  private rotateBackups(): void {
+    try {
+      // Only backup if state.json exists and has content
+      let stat: fs.Stats;
+      try {
+        stat = fs.statSync(this.statePath);
+      } catch {
+        return; // file doesn't exist yet — nothing to back up
+      }
+      if (stat.size === 0) return;
+
+      const maxBackups = this.config.maxStateBackups ?? 5;
+
+      // Rotate: delete oldest, shift N→N+1 starting from the end
+      const oldest = this.backupPath(maxBackups);
+      try { fs.unlinkSync(oldest); } catch { /* may not exist */ }
+
+      for (let i = maxBackups - 1; i >= 1; i--) {
+        const src = this.backupPath(i);
+        const dst = this.backupPath(i + 1);
+        try { fs.renameSync(src, dst); } catch { /* may not exist */ }
+      }
+
+      // Copy current state.json → state.backup.1.json
+      fs.copyFileSync(this.statePath, this.backupPath(1));
+    } catch (err) {
+      logger.error("StateManager backup rotation failed", err);
+    }
+  }
+
+  // -----------------------------------------------------------------------
+  // Backup listing & restore
+  // -----------------------------------------------------------------------
+
+  /**
+   * Return metadata for every available backup, sorted by recency.
+   */
+  listBackups(): Array<{ index: number; path: string; timestamp: Date; size: number }> {
+    const results: Array<{ index: number; path: string; timestamp: Date; size: number }> = [];
+    const maxBackups = this.config.maxStateBackups ?? 5;
+
+    for (let i = 1; i <= maxBackups; i++) {
+      const p = this.backupPath(i);
+      try {
+        const stat = fs.statSync(p);
+        results.push({ index: i, path: p, timestamp: stat.mtime, size: stat.size });
+      } catch {
+        // slot empty — skip
+      }
+    }
+
+    return results;
+  }
+
+  /**
+   * Restore state from a backup file.
+   *
+   * @param backupIndex  1-based backup slot (default: 1 = most recent).
+   * @returns true on success, false on failure.
+   */
+  async restoreFromBackup(backupIndex = 1): Promise<boolean> {
+    const src = this.backupPath(backupIndex);
+
+    try {
+      // Read and validate backup JSON
+      const raw = await fs.promises.readFile(src, "utf-8");
+      const parsed = JSON.parse(raw) as DaemonState;
+
+      // Basic structural check
+      if (!parsed || typeof parsed !== "object" || !("version" in parsed)) {
+        logger.error("StateManager restore: backup JSON is not valid DaemonState");
+        return false;
+      }
+
+      // Safety net — save current state before overwriting
+      const preRestorePath = path.join(this.baseDir, "state.pre-restore.json");
+      try {
+        fs.copyFileSync(this.statePath, preRestorePath);
+      } catch {
+        // If current state doesn't exist that's fine
+      }
+
+      // Write the backup data as the new state.json
+      await writeJsonFile(this.statePath, parsed);
+
+      // Reload into memory
+      this.state = recoverState(parsed);
+      this.emit("stateChanged", this.state);
+      logger.info(`StateManager restored state from backup ${backupIndex}`);
+      return true;
+    } catch (err) {
+      logger.error(`StateManager failed to restore from backup ${backupIndex}`, err);
+      return false;
+    }
   }
 
   /** Sync flush for use in signal handlers. */

@@ -40,6 +40,13 @@ import type {
   AgentToolDefinition,
 } from "./types.js";
 import { scopedAgentName, scopedWorkerName, bareNameFromScoped } from "./scoped-name.js";
+import {
+  shouldNotify,
+  createNotificationIssue,
+  DEFAULT_NOTIFICATION_CONFIG,
+  type NotificationConfig,
+  type NotificationEvent,
+} from "../github/index.js";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -54,6 +61,27 @@ export function chocolatierAgentName(repoName: string): string {
 }
 const DEFAULT_HEALTH_CHECK_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
 const DEFAULT_STUCK_THRESHOLD_MS = 15 * 60 * 1000; // 15 minutes
+const DEFAULT_WORKER_TIMEOUT_MS = 4 * 60 * 60 * 1000; // 4 hours
+
+/**
+ * Parse a human-readable timeout string (e.g. "4h", "30m", "1d", "2h30m") to milliseconds.
+ * Returns DEFAULT_WORKER_TIMEOUT_MS if parsing fails.
+ */
+export function parseTimeout(timeoutStr: string): number {
+  const pattern = /(\d+)\s*(d|h|m)/gi;
+  let totalMs = 0;
+  let match: RegExpExecArray | null;
+  while ((match = pattern.exec(timeoutStr)) !== null) {
+    const value = parseInt(match[1], 10);
+    const unit = match[2].toLowerCase();
+    switch (unit) {
+      case "d": totalMs += value * 24 * 60 * 60 * 1000; break;
+      case "h": totalMs += value * 60 * 60 * 1000; break;
+      case "m": totalMs += value * 60 * 1000; break;
+    }
+  }
+  return totalMs > 0 ? totalMs : DEFAULT_WORKER_TIMEOUT_MS;
+}
 
 // ---------------------------------------------------------------------------
 // System prompt
@@ -515,6 +543,29 @@ export class Chocolatier extends EventEmitter {
     });
   }
 
+  /**
+   * Fire-and-forget: create a GitHub notification issue if configured.
+   * Failures are logged but never block agent operations.
+   */
+  private fireNotification(event: NotificationEvent): void {
+    const repo = this.stateManager.getRepo(this.config.repoName);
+    if (!repo) return;
+
+    const notifConfig: NotificationConfig =
+      (repo as unknown as { config?: { notifications?: NotificationConfig } }).config?.notifications
+        ?? DEFAULT_NOTIFICATION_CONFIG;
+
+    if (!shouldNotify(notifConfig, event.type)) return;
+
+    event.timestamp = event.timestamp ?? new Date().toISOString();
+
+    const ctx = { repoPath: repo.localPath };
+    createNotificationIssue(ctx, event).catch((err) => {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error(`[Chocolatier] Notification failed: ${msg}`);
+    });
+  }
+
   // -----------------------------------------------------------------------
   // Message handling
   // -----------------------------------------------------------------------
@@ -661,6 +712,18 @@ export class Chocolatier extends EventEmitter {
         `Worker ${workerName} failed: ${payload.error}`,
         "error",
       );
+
+      // Fire-and-forget notification
+      this.fireNotification({
+        type: "worker.failed",
+        summary: `Worker ${workerName} failed`,
+        details: {
+          workerName,
+          task: payload.task,
+          error: payload.error,
+          recoverable: payload.recoverable,
+        },
+      });
     } catch {
       // Worker may have already been removed
     }
@@ -1021,6 +1084,71 @@ export class Chocolatier extends EventEmitter {
           console.error('[Chocolatier] Failed to nudge stuck worker:', err instanceof Error ? err.message : err);
         });
       }
+    }
+
+    // Enforce worker timeout
+    const workerTimeout = this.stateManager.getConfig().workerTimeout;
+    const timeoutMs = parseTimeout(workerTimeout);
+
+    for (const worker of workers) {
+      if (
+        worker.status === "completed" ||
+        worker.status === "failed" ||
+        worker.status === "terminated" ||
+        worker.status === "merged"
+      ) {
+        continue;
+      }
+
+      const elapsedMs = now - new Date(worker.createdAt).getTime();
+      if (elapsedMs <= timeoutMs) continue;
+
+      console.warn(`[Chocolatier] Worker ${worker.name} exceeded timeout (${workerTimeout})`);
+
+      try {
+        await this.stateManager.updateWorkerStatus(
+          repoName,
+          worker.name,
+          "terminated",
+          { error: "timeout_exceeded" },
+        );
+      } catch {
+        // Worker may already be updated
+      }
+
+      // Stop the worker's container if it has one
+      if (worker.containerId && !worker.containerId.startsWith("local:")) {
+        await this.containerManager.stop(worker.containerId).catch(err => {
+          console.error(`[Chocolatier] Failed to stop container for timed-out worker ${worker.name}:`, err instanceof Error ? err.message : err);
+        });
+      }
+
+      // Stop local worker runtime if applicable
+      await this.stopLocalWorker(worker.name).catch(() => {});
+
+      await this.broker.send({
+        type: MessageType.TASK_FAILED,
+        from: this.agentName,
+        to: scopedWorkerName(worker.name, repoName),
+        payload: {
+          error: `Worker exceeded timeout (${workerTimeout})`,
+          task: worker.task,
+          recoverable: false,
+        },
+      }).catch(err => {
+        console.error(`[Chocolatier] Failed to send TASK_FAILED for timed-out worker ${worker.name}:`, err instanceof Error ? err.message : err);
+      });
+
+      // Fire-and-forget notification for timeout
+      this.fireNotification({
+        type: "worker.timeout",
+        summary: `Worker ${worker.name} timed out`,
+        details: {
+          workerName: worker.name,
+          task: worker.task,
+          timeout: workerTimeout,
+        },
+      });
     }
 
     // Update agent last activity

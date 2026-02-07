@@ -20,6 +20,7 @@ import { getWorktreePath } from "../../git/worktree.js";
 import { chocolatierAgentName } from "../../agents/chocolatier.js";
 import { scopedWorkerName } from "../../agents/scoped-name.js";
 import { createApiError } from "../middleware/error-handler.js";
+import { resolveTemplate } from "../../api/v1/templates.js";
 
 interface RepoParams {
   repoName: string;
@@ -41,7 +42,18 @@ export function workerRoutes(
   // Sends SPAWN_WORKER message to Chocolatier which actually spawns the container
   router.post("/", async (req, res, next) => {
     const { repoName } = req.params as unknown as RepoParams;
-    const { task, branch, name, model, pushTo } = req.body ?? {};
+    let { task, branch, name, model, pushTo, templateId } = req.body ?? {};
+
+    // Resolve task from template if templateId is provided
+    if (templateId && !task) {
+      const template = resolveTemplate(templateId);
+      if (!template) {
+        next(createApiError(404, `Template "${templateId}" not found`));
+        return;
+      }
+      task = template.task;
+    }
+
     if (!task) {
       next(createApiError(400, "Missing required field: task"));
       return;

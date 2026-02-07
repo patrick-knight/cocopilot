@@ -34,6 +34,7 @@ export {
 
 export {
   type GitHubHelperContext,
+  type MergeabilityResult,
   createPR,
   listPRs,
   getCIStatus as getHelperCIStatus,
@@ -41,6 +42,7 @@ export {
   addLabels,
   getPRReviews,
   getRepoInfo,
+  checkMergeability,
 } from "./helpers.js";
 
 export {
@@ -48,3 +50,12 @@ export {
   configureMultiplayer,
   ownerAndRepoFromUrl,
 } from "./fork-detection.js";
+
+export {
+  type NotificationConfig,
+  type NotificationEvent,
+  DEFAULT_NOTIFICATION_EVENTS,
+  DEFAULT_NOTIFICATION_CONFIG,
+  shouldNotify,
+  createNotificationIssue,
+} from "./notifications.js";

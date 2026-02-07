@@ -112,6 +112,8 @@ export interface GlobalConfig {
   apiKeys?: ApiKeysConfig;
   /** Container resource limits. */
   containerLimits?: ContainerLimitsConfig;
+  /** Maximum number of state backup files to retain (default 5). */
+  maxStateBackups?: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -202,6 +204,17 @@ export interface UpstreamConfig {
   defaultBranch: string;
 }
 
+/** Reusable task template / preset for worker spawning. */
+export interface TaskTemplate {
+  id: string;
+  name: string;
+  description: string;
+  task: string;
+  category: string;
+  /** Populated at runtime to indicate origin ("builtin" | "repo"). */
+  source?: string;
+}
+
 export interface RepoConfig {
   mode?: RepoMode;
   model?: string;
@@ -211,6 +224,14 @@ export interface RepoConfig {
   upstream?: UpstreamConfig;
   customAgents?: CustomAgentDef[];
   mcpServers?: Record<string, McpServerConfig>;
+  /** Per-repo task templates that supplement or override built-in templates. */
+  templates?: TaskTemplate[];
+  /** GitHub Issues notification configuration. Disabled by default. */
+  notifications?: {
+    enabled: boolean;
+    events: string[];
+    labels?: string[];
+  };
 }
 
 // ---------------------------------------------------------------------------

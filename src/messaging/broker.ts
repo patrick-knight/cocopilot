@@ -4,10 +4,14 @@
  * Combines Redis pub/sub for real-time delivery with file-based persistence
  * for durability. Every message published via the broker is:
  *   1. Persisted to disk (FileMessageStore)
- *   2. Published via Redis pub/sub (RedisMessageBus)
+ *   2. Published via Redis pub/sub (RedisMessageBus) — if available
  *
  * On recovery (e.g., after a daemon restart), unacknowledged messages
  * are replayed to their subscribers so no messages are lost.
+ *
+ * If Redis becomes unavailable, the broker automatically falls back to
+ * file store only and polls for new messages. When Redis recovers, it
+ * resumes real-time delivery.
  */
 
 import { v4 as uuidv4 } from "uuid";
@@ -26,6 +30,14 @@ export interface MessageBrokerConfig {
   fileStore: FileStoreConfig;
 }
 
+export interface BrokerHealth {
+  redis: boolean;
+  fileStore: boolean;
+}
+
+const REDIS_RECONNECT_INTERVAL_MS = 30_000;
+const FILE_POLL_INTERVAL_MS = 5_000;
+
 /**
  * MessageBroker is the primary API for CoCoPilot's inter-agent messaging.
  * It coordinates real-time delivery (Redis) with durable persistence (files).
@@ -34,10 +46,29 @@ export class MessageBroker {
   private readonly bus: RedisMessageBus;
   private readonly store: FileMessageStore;
   private readonly agentHandlers: Map<string, MessageHandler> = new Map();
+  private redisAvailable = false;
+  private reconnectTimer: ReturnType<typeof setInterval> | null = null;
+  private pollTimer: ReturnType<typeof setInterval> | null = null;
+  // Track last poll time per agent to only deliver new messages
+  private lastPollTimestamps: Map<string, number> = new Map();
 
   constructor(config: MessageBrokerConfig) {
     this.bus = new RedisMessageBus(config.redis);
     this.store = new FileMessageStore(config.fileStore);
+
+    // Listen for Redis connection state changes
+    this.bus.onConnectionStateChange((connected) => {
+      if (connected && !this.redisAvailable) {
+        console.log("[MessageBroker] Redis connection recovered");
+        this.redisAvailable = true;
+        this.resubscribeAll().catch(() => {});
+        this.stopFilePolling();
+      } else if (!connected && this.redisAvailable) {
+        console.warn("[MessageBroker] Redis connection lost, falling back to file store");
+        this.redisAvailable = false;
+        this.startFilePolling();
+      }
+    });
   }
 
   /** Get the underlying message store (for API access to historical messages). */
@@ -47,12 +78,21 @@ export class MessageBroker {
 
   /** Connect to Redis. Must be called before publishing or subscribing. */
   async connect(): Promise<void> {
-    await this.bus.connect();
+    try {
+      await this.bus.connect();
+      this.redisAvailable = true;
+    } catch {
+      console.warn("[MessageBroker] Redis connect failed, operating in file-store-only mode");
+      this.redisAvailable = false;
+      this.startFilePolling();
+    }
+    this.startReconnectTimer();
   }
 
   /**
    * Create and send a message. The message is assigned a UUID and timestamp,
-   * persisted to disk, then published via Redis.
+   * persisted to disk, then published via Redis (if available).
+   * Returns the message as long as file store write succeeds.
    */
   async send<T extends MessageType>(
     options: CreateMessageOptions<T>,
@@ -68,9 +108,18 @@ export class MessageBroker {
       ack_required: options.ack_required ?? false,
     };
 
-    // Persist first for durability, then publish for real-time delivery
+    // Persist first for durability — this is the guarantee
     await this.store.save(message as CocoMessage);
-    await this.bus.publish(message as CocoMessage);
+
+    // Attempt Redis publish only if available
+    if (this.redisAvailable) {
+      const ok = await this.bus.publish(message as CocoMessage);
+      if (!ok) {
+        console.warn("[MessageBroker] Redis publish failed, marking unavailable");
+        this.redisAvailable = false;
+        this.startFilePolling();
+      }
+    }
 
     // Publish ALL messages to stream for Live Output visibility
     this.publishToStream(message as CocoMessage);
@@ -83,6 +132,8 @@ export class MessageBroker {
    * Extracts repoName from the scoped agent/worker names.
    */
   private publishToStream(message: CocoMessage): void {
+    if (!this.redisAvailable) return;
+
     // Extract repoName from scoped names (format: "agentType:repoName" or "workerName:repoName")
     const fromParts = message.from.split(":");
     const toParts = message.to.split(":");
@@ -154,20 +205,17 @@ export class MessageBroker {
     };
 
     // Fire-and-forget; don't block the message send
-    this.bus.publishRaw(channel, JSON.stringify(streamEvent)).catch(err => {
-      console.error('[MessageBroker] Failed to publish stream event:', err instanceof Error ? err.message : err);
-    });
+    this.bus.publishRaw(channel, JSON.stringify(streamEvent)).catch(() => {});
 
     // Also publish to a global messages channel for the repo
     const globalChannel = streamChannel(`messages:${repoName}`);
-    this.bus.publishRaw(globalChannel, JSON.stringify(streamEvent)).catch(err => {
-      console.error('[MessageBroker] Failed to publish to global channel:', err instanceof Error ? err.message : err);
-    });
+    this.bus.publishRaw(globalChannel, JSON.stringify(streamEvent)).catch(() => {});
   }
 
   /**
    * Subscribe an agent to receive messages. The handler is invoked for
    * both direct messages and broadcasts.
+   * If Redis is unavailable, falls back to file store polling.
    */
   async subscribe(agentName: string, handler: MessageHandler): Promise<void> {
     if (!agentName.includes(":")) {
@@ -177,13 +225,29 @@ export class MessageBroker {
       );
     }
     this.agentHandlers.set(agentName, handler);
-    await this.bus.subscribe(agentName, handler);
+    this.lastPollTimestamps.set(agentName, Date.now());
+
+    if (this.redisAvailable) {
+      const ok = await this.bus.subscribe(agentName, handler);
+      if (!ok) {
+        console.warn("[MessageBroker] Redis subscribe failed, falling back to file store polling");
+        this.redisAvailable = false;
+        this.startFilePolling();
+      }
+    } else {
+      this.startFilePolling();
+    }
   }
 
   /** Unsubscribe an agent from message delivery. */
   async unsubscribe(agentName: string): Promise<void> {
     this.agentHandlers.delete(agentName);
-    await this.bus.unsubscribe(agentName);
+    this.lastPollTimestamps.delete(agentName);
+    try {
+      await this.bus.unsubscribe(agentName);
+    } catch {
+      // Ignore Redis errors during unsubscribe
+    }
   }
 
   /**
@@ -255,9 +319,105 @@ export class MessageBroker {
     return this.bus;
   }
 
+  /** Return health status of broker subsystems. */
+  getHealth(): BrokerHealth {
+    return {
+      redis: this.redisAvailable,
+      fileStore: true, // file store is always available (local filesystem)
+    };
+  }
+
   /** Gracefully shut down the broker. */
   async close(): Promise<void> {
     this.agentHandlers.clear();
+    this.lastPollTimestamps.clear();
+    this.stopReconnectTimer();
+    this.stopFilePolling();
     await this.bus.close();
+  }
+
+  /** Re-subscribe all registered agents to Redis after reconnection. */
+  private async resubscribeAll(): Promise<void> {
+    for (const [agentName, handler] of this.agentHandlers) {
+      try {
+        await this.bus.subscribe(agentName, handler);
+      } catch {
+        // If resubscribe fails, remain in file-store-only mode
+        this.redisAvailable = false;
+        this.startFilePolling();
+        return;
+      }
+    }
+  }
+
+  /** Start periodic Redis reconnection attempts. */
+  private startReconnectTimer(): void {
+    if (this.reconnectTimer) return;
+    this.reconnectTimer = setInterval(async () => {
+      if (this.redisAvailable) return;
+      try {
+        await this.bus.connect();
+        console.log("[MessageBroker] Redis reconnected successfully");
+        this.redisAvailable = true;
+        await this.resubscribeAll();
+        this.stopFilePolling();
+      } catch {
+        // Still unavailable, will retry next interval
+      }
+    }, REDIS_RECONNECT_INTERVAL_MS);
+    // Don't block process exit
+    if (this.reconnectTimer && typeof this.reconnectTimer === "object" && "unref" in this.reconnectTimer) {
+      this.reconnectTimer.unref();
+    }
+  }
+
+  private stopReconnectTimer(): void {
+    if (this.reconnectTimer) {
+      clearInterval(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
+  }
+
+  /** Start polling file store for new messages when Redis is unavailable. */
+  private startFilePolling(): void {
+    if (this.pollTimer) return;
+    this.pollTimer = setInterval(async () => {
+      for (const [agentName, handler] of this.agentHandlers) {
+        try {
+          const lastTs = this.lastPollTimestamps.get(agentName) ?? 0;
+          const pending = await this.store.getPending(agentName);
+          const broadcasts = await this.store.getPendingBroadcasts();
+          const newMessages = [...pending, ...broadcasts]
+            .filter((m) => m.timestamp > lastTs)
+            .sort((a, b) => a.timestamp - b.timestamp);
+
+          for (const msg of newMessages) {
+            try {
+              await handler(msg);
+            } catch {
+              // Handler errors don't break polling
+            }
+          }
+
+          if (newMessages.length > 0) {
+            const maxTs = Math.max(...newMessages.map((m) => m.timestamp));
+            this.lastPollTimestamps.set(agentName, maxTs);
+          }
+        } catch {
+          // File store read errors don't break polling
+        }
+      }
+    }, FILE_POLL_INTERVAL_MS);
+    // Don't block process exit
+    if (this.pollTimer && typeof this.pollTimer === "object" && "unref" in this.pollTimer) {
+      this.pollTimer.unref();
+    }
+  }
+
+  private stopFilePolling(): void {
+    if (this.pollTimer) {
+      clearInterval(this.pollTimer);
+      this.pollTimer = null;
+    }
   }
 }
