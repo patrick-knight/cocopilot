@@ -643,35 +643,42 @@ export function useMessageQueue(repoName?: string, workers?: WorkerState[]): Mes
           // Continue to try worker-specific messages
         }
 
-        // Also fetch worker-specific messages if we have workers
+        // Fetch worker-specific messages in parallel if we have workers
         if (workers && workers.length > 0) {
-          for (const worker of workers.slice(0, 5)) {
-            try {
-              const res = await fetch(
-                `/api/v1/repositories/${encodeURIComponent(repoName)}/workers/${encodeURIComponent(worker.name)}/messages`
-              );
-              if (res.ok) {
-                const data = await res.json();
-                if (data.messages && Array.isArray(data.messages)) {
-                  for (const msg of data.messages) {
-                    // Avoid duplicates
-                    if (!allMessages.some((m) => m.id === msg.id)) {
-                      allMessages.push({
-                        id: msg.id,
-                        type: msg.type,
-                        from: msg.from,
-                        to: msg.to,
-                        priority: msg.priority || "normal",
-                        timestamp: new Date(msg.timestamp || Date.now()).getTime(),
-                        acked: msg.acked ?? msg.ack_received != null,
-                        payloadPreview: formatPayloadPreview(msg.payload),
-                      });
-                    }
+          const workerResults = await Promise.all(
+            workers.slice(0, 5).map(async (worker) => {
+              try {
+                const res = await fetch(
+                  `/api/v1/repositories/${encodeURIComponent(repoName)}/workers/${encodeURIComponent(worker.name)}/messages`
+                );
+                if (res.ok) {
+                  const data = await res.json();
+                  if (data.messages && Array.isArray(data.messages)) {
+                    return data.messages;
                   }
                 }
+              } catch {
+                // Skip this worker's messages on error
               }
-            } catch {
-              // Skip this worker's messages on error
+              return [];
+            })
+          );
+
+          for (const workerMessages of workerResults) {
+            for (const msg of workerMessages) {
+              // Avoid duplicates
+              if (!allMessages.some((m) => m.id === msg.id)) {
+                allMessages.push({
+                  id: msg.id,
+                  type: msg.type,
+                  from: msg.from,
+                  to: msg.to,
+                  priority: msg.priority || "normal",
+                  timestamp: new Date(msg.timestamp || Date.now()).getTime(),
+                  acked: msg.acked ?? msg.ack_received != null,
+                  payloadPreview: formatPayloadPreview(msg.payload),
+                });
+              }
             }
           }
         }

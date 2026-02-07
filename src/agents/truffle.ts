@@ -775,6 +775,15 @@ export class TruffleAgent extends EventEmitter<TruffleEvents> {
         }
         break;
       }
+      case MessageType.WORKER_CONTROL: {
+        const payload = message.payload as { action: string; reason?: string };
+        if (payload.action === "pause") {
+          await this.pause();
+        } else if (payload.action === "resume") {
+          await this.resume();
+        }
+        break;
+      }
       default:
         // Unknown or irrelevant message types are ignored
         break;

@@ -27,6 +27,7 @@ import { prRoutes } from "./routes/prs.js";
 import { eventsRoutes } from "./routes/events.js";
 import { createExtApiRouter } from "../api/index.js";
 import { metricsRoutes } from "../web/routes/metrics.js";
+import { waveRoutes } from "./routes/wave.js";
 import { waveReportRoutes } from "./routes/wave-reports.js";
 import { createSocketBridge } from "./socket-bridge.js";
 import { createStreamBridge } from "./stream-bridge.js";
@@ -96,6 +97,10 @@ export function createServer(deps: ServerDeps): CocoServer {
     api.use("/events", eventsRoutes(eventStore));
   }
   api.use("/metrics", metricsRoutes(stateManager));
+  api.use(
+    "/repositories/:repoName/wave",
+    waveRoutes(stateManager),
+  );
   api.use("/waves", waveReportRoutes(stateManager));
   app.use("/api/v1", api);
 

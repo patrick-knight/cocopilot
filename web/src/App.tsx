@@ -2,7 +2,7 @@
  * Main App component with routing
  */
 
-import React, { useState } from "react";
+import React, { useCallback, useState } from "react";
 import { Routes, Route, useNavigate, useParams } from "react-router-dom";
 import { TemperingStation } from "../../src/web/pages/TemperingStation.js";
 import { TruffleInspector } from "../../src/web/frontend/pages/TruffleInspector.js";
@@ -34,6 +34,17 @@ function TemperingStationPage() {
   const { socket } = useSocket();
   const [showSpawnModal, setShowSpawnModal] = useState(false);
 
+  const onNavigateHome = useCallback(() => navigate("/"), [navigate]);
+  const onNavigateWorker = useCallback(
+    (workerName: string) => navigate(`/repos/${repoName}/workers/${workerName}`),
+    [navigate, repoName],
+  );
+  const onSpawnWorker = useCallback(() => setShowSpawnModal(true), []);
+  const onClose = useCallback(() => setShowSpawnModal(false), []);
+  const onWorkerSpawned = useCallback((worker: { name: string }) => {
+    console.log("Worker spawned:", worker.name);
+  }, []);
+
   if (!repoName) {
     navigate("/");
     return null;
@@ -43,19 +54,17 @@ function TemperingStationPage() {
     <>
       <TemperingStation
         repoName={repoName}
-        onNavigateHome={() => navigate("/")}
-        onNavigateWorker={(workerName) => navigate(`/repos/${repoName}/workers/${workerName}`)}
-        onSpawnWorker={() => setShowSpawnModal(true)}
+        onNavigateHome={onNavigateHome}
+        onNavigateWorker={onNavigateWorker}
+        onSpawnWorker={onSpawnWorker}
       />
       <SpawnWorkerModal
         isOpen={showSpawnModal}
-        onClose={() => setShowSpawnModal(false)}
+        onClose={onClose}
         repositoryId={repoName}
         repositoryName={repoName}
         socket={socket}
-        onWorkerSpawned={(worker) => {
-          console.log("Worker spawned:", worker.name);
-        }}
+        onWorkerSpawned={onWorkerSpawned}
       />
     </>
   );
@@ -65,6 +74,8 @@ function TruffleInspectorPage() {
   const { repoName, workerName } = useParams<{ repoName: string; workerName: string }>();
   const navigate = useNavigate();
   const { socket } = useSocket();
+
+  const onBack = useCallback(() => navigate(`/repos/${repoName}`), [navigate, repoName]);
 
   if (!repoName || !workerName) {
     navigate("/");
@@ -77,7 +88,7 @@ function TruffleInspectorPage() {
       workerName={workerName}
       socket={socket}
       apiBase="/api/v1"
-      onBack={() => navigate(`/repos/${repoName}`)}
+      onBack={onBack}
     />
   );
 }
