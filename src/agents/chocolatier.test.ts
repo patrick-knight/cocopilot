@@ -10,7 +10,8 @@ import { ContainerStatus, ContainerType } from "../docker/index.js";
 import type { MessageBroker } from "../messaging/index.js";
 import { MessageType } from "../messaging/index.js";
 import type { CocoMessage } from "../messaging/index.js";
-import type { CocoConfig, RepoState } from "../types/index.js";
+import type { CocoConfig } from "../types/index.js";
+import type { GlobalConfig, RepoState } from "../state/schemas.js";
 
 // ---------------------------------------------------------------------------
 // Mocks
@@ -1033,11 +1034,19 @@ describe("Chocolatier", () => {
 
       stateManager.getConfig.mockReturnValue({
         workerTimeout: "4h",
-      } as Partial<CocoConfig>);
+        model: "claude-sonnet-4.5",
+      } as unknown as GlobalConfig);
 
       stateManager.getRepo.mockReturnValue({
         id: "repo-1",
         name: "test-repo",
+        url: "https://github.com/test/test-repo",
+        localPath: "/tmp/test-repo",
+        mode: "single-player",
+        status: "active",
+        defaultBranch: "main",
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
         workers: {
           Snickers: {
             id: "w-1",
@@ -1051,7 +1060,7 @@ describe("Chocolatier", () => {
           },
         },
         agents: {},
-      } as Partial<RepoState>);
+      } as unknown as Readonly<RepoState>);
 
       containerManager.list.mockResolvedValue([]);
       containerManager.stop.mockResolvedValue(undefined);
@@ -1082,11 +1091,19 @@ describe("Chocolatier", () => {
 
       stateManager.getConfig.mockReturnValue({
         workerTimeout: "4h",
-      } as Partial<CocoConfig>);
+        model: "claude-sonnet-4.5",
+      } as unknown as GlobalConfig);
 
       stateManager.getRepo.mockReturnValue({
         id: "repo-1",
         name: "test-repo",
+        url: "https://github.com/test/test-repo",
+        localPath: "/tmp/test-repo",
+        mode: "single-player",
+        status: "active",
+        defaultBranch: "main",
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
         workers: {
           Snickers: {
             id: "w-1",
@@ -1100,7 +1117,7 @@ describe("Chocolatier", () => {
           },
         },
         agents: {},
-      } as Partial<RepoState>);
+      } as unknown as Readonly<RepoState>);
 
       containerManager.list.mockResolvedValue([
         {
@@ -1130,11 +1147,19 @@ describe("Chocolatier", () => {
 
       stateManager.getConfig.mockReturnValue({
         workerTimeout: "4h",
-      } as Partial<CocoConfig>);
+        model: "claude-sonnet-4.5",
+      } as unknown as GlobalConfig);
 
       stateManager.getRepo.mockReturnValue({
         id: "repo-1",
         name: "test-repo",
+        url: "https://github.com/test/test-repo",
+        localPath: "/tmp/test-repo",
+        mode: "single-player",
+        status: "active",
+        defaultBranch: "main",
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
         workers: {
           Snickers: {
             id: "w-1",
@@ -1148,7 +1173,7 @@ describe("Chocolatier", () => {
           },
         },
         agents: {},
-      } as Partial<RepoState>);
+      } as unknown as Readonly<RepoState>);
 
       containerManager.list.mockResolvedValue([]);
       containerManager.stop.mockResolvedValue(undefined);
