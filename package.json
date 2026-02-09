@@ -55,7 +55,7 @@
     "@types/cors": "^2.8.19",
     "@types/dockerode": "^4.0.1",
     "@types/express": "^5.0.6",
-    "@types/ink": "^0.5.2",
+    "@types/ink": "^2.0.3",
     "@types/jest": "^30.0.0",
     "@types/node": "^25.1.0",
     "@types/node-cron": "^3.0.11",
