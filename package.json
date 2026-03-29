@@ -62,7 +62,6 @@
     "@types/react": "^19.2.10",
     "@types/react-dom": "^19.2.3",
     "@types/supertest": "^6.0.3",
-    "test-exclude": "^7.0.1",
     "@vitejs/plugin-react": "^5.1.2",
     "jest": "^30.2.0",
     "jest-environment-jsdom": "^30.2.0",
@@ -70,10 +69,14 @@
     "recharts": "^3.7.0",
     "supertest": "^7.2.2",
     "tailwindcss": "^4.1.18",
+    "test-exclude": "^7.0.1",
     "ts-jest": "^29.4.6",
     "tsx": "^4.21.0",
     "typescript": "^5.9.3",
     "vite": "^6.4.1"
   },
-  "license": "MIT"
+  "license": "MIT",
+  "overrides": {
+    "rollup": "^4.59.0"
+  }
 }
