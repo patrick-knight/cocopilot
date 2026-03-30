@@ -62,7 +62,7 @@
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "@types/supertest": "^6.0.3",
-    "@vitejs/plugin-react": "^5.1.2",
+    "@vitejs/plugin-react": "^6.0.1",
     "jest": "^30.3.0",
     "jest-environment-jsdom": "^30.3.0",
     "react-router-dom": "^7.13.2",
