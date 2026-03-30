@@ -61,7 +61,7 @@
     "@types/node-cron": "^3.0.11",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
-    "@types/supertest": "^6.0.3",
+    "@types/supertest": "^7.2.0",
     "@vitejs/plugin-react": "^5.1.2",
     "jest": "^30.3.0",
     "jest-environment-jsdom": "^30.3.0",
