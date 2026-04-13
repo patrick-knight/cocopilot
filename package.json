@@ -37,7 +37,7 @@
     "eventsource": "^4.1.0",
     "express": "^5.2.1",
     "helmet": "^8.1.0",
-    "ink": "^6.8.0",
+    "ink": "^7.0.0",
     "ink-select-input": "^6.2.0",
     "ink-spinner": "^5.0.0",
     "ink-text-input": "^6.0.0",
