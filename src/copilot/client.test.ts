@@ -456,7 +456,7 @@ describe("CopilotClientWrapper", () => {
         type: "assistant.usage",
         ephemeral: true,
         data: { inputTokens: 100, outputTokens: 50 },
-      });
+      } as SessionEvent);
 
       expect(bus.publish).not.toHaveBeenCalled();
     });

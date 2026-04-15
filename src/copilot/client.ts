@@ -10,6 +10,7 @@ import {
   CopilotClient,
   CopilotSession,
   defineTool,
+  approveAll,
 } from "@github/copilot-sdk";
 import type {
   SessionConfig,
@@ -108,6 +109,9 @@ export class CopilotClientWrapper {
       options.apiKey ?? this.config.apiKey,
     );
 
+    const permissionHandler =
+      options.onPermissionRequest ?? this.config.onPermissionRequest ?? approveAll;
+
     const sessionConfig: SessionConfig = {
       sessionId: options.sessionId,
       model: options.model ?? this.config.model,
@@ -119,8 +123,7 @@ export class CopilotClientWrapper {
           : undefined,
       systemMessage: options.systemMessage ?? this.config.systemMessage,
       provider: provider as SessionConfig["provider"],
-      onPermissionRequest:
-        options.onPermissionRequest ?? this.config.onPermissionRequest,
+      onPermissionRequest: permissionHandler,
     };
 
     const session = await this.client.createSession(sessionConfig);
@@ -162,7 +165,7 @@ export class CopilotClientWrapper {
       streaming: options.streaming ?? this.config.streaming,
       provider: resumeProvider as SessionConfig["provider"],
       onPermissionRequest:
-        options.onPermissionRequest ?? this.config.onPermissionRequest,
+        options.onPermissionRequest ?? this.config.onPermissionRequest ?? approveAll,
     });
 
     const unsubscribe = session.on((event: SessionEvent) => {
