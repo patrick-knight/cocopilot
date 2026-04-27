@@ -51,7 +51,7 @@
   },
   "devDependencies": {
     "@playwright/test": "^1.59.1",
-    "@tailwindcss/vite": "^4.2.2",
+    "@tailwindcss/vite": "^4.2.4",
     "@types/cors": "^2.8.19",
     "@types/dockerode": "^4.0.1",
     "@types/express": "^5.0.6",
@@ -65,15 +65,15 @@
     "@vitejs/plugin-react": "^6.0.1",
     "jest": "^30.3.0",
     "jest-environment-jsdom": "^30.3.0",
-    "react-router-dom": "^7.14.0",
+    "react-router-dom": "^7.14.2",
     "recharts": "^3.8.1",
     "supertest": "^7.2.2",
     "tailwindcss": "^4.1.18",
     "test-exclude": "^8.0.0",
     "ts-jest": "^29.4.9",
     "tsx": "^4.21.0",
-    "typescript": "^6.0.2",
-    "vite": "^8.0.8"
+    "typescript": "^6.0.3",
+    "vite": "^8.0.10"
   },
   "license": "MIT",
   "overrides": {
