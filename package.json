@@ -47,7 +47,7 @@
     "react-dom": "^19.2.5",
     "socket.io": "^4.8.3",
     "socket.io-client": "^4.8.3",
-    "uuid": "^13.0.0"
+    "uuid": "^13.0.2"
   },
   "devDependencies": {
     "@playwright/test": "^1.59.1",
@@ -77,6 +77,8 @@
   },
   "license": "MIT",
   "overrides": {
-    "rollup": "^4.59.0"
+    "rollup": "^4.59.0",
+    "protobufjs": "^7.5.6",
+    "@github/copilot": ">=1.0.43"
   }
 }
