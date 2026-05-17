@@ -79,6 +79,7 @@
   "overrides": {
     "rollup": "^4.59.0",
     "protobufjs": "^7.5.6",
-    "@github/copilot": ">=1.0.43"
+    "@github/copilot": ">=1.0.43",
+    "postcss": "^8.5.10"
   }
 }
