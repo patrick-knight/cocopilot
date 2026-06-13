@@ -33,7 +33,7 @@
     "chalk": "^5.4.1",
     "commander": "^14.0.3",
     "cors": "^2.8.6",
-    "dockerode": "^4.0.10",
+    "dockerode": "^5.0.0",
     "eventsource": "^4.1.0",
     "express": "^5.2.1",
     "helmet": "^8.1.0",
