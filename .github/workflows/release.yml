@@ -33,7 +33,7 @@ jobs:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
-          node-version: '22'
+          node-version: '23'
           cache: 'npm'
       - run: npm ci
       - run: npm test -- --forceExit
@@ -47,7 +47,7 @@ jobs:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
-          node-version: '22'
+          node-version: '23'
           cache: 'npm'
       - run: npm ci
       - run: npm run build
@@ -156,14 +156,19 @@ jobs:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
-          node-version: '22'
+          node-version: '23'
           cache: 'npm'
           registry-url: 'https://registry.npmjs.org'
       - run: npm ci
       - run: npm run build
+      - name: Pack npm package
+        id: npm-pack
+        run: |
+          TARBALL=$(npm pack --json | jq -r '.[0].filename')
+          echo "tarball=${TARBALL}" >> $GITHUB_OUTPUT
       - name: Publish to npm
         id: npm-publish
-        run: npm publish --access public
+        run: npm publish ${{ steps.npm-pack.outputs.tarball }} --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         continue-on-error: true
@@ -172,4 +177,4 @@ jobs:
         if: steps.npm-publish.outcome == 'success'
         uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be # v2
         with:
-          subject-path: '*.tgz'
+          subject-path: ${{ steps.npm-pack.outputs.tarball }}
