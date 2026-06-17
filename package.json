@@ -31,7 +31,7 @@
     "@github/copilot-sdk": "^1.0.1",
     "@types/eventsource": "^3.0.0",
     "chalk": "^5.4.1",
-    "commander": "^14.0.3",
+    "commander": "^15.0.0",
     "cors": "^2.8.6",
     "dockerode": "^5.0.0",
     "eventsource": "^4.1.0",
