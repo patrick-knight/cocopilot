@@ -56,7 +56,7 @@ export class LocalTruffleRuntime {
         // Set the working directory to the worker's worktree path
         // This ensures the Copilot CLI operates in the correct repository
         clientOptions: {
-          cwd: this.truffle.worktreePath,
+          workingDirectory: this.truffle.worktreePath,
         },
       },
       redisBus,

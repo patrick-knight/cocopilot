@@ -14,7 +14,6 @@ import type {
   SessionEventHandler,
   SystemMessageConfig,
   PermissionHandler,
-  ConnectionState,
 } from "@github/copilot-sdk";
 
 // Re-export SDK types consumers will need
@@ -23,12 +22,14 @@ export type {
   SessionEventHandler,
   Tool,
   MCPServerConfig,
-  ConnectionState,
   SystemMessageConfig,
   PermissionHandler,
   CopilotClientOptions,
   SessionConfig,
 };
+
+/** Connection state of the Copilot client wrapper. */
+export type ConnectionState = "connected" | "disconnected" | "connecting" | "error";
 
 /**
  * Custom API provider configuration (BYOK - Bring Your Own Key).
