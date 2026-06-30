@@ -16,7 +16,6 @@ import type {
   SessionConfig,
   SessionEvent,
   Tool,
-  ConnectionState,
 } from "@github/copilot-sdk";
 
 import type { RedisMessageBus } from "../messaging/redis-bus.js";
@@ -28,6 +27,7 @@ import type {
   StreamEvent,
   ConnectionStateHandler,
   ManagedSession,
+  ConnectionState,
 } from "./types.js";
 
 // Re-export defineTool for convenience
@@ -62,6 +62,7 @@ export class CopilotClientWrapper {
   private redisBus: RedisMessageBus | null;
   private sessions: Map<string, ManagedSession> = new Map();
   private connectionStateHandlers: Set<ConnectionStateHandler> = new Set();
+  private _connectionState: ConnectionState = "disconnected";
   private reconnectAttempts = 0;
   private reconnecting = false;
   private stopped = false;
@@ -223,10 +224,10 @@ export class CopilotClientWrapper {
   }
 
   /**
-   * Get the current connection state of the underlying client.
+   * Get the current connection state of the client wrapper.
    */
   getState(): ConnectionState {
-    return this.client.getState();
+    return this._connectionState;
   }
 
   /**
@@ -243,7 +244,7 @@ export class CopilotClientWrapper {
   /**
    * Ping the Copilot CLI server to verify connectivity.
    */
-  async ping(): Promise<{ message: string; timestamp: number }> {
+  async ping(): Promise<{ message: string; timestamp: string; protocolVersion?: number }> {
     return this.client.ping("cocopilot-health-check");
   }
 
@@ -517,6 +518,7 @@ export class CopilotClientWrapper {
     state: ConnectionState,
     error?: Error,
   ): void {
+    this._connectionState = state;
     for (const handler of this.connectionStateHandlers) {
       try {
         handler(state, error);
