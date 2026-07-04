@@ -56,7 +56,9 @@ const mockClient = {
   createSession: jest.fn().mockResolvedValue(mockSession),
   resumeSession: jest.fn().mockResolvedValue(mockSession),
   deleteSession: jest.fn().mockResolvedValue(undefined),
-  ping: jest.fn().mockResolvedValue({ message: "pong", timestamp: new Date().toISOString() }),
+  ping: jest
+    .fn()
+    .mockResolvedValue({ message: "pong", timestamp: String(Date.now()) }),
   listModels: jest.fn().mockResolvedValue([]),
   getLastSessionId: jest.fn().mockResolvedValue(undefined),
   listSessions: jest.fn().mockResolvedValue([]),
@@ -532,9 +534,14 @@ describe("CopilotClientWrapper", () => {
   });
 
   describe("connection state", () => {
-    it("should return disconnected state initially", () => {
+    it("should track state through the start/stop lifecycle", async () => {
       const wrapper = new CopilotClientWrapper(defaultConfig());
+      expect(wrapper.getState()).toBe("disconnected");
 
+      await wrapper.start();
+      expect(wrapper.getState()).toBe("connected");
+
+      await wrapper.stop();
       expect(wrapper.getState()).toBe("disconnected");
     });
 
