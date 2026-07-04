@@ -28,7 +28,14 @@ export type {
   SessionConfig,
 };
 
-/** Connection state of the Copilot client wrapper. */
+/**
+ * Connection state of the {@link CopilotClientWrapper} itself.
+ *
+ * This is a CoCoPilot-level concept (not re-exported from
+ * `@github/copilot-sdk`, which does not track connection lifecycle state)
+ * tracking whether the wrapper's underlying `CopilotClient` is connected,
+ * disconnected, (re)connecting, or has errored.
+ */
 export type ConnectionState = "connected" | "disconnected" | "connecting" | "error";
 
 /**
