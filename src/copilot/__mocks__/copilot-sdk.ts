@@ -36,12 +36,12 @@ export class CopilotClient {
 
   async deleteSession(_sessionId: string): Promise<void> {}
 
-  getState(): "connected" {
-    return "connected";
+  async ping(_message?: string): Promise<{ message: string; timestamp: string; protocolVersion?: number }> {
+    return { message: "pong", timestamp: new Date().toISOString() };
   }
 
-  async ping(_message?: string): Promise<{ message: string; timestamp: number }> {
-    return { message: "pong", timestamp: Date.now() };
+  async getStatus(): Promise<{ version: string; protocolVersion: number }> {
+    return { version: "1.0.0", protocolVersion: 1 };
   }
 
   async listModels(): Promise<unknown[]> {
