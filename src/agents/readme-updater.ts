@@ -19,6 +19,7 @@ import { promisify } from "node:util";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import cron from "node-cron";
+import type { ScheduledTask } from "node-cron";
 
 import { MessageBroker, MessageType } from "../messaging/index.js";
 import { scopedAgentName, scopedWorkerName } from "./scoped-name.js";
@@ -68,7 +69,7 @@ export class ReadmeUpdaterAgent extends EventEmitter<ReadmeUpdaterEvents> {
   private readonly broker: MessageBroker;
   private readonly stateManager: StateManager;
   private _isRunning = false;
-  private cronTask: cron.ScheduledTask | null = null;
+  private cronTask: ScheduledTask | null = null;
   private allCompletedAt: Date | null = null;
   private updateInProgress = false;
   private lastUpdateTime: Date | null = null;
