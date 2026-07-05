@@ -12,12 +12,7 @@ import {
   defineTool,
   approveAll,
 } from "@github/copilot-sdk";
-import type {
-  SessionConfig,
-  SessionEvent,
-  Tool,
-  ConnectionState,
-} from "@github/copilot-sdk";
+import type { SessionConfig, SessionEvent, Tool } from "@github/copilot-sdk";
 
 import type { RedisMessageBus } from "../messaging/redis-bus.js";
 import { streamChannel } from "../messaging/types.js";
@@ -26,6 +21,7 @@ import type {
   CopilotWrapperConfig,
   CopilotSessionOptions,
   StreamEvent,
+  ConnectionState,
   ConnectionStateHandler,
   ManagedSession,
 } from "./types.js";
@@ -65,6 +61,9 @@ export class CopilotClientWrapper {
   private reconnectAttempts = 0;
   private reconnecting = false;
   private stopped = false;
+  // Tracked locally: the SDK's CopilotClient no longer exposes a public
+  // getState() (its connection state is a private implementation detail).
+  private currentState: ConnectionState = "disconnected";
 
   constructor(config: CopilotWrapperConfig, redisBus?: RedisMessageBus) {
     this.config = {
@@ -223,10 +222,10 @@ export class CopilotClientWrapper {
   }
 
   /**
-   * Get the current connection state of the underlying client.
+   * Get the current connection state of the wrapper.
    */
   getState(): ConnectionState {
-    return this.client.getState();
+    return this.currentState;
   }
 
   /**
@@ -243,7 +242,11 @@ export class CopilotClientWrapper {
   /**
    * Ping the Copilot CLI server to verify connectivity.
    */
-  async ping(): Promise<{ message: string; timestamp: number }> {
+  async ping(): Promise<{
+    message: string;
+    timestamp: string;
+    protocolVersion?: number;
+  }> {
     return this.client.ping("cocopilot-health-check");
   }
 
@@ -517,6 +520,7 @@ export class CopilotClientWrapper {
     state: ConnectionState,
     error?: Error,
   ): void {
+    this.currentState = state;
     for (const handler of this.connectionStateHandlers) {
       try {
         handler(state, error);
