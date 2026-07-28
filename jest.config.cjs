@@ -1,6 +1,5 @@
-/** @type {import('ts-jest').JestConfigWithTsJest} */
+/** @type {import('@jest/types').Config.InitialOptions} */
 module.exports = {
-  preset: 'ts-jest',
   testEnvironment: 'node',
   setupFiles: ['<rootDir>/jest.setup.cjs'],
   roots: ['<rootDir>/src', '<rootDir>/tests'],
@@ -15,13 +14,23 @@ module.exports = {
     'node_modules/(?!uuid|@github/copilot-sdk|react-router|react-router-dom)/',
   ],
   transform: {
-     '^.+\\.[tj]sx?$': ['ts-jest', {
-       diagnostics: { ignoreCodes: [151002, 1343, 2307] },
-       tsconfig: {
-         jsx: 'react-jsx',
-         allowJs: true,
-         types: ['node', 'jest'],
-       },
-     }],
-   },
+    '^.+\\.[tj]sx?$': ['@swc/jest', {
+      jsc: {
+        target: 'es2022',
+        parser: {
+          syntax: 'typescript',
+          tsx: true,
+          decorators: true,
+        },
+        transform: {
+          react: {
+            runtime: 'automatic',
+          },
+        },
+      },
+      module: {
+        type: 'commonjs',
+      },
+    }],
+  },
 };
