@@ -28,13 +28,13 @@
     "postversion": "git push && git push --tags"
   },
   "dependencies": {
-    "@github/copilot-sdk": "^1.0.8",
+    "@github/copilot-sdk": "^1.0.9",
     "@types/eventsource": "^3.0.0",
     "chalk": "^6.0.0",
     "commander": "^15.0.0",
     "cors": "^2.8.6",
     "dockerode": "^5.0.0",
-    "eventsource": "^4.1.0",
+    "eventsource": "^4.1.1",
     "express": "^5.2.1",
     "helmet": "^8.3.0",
     "ink": "^7.1.1",
