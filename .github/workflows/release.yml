@@ -141,7 +141,7 @@ jobs:
             VERSION=${{ steps.version.outputs.version }}
 
       - name: Attest Docker image
-        uses: actions/attest-build-provenance@0f67c3f4856b2e3261c31976d6725780e5e4c373 # v4.1.1
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
           subject-name: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           subject-digest: ${{ steps.build.outputs.digest }}
@@ -175,6 +175,6 @@ jobs:
 
       - name: Attest npm package
         if: steps.npm-publish.outcome == 'success'
-        uses: actions/attest-build-provenance@0f67c3f4856b2e3261c31976d6725780e5e4c373 # v4.1.1
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
           subject-path: ${{ steps.npm-pack.outputs.tarball }}
