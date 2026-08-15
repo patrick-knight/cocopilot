@@ -41,7 +41,7 @@
     "ink-select-input": "^6.2.0",
     "ink-spinner": "^5.0.0",
     "ink-text-input": "^6.0.0",
-    "ioredis": "^5.11.1",
+    "ioredis": "^6.0.0",
     "node-cron": "^4.2.1",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
