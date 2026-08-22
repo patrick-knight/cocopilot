@@ -34,7 +34,7 @@
     "commander": "^15.0.0",
     "cors": "^2.8.6",
     "dockerode": "^5.0.0",
-    "eventsource": "^4.1.1",
+    "eventsource": "^5.1.0",
     "express": "^5.2.1",
     "helmet": "^8.3.0",
     "ink": "^7.1.1",
