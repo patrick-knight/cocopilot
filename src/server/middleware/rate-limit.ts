@@ -38,10 +38,15 @@ export function createRateLimiter(options: RateLimitOptions = {}) {
       return;
     }
 
-    // Bound memory if a large number of distinct clients send requests.
+    // Prune expired entries opportunistically, then evict oldest entries to cap memory.
     if (clients.size > 10_000) {
       for (const [clientKey, client] of clients) {
         if (now >= client.resetAt) clients.delete(clientKey);
+      }
+      while (clients.size > 10_000) {
+        const oldestKey = clients.keys().next().value as string | undefined;
+        if (!oldestKey) break;
+        clients.delete(oldestKey);
       }
     }
 
