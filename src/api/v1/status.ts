@@ -10,6 +10,7 @@
 import { Router } from "express";
 import { spawn } from "child_process";
 import type { StateManager } from "../../state/index.js";
+import { createRateLimiter } from "../../server/middleware/rate-limit.js";
 
 export interface StatusDeps {
   stateManager: StateManager;
@@ -115,7 +116,7 @@ export function extStatusRoutes(deps: StatusDeps): Router {
   const { stateManager, redisConnected } = deps;
   const router = Router();
 
-  router.get("/", async (_req, res) => {
+  router.get("/", createRateLimiter({ max: 30 }), async (_req, res) => {
     const daemonState = stateManager.getDaemonState();
     const repos = stateManager.getRepos();
 

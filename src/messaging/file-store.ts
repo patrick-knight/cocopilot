@@ -17,6 +17,18 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import { CocoMessage } from "./types.js";
 
+const SAFE_PATH_SEGMENT = /^[A-Za-z0-9_.:-]+$/;
+
+function isSafePathSegment(value: string): boolean {
+  return value !== "." && value !== ".." && SAFE_PATH_SEGMENT.test(value);
+}
+
+function assertSafePathSegment(value: string, description: string): void {
+  if (!isSafePathSegment(value)) {
+    throw new Error(`Invalid ${description}`);
+  }
+}
+
 export interface FileStoreConfig {
   /** Base directory for message files. */
   basePath: string;
@@ -41,7 +53,10 @@ export class FileMessageStore {
     const dir = this.agentDir(message.to === "*" ? "__broadcast__" : message.to);
     await fs.promises.mkdir(dir, { recursive: true });
 
-    const filePath = path.join(dir, `${message.id}.json`);
+    const filePath = this.messagePath(
+      message.to === "*" ? "__broadcast__" : message.to,
+      message.id,
+    );
     const tmpPath = `${filePath}.tmp`;
 
     // Atomic write: write to temp file, then rename
@@ -54,9 +69,8 @@ export class FileMessageStore {
    * and recording the acknowledgment timestamp.
    */
   async acknowledge(agentName: string, messageId: string): Promise<boolean> {
-    const dir = this.agentDir(agentName);
-    const srcPath = path.join(dir, `${messageId}.json`);
-    const ackPath = path.join(dir, `${messageId}.ack.json`);
+    const srcPath = this.messagePath(agentName, messageId);
+    const ackPath = this.messagePath(agentName, messageId, true);
 
     try {
       // Read, update ack timestamp, write ack file
@@ -123,6 +137,7 @@ export class FileMessageStore {
 
         for (const file of files) {
           if (!file.endsWith(".ack.json")) continue;
+          if (!isSafePathSegment(file)) continue;
 
           const filePath = path.join(dir, file);
           try {
@@ -148,9 +163,8 @@ export class FileMessageStore {
    * Delete a specific message file (pending or acknowledged).
    */
   async delete(agentName: string, messageId: string): Promise<boolean> {
-    const dir = this.agentDir(agentName);
-    const pending = path.join(dir, `${messageId}.json`);
-    const acked = path.join(dir, `${messageId}.ack.json`);
+    const pending = this.messagePath(agentName, messageId);
+    const acked = this.messagePath(agentName, messageId, true);
 
     let deleted = false;
     try {
@@ -216,7 +230,18 @@ export class FileMessageStore {
   }
 
   private agentDir(agentName: string): string {
+    assertSafePathSegment(agentName, "agent name");
     return path.join(this.basePath, agentName);
+  }
+
+  private messagePath(
+    agentName: string,
+    messageId: string,
+    acknowledged = false,
+  ): string {
+    const dir = this.agentDir(agentName);
+    assertSafePathSegment(messageId, "message id");
+    return path.join(dir, `${messageId}${acknowledged ? ".ack" : ""}.json`);
   }
 
   private async readMessagesFromDir(
@@ -229,6 +254,7 @@ export class FileMessageStore {
 
       for (const file of files) {
         if (!filter(file)) continue;
+        if (!isSafePathSegment(file)) continue;
         try {
           const raw = await fs.promises.readFile(path.join(dir, file), "utf-8");
           messages.push(JSON.parse(raw) as CocoMessage);

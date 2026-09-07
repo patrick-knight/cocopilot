@@ -19,6 +19,7 @@ import type { MessageBroker } from "../messaging/index.js";
 import type { RedisMessageBus } from "../messaging/index.js";
 
 import { errorHandler } from "./middleware/error-handler.js";
+import { createRateLimiter } from "./middleware/rate-limit.js";
 import { configRoutes } from "./routes/config.js";
 import { repositoryRoutes } from "./routes/repositories.js";
 import { workerRoutes } from "./routes/workers.js";
@@ -66,9 +67,7 @@ export function createServer(deps: ServerDeps): CocoServer {
     "http://localhost:3000",
     "http://127.0.0.1:3000",
   ];
-  app.use(helmet({
-    contentSecurityPolicy: false,
-  }));
+  app.use(helmet());
   app.use(cors({
     origin: allowedOrigins,
   }));
@@ -124,7 +123,7 @@ export function createServer(deps: ServerDeps): CocoServer {
 
   // Catch-all route to serve index.html for client-side routing
   // Must be after error handler and API routes
-  app.use((req, res) => {
+  app.use(createRateLimiter({ max: 120 }), (req, res) => {
     if (req.path.startsWith("/api")) {
       res.status(404).json({ error: "Not found" });
     } else {

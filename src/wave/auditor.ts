@@ -531,12 +531,12 @@ type ScannerFn = (
   dockerImage?: string,
 ) => Promise<ScanResult>;
 
-const SCANNER_MAP: Record<ScanKind, ScannerFn> = {
-  "npm-audit": (repoPath) => runNpmAudit(repoPath),
-  trivy: (repoPath, dockerImage) => runTrivy(repoPath, dockerImage),
-  codeql: (repoPath) => runCodeQL(repoPath),
-  gitleaks: (repoPath) => runGitleaks(repoPath),
-};
+const SCANNER_MAP: ReadonlyMap<ScanKind, ScannerFn> = new Map([
+  ["npm-audit", (repoPath) => runNpmAudit(repoPath)],
+  ["trivy", (repoPath, dockerImage) => runTrivy(repoPath, dockerImage)],
+  ["codeql", (repoPath) => runCodeQL(repoPath)],
+  ["gitleaks", (repoPath) => runGitleaks(repoPath)],
+]);
 
 // ---------------------------------------------------------------------------
 // WaveAuditor
@@ -561,7 +561,10 @@ export class WaveAuditor {
 
     // Run all scans concurrently
     const scanPromises = scanners.map((kind) => {
-      const fn = SCANNER_MAP[kind];
+      const fn = SCANNER_MAP.get(kind);
+      if (!fn) {
+        throw new Error(`Unsupported scanner: ${String(kind)}`);
+      }
       return fn(options.repoPath, options.dockerImage);
     });
 

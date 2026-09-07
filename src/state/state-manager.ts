@@ -93,6 +93,12 @@ const CANDY_NAMES = CANDY_ADJECTIVES.flatMap((adj) =>
   CANDY_NOUNS.map((noun) => `${adj}${noun}`)
 );
 
+const UNSAFE_STATE_KEYS = new Set(["__proto__", "constructor", "prototype"]);
+
+function isSafeStateKey(key: string): boolean {
+  return !UNSAFE_STATE_KEYS.has(key);
+}
+
 // ---------------------------------------------------------------------------
 // Events
 // ---------------------------------------------------------------------------
@@ -379,6 +385,9 @@ export class StateManager extends EventEmitter {
    * @returns true on success, false on failure.
    */
   async restoreFromBackup(backupIndex = 1): Promise<boolean> {
+    if (!Number.isInteger(backupIndex) || backupIndex < 1) {
+      return false;
+    }
     const src = this.backupPath(backupIndex);
 
     try {
@@ -478,6 +487,9 @@ export class StateManager extends EventEmitter {
   }
 
   getRepo(name: string): Readonly<RepoState> | undefined {
+    if (!isSafeStateKey(name) || !Object.hasOwn(this.state.repositories, name)) {
+      return undefined;
+    }
     return this.state.repositories[name];
   }
 
@@ -488,7 +500,7 @@ export class StateManager extends EventEmitter {
     mode: RepoMode;
     defaultBranch?: string;
   }): Promise<RepoState> {
-    if (this.state.repositories[opts.name]) {
+    if (!isSafeStateKey(opts.name) || Object.hasOwn(this.state.repositories, opts.name)) {
       throw new Error(`Repository "${opts.name}" is already tracked`);
     }
 
@@ -527,7 +539,7 @@ export class StateManager extends EventEmitter {
   }
 
   async removeRepo(name: string): Promise<void> {
-    if (!this.state.repositories[name]) {
+    if (!isSafeStateKey(name) || !Object.hasOwn(this.state.repositories, name)) {
       throw new Error(`Repository "${name}" is not tracked`);
     }
     await this.cleanupRepoDir(name);
@@ -552,7 +564,9 @@ export class StateManager extends EventEmitter {
   ): Promise<AgentState> {
     const repo = this.requireRepo(repoName);
     const now = new Date().toISOString();
-    const existing = repo.agents[opts.name];
+    const existing = isSafeStateKey(opts.name) && Object.hasOwn(repo.agents, opts.name)
+      ? repo.agents[opts.name]
+      : undefined;
     const agent: AgentState = {
       name: opts.name,
       type: opts.type,
@@ -561,6 +575,9 @@ export class StateManager extends EventEmitter {
       lastActivity: now,
       startedAt: existing?.startedAt ?? now,
     };
+    if (!isSafeStateKey(opts.name)) {
+      throw new Error(`Invalid agent name "${opts.name}"`);
+    }
     repo.agents[opts.name] = agent;
     repo.updatedAt = now;
     await this.persistState();
@@ -576,7 +593,9 @@ export class StateManager extends EventEmitter {
     error?: string,
   ): Promise<AgentState> {
     const repo = this.requireRepo(repoName);
-    const agent = repo.agents[agentName];
+    const agent = isSafeStateKey(agentName) && Object.hasOwn(repo.agents, agentName)
+      ? repo.agents[agentName]
+      : undefined;
     if (!agent) {
       throw new Error(
         `Agent "${agentName}" not found in repo "${repoName}"`,
@@ -631,7 +650,7 @@ export class StateManager extends EventEmitter {
     const repo = this.requireRepo(repoName);
     const name = opts.name ?? this.nextWorkerName(repoName);
 
-    if (repo.workers[name]) {
+    if (!isSafeStateKey(name) || Object.hasOwn(repo.workers, name)) {
       throw new Error(
         `Worker "${name}" already exists in repo "${repoName}"`,
       );
@@ -697,7 +716,7 @@ export class StateManager extends EventEmitter {
 
   async removeWorker(repoName: string, workerName: string): Promise<void> {
     const repo = this.requireRepo(repoName);
-    if (!repo.workers[workerName]) {
+    if (!isSafeStateKey(workerName) || !Object.hasOwn(repo.workers, workerName)) {
       throw new Error(
         `Worker "${workerName}" not found in repo "${repoName}"`,
       );
@@ -730,7 +749,13 @@ export class StateManager extends EventEmitter {
     repoName: string,
     workerName: string,
   ): Readonly<WorkerState> | undefined {
-    return this.state.repositories[repoName]?.workers[workerName];
+    if (!isSafeStateKey(repoName) || !isSafeStateKey(workerName)) {
+      return undefined;
+    }
+    const repo = this.getRepo(repoName);
+    return repo && Object.hasOwn(repo.workers, workerName)
+      ? repo.workers[workerName]
+      : undefined;
   }
 
   /**
@@ -753,6 +778,9 @@ export class StateManager extends EventEmitter {
   }
 
   private requireRepo(name: string): RepoState {
+    if (!isSafeStateKey(name) || !Object.hasOwn(this.state.repositories, name)) {
+      throw new Error(`Repository "${name}" is not tracked`);
+    }
     const repo = this.state.repositories[name];
     if (!repo) {
       throw new Error(`Repository "${name}" is not tracked`);
@@ -762,6 +790,11 @@ export class StateManager extends EventEmitter {
 
   private requireWorker(repoName: string, workerName: string): WorkerState {
     const repo = this.requireRepo(repoName);
+    if (!isSafeStateKey(workerName) || !Object.hasOwn(repo.workers, workerName)) {
+      throw new Error(
+        `Worker "${workerName}" not found in repo "${repoName}"`,
+      );
+    }
     const worker = repo.workers[workerName];
     if (!worker) {
       throw new Error(
