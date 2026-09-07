@@ -45,7 +45,29 @@ const COCOPILOT_BASE = path.join(
  * Path format: `~/.cocopilot/repos/<repoName>/worktrees/<workerName>/`
  */
 export function getWorktreePath(repoName: string, workerName: string): string {
-  return path.join(COCOPILOT_BASE, "repos", repoName, "worktrees", workerName);
+  if (
+    !repoName ||
+    !workerName ||
+    repoName.includes("/") ||
+    repoName.includes("\\") ||
+    workerName.includes("/") ||
+    workerName.includes("\\") ||
+    path.basename(repoName) !== repoName ||
+    path.basename(workerName) !== workerName ||
+    repoName === "." ||
+    repoName === ".." ||
+    workerName === "." ||
+    workerName === ".."
+  ) {
+    throw new Error("Invalid repository or worker name");
+  }
+
+  const reposRoot = path.resolve(COCOPILOT_BASE, "repos");
+  const worktreePath = path.resolve(reposRoot, repoName, "worktrees", workerName);
+  if (!worktreePath.startsWith(`${reposRoot}${path.sep}`)) {
+    throw new Error("Invalid worktree path");
+  }
+  return worktreePath;
 }
 
 // ---------------------------------------------------------------------------

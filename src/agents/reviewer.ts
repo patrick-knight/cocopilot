@@ -203,12 +203,23 @@ export class ReviewerAgent extends EventEmitter<ReviewerEvents> {
       { pattern: /exec\s*\(\s*[`"'].*\$\{/gi, message: "Potential command injection", blocking: true },
     ];
 
-    // Parse diff to extract file names and content
-    const filePattern = /^diff --git a\/(.+?) b\/(.+?)$/gm;
-    let match;
+    // Parse diff headers without a backtracking regular expression. Diff
+    // contents are supplied by an external command and may be very large.
     const files: string[] = [];
-    while ((match = filePattern.exec(diff)) !== null) {
-      files.push(match[2]);
+    const diffHeader = "diff --git a/";
+    const maxFiles = 1_000;
+    let offset = 0;
+    while (offset <= diff.length && files.length < maxFiles) {
+      const lineEnd = diff.indexOf("\n", offset);
+      const line = diff.slice(offset, lineEnd === -1 ? diff.length : lineEnd);
+      if (line.startsWith(diffHeader)) {
+        const separator = line.indexOf(" b/", diffHeader.length);
+        if (separator !== -1) {
+          files.push(line.slice(separator + 3));
+        }
+      }
+      if (lineEnd === -1) break;
+      offset = lineEnd + 1;
     }
 
     // Check for security issues

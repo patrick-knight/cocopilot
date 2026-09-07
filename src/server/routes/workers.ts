@@ -20,6 +20,7 @@ import { getWorktreePath } from "../../git/worktree.js";
 import { chocolatierAgentName } from "../../agents/chocolatier.js";
 import { scopedWorkerName } from "../../agents/scoped-name.js";
 import { createApiError } from "../middleware/error-handler.js";
+import { createRateLimiter } from "../middleware/rate-limit.js";
 import { resolveTemplate } from "../../api/v1/templates.js";
 import type { TaskTemplate } from "../../state/schemas.js";
 import { loadRepoConfig } from "../../utils/index.js";
@@ -39,6 +40,7 @@ export function workerRoutes(
 ): Router {
   const router = Router({ mergeParams: true });
   const execFileAsync = promisify(execFile);
+  router.use(createRateLimiter({ max: 60 }));
 
   // POST /repositories/:repoName/workers -- Spawn worker
   // Sends SPAWN_WORKER message to Chocolatier which actually spawns the container
