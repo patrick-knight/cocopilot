@@ -155,6 +155,17 @@ describe("repos", () => {
     ).rejects.toThrow("already tracked");
   });
 
+  it("addRepo rejects unsafe names with a validation error", async () => {
+    await expect(
+      sm.addRepo({
+        name: "__proto__",
+        url: "https://github.com/org/unsafe",
+        localPath: "/tmp/unsafe",
+        mode: "single-player",
+      }),
+    ).rejects.toThrow('Invalid repository name "__proto__"');
+  });
+
   it("updateRepoStatus changes status", async () => {
     await sm.addRepo({
       name: "r",

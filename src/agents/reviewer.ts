@@ -207,12 +207,19 @@ export class ReviewerAgent extends EventEmitter<ReviewerEvents> {
     // contents are supplied by an external command and may be very large.
     const files: string[] = [];
     const diffHeader = "diff --git a/";
-    for (const line of diff.split("\n")) {
-      if (!line.startsWith(diffHeader)) continue;
-      const separator = line.indexOf(" b/", diffHeader.length);
-      if (separator !== -1) {
-        files.push(line.slice(separator + 3));
+    const maxFiles = 1_000;
+    let offset = 0;
+    while (offset <= diff.length && files.length < maxFiles) {
+      const lineEnd = diff.indexOf("\n", offset);
+      const line = diff.slice(offset, lineEnd === -1 ? diff.length : lineEnd);
+      if (line.startsWith(diffHeader)) {
+        const separator = line.indexOf(" b/", diffHeader.length);
+        if (separator !== -1) {
+          files.push(line.slice(separator + 3));
+        }
       }
+      if (lineEnd === -1) break;
+      offset = lineEnd + 1;
     }
 
     // Check for security issues

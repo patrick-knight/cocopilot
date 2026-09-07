@@ -500,7 +500,10 @@ export class StateManager extends EventEmitter {
     mode: RepoMode;
     defaultBranch?: string;
   }): Promise<RepoState> {
-    if (!isSafeStateKey(opts.name) || Object.hasOwn(this.state.repositories, opts.name)) {
+    if (!isSafeStateKey(opts.name)) {
+      throw new Error(`Invalid repository name "${opts.name}"`);
+    }
+    if (Object.hasOwn(this.state.repositories, opts.name)) {
       throw new Error(`Repository "${opts.name}" is already tracked`);
     }
 
