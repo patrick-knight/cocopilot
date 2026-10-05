@@ -57,7 +57,7 @@
     "@types/express": "^5.0.6",
     "@types/ink": "^2.0.3",
     "@types/jest": "^30.0.0",
-    "@types/node": "^26.6.2",
+    "@types/node": "^26.6.4",
     "@types/node-cron": "^3.0.11",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
@@ -70,11 +70,11 @@
     "supertest": "^7.3.0",
     "tailwindcss": "^4.1.18",
     "test-exclude": "^8.0.0",
-    "@swc/core": "^1.16.2",
+    "@swc/core": "^1.16.13",
     "@swc/jest": "^0.2.39",
     "tsx": "^4.23.15",
     "typescript": "^7.0.2",
-    "vite": "^8.3.1"
+    "vite": "^8.3.2"
   },
   "license": "MIT",
   "overrides": {
