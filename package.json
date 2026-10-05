@@ -28,9 +28,9 @@
     "postversion": "git push && git push --tags"
   },
   "dependencies": {
-    "@github/copilot-sdk": "^1.0.14",
+    "@github/copilot-sdk": "^1.0.16",
     "@types/eventsource": "^3.0.0",
-    "chalk": "^6.0.0",
+    "chalk": "^6.0.1",
     "commander": "^15.0.0",
     "cors": "^2.8.6",
     "dockerode": "^5.0.0",
@@ -45,8 +45,8 @@
     "node-cron": "^4.2.1",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
-    "socket.io": "^4.8.3",
-    "socket.io-client": "^4.8.3",
+    "socket.io": "^4.8.4",
+    "socket.io-client": "^4.8.4",
     "uuid": "^14.0.2"
   },
   "devDependencies": {
