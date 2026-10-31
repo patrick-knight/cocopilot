@@ -70,11 +70,11 @@
     "supertest": "^7.3.1",
     "tailwindcss": "^4.1.18",
     "test-exclude": "^8.0.0",
-    "@swc/core": "^1.16.18",
+    "@swc/core": "^1.16.20",
     "@swc/jest": "^0.2.39",
     "tsx": "^4.23.15",
     "typescript": "^7.0.2",
-    "vite": "^8.3.4"
+    "vite": "^8.3.5"
   },
   "license": "MIT",
   "overrides": {
