@@ -28,13 +28,13 @@
     "postversion": "git push && git push --tags"
   },
   "dependencies": {
-    "@github/copilot-sdk": "^1.0.26",
+    "@github/copilot-sdk": "^1.0.30",
     "@types/eventsource": "^3.0.0",
     "chalk": "^6.0.1",
-    "commander": "^15.0.0",
+    "commander": "^15.1.0",
     "cors": "^2.8.6",
-    "dockerode": "^5.0.0",
-    "eventsource": "^5.1.3",
+    "dockerode": "^5.0.1",
+    "eventsource": "^5.1.5",
     "express": "^5.3.0",
     "helmet": "^8.3.0",
     "ink": "^8.0.0",
@@ -42,7 +42,7 @@
     "ink-spinner": "^5.0.0",
     "ink-text-input": "^6.0.0",
     "ioredis": "^6.0.0",
-    "node-cron": "^4.2.1",
+    "node-cron": "^4.6.0",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
     "socket.io": "^4.8.4",
@@ -50,31 +50,31 @@
     "uuid": "^14.0.3"
   },
   "devDependencies": {
-    "@playwright/test": "^1.64.1",
-    "@tailwindcss/vite": "^4.3.3",
+    "@playwright/test": "^1.65.0",
+    "@tailwindcss/vite": "^4.3.5",
     "@types/cors": "^2.8.19",
     "@types/dockerode": "^4.0.2",
     "@types/express": "^5.0.6",
     "@types/ink": "^2.0.3",
     "@types/jest": "^30.0.0",
-    "@types/node": "^26.6.5",
+    "@types/node": "^26.6.6",
     "@types/node-cron": "^3.0.11",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "@types/supertest": "^7.2.1",
-    "@vitejs/plugin-react": "^6.1.2",
+    "@vitejs/plugin-react": "^6.3.0",
     "jest": "^30.5.2",
     "jest-environment-jsdom": "^30.5.2",
-    "react-router-dom": "^7.18.4",
+    "react-router-dom": "^7.18.5",
     "recharts": "^3.10.1",
-    "supertest": "^7.3.1",
-    "tailwindcss": "^4.1.18",
+    "supertest": "^7.3.2",
+    "tailwindcss": "^4.3.5",
     "test-exclude": "^8.0.0",
-    "@swc/core": "^1.16.20",
+    "@swc/core": "^1.16.22",
     "@swc/jest": "^0.2.39",
     "tsx": "^4.23.15",
     "typescript": "^7.0.2",
-    "vite": "^8.3.5"
+    "vite": "^8.3.7"
   },
   "license": "MIT",
   "overrides": {
@@ -82,6 +82,8 @@
     "protobufjs": "^7.5.6",
     "@github/copilot": ">=1.0.43",
     "postcss": "^8.5.10",
-    "zod": "4.6.7"
+    "zod": "4.6.7",
+    "glob": "^14.0.2",
+    "minimatch": "^11.0.1"
   }
 }
